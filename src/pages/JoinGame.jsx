@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
+import { generatePlayerName } from '../lib/nameGenerator';
 
 const JoinGame = () => {
   const { gameId } = useParams();
@@ -88,13 +89,9 @@ const JoinGame = () => {
     const { error: joinError } = await supabase.from('players').insert({
       game_id: gameId,
       user_id: user.id,
-      username:
-        user.user_metadata?.username ||
-        `Player${Math.floor(Math.random() * 1000)}`,
-      cash: 0, // Initial values will be set when game starts
-      location: 'downtown', // Default starting location
-      inventory: [],
-      loans: [],
+      username: user.user_metadata?.username || generatePlayerName(),
+      cash: 0,
+      location: 'downtown',
     });
 
     if (joinError) {

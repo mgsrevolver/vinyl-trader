@@ -9,6 +9,7 @@ import {
   tryAnonymousSignIn,
 } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { generatePlayerName } from '../lib/nameGenerator';
 
 const AuthContext = createContext();
 
@@ -101,7 +102,10 @@ export function AuthProvider({ children }) {
   // Play instantly function
   const playInstantly = async () => {
     try {
-      const { data, error, username } = await signInAnonymously();
+      // Generate a username first so we can use it consistently
+      const generatedUsername = generatePlayerName();
+
+      const { data, error } = await signInAnonymously(generatedUsername);
 
       if (error) {
         console.error('Play instantly error:', error);
@@ -109,8 +113,9 @@ export function AuthProvider({ children }) {
         return { success: false, error };
       }
 
-      toast.success(`Welcome ${username}! You can play instantly!`);
-      return { success: true, data, username };
+      // Use the same username that was generated
+      toast.success(`Welcome ${generatedUsername}! You can play instantly!`);
+      return { success: true, data, username: generatedUsername };
     } catch (error) {
       console.error('Unexpected error during instant play:', error);
       toast.error('An unexpected error occurred');

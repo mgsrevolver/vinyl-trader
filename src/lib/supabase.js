@@ -84,65 +84,53 @@ const generateUsername = () => {
   return `${adjective}${noun}${randomNum}`;
 };
 
-// Play instantly with an anonymous session
-export const signInAnonymously = async () => {
+/**
+ * Sign in anonymously with a generated username
+ * @param {string} username The username to use for the anonymous user
+ * @returns {Promise<Object>} The result of the sign-in attempt
+ */
+export const signInAnonymously = async (username) => {
   try {
-    // First test if we can make any auth request
-    const { data: sessionData, error: sessionError } =
-      await supabase.auth.getSession();
-
-    if (sessionError) {
-      console.error('Session check failed:', sessionError);
-      return { error: sessionError };
-    }
-
-    console.log('Session check successful, attempting anonymous sign-in');
-
-    // Generate a random username
-    const username = generateUsername();
-
-    // Use Supabase's signInAnonymously method
+    // Use Supabase's proper anonymous sign-in method
     const { data, error } = await supabase.auth.signInAnonymously();
 
-    if (error) {
-      console.error('Anonymous sign-in error:', error);
-      return { error };
+    if (error) throw error;
+
+    // Update the user's metadata to include the username
+    if (data?.user) {
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: { username: username },
+      });
+
+      if (updateError) console.error('Error updating username:', updateError);
     }
 
-    console.log('Anonymous sign-in successful:', data);
-
-    return { data, username };
+    return { data, error: null, username };
   } catch (error) {
-    console.error('Anonymous sign-in exception:', error);
-    return { error };
+    console.error('Error signing in anonymously:', error);
+    return { data: null, error, username: null };
   }
 };
 
-// Check if user has anonymous credentials and try to sign in with them
+/**
+ * Try to sign in with stored anonymous credentials
+ * @returns {Promise<Object>} The result of the sign-in attempt
+ */
 export const tryAnonymousSignIn = async () => {
-  const storedAuth = localStorage.getItem('anonymousAuth');
+  try {
+    // Check if we have a session already
+    const { data: sessionData } = await supabase.auth.getSession();
 
-  if (storedAuth) {
-    try {
-      const { email, password } = JSON.parse(storedAuth);
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      return { data, error };
-    } catch (error) {
-      console.error(
-        'Error signing in with stored anonymous credentials:',
-        error
-      );
-      // If there's an error, remove the stored credentials
-      localStorage.removeItem('anonymousAuth');
-      return { error };
+    if (sessionData?.session) {
+      return { data: sessionData, error: null };
     }
-  }
 
-  return { data: null, error: null };
+    // No existing session, return null
+    return { data: null, error: null };
+  } catch (error) {
+    console.error('Error trying anonymous sign-in:', error);
+    return { data: null, error };
+  }
 };
 
 // Game-related helpers will be added here as we develop

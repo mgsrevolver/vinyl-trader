@@ -10,6 +10,7 @@ import {
   FaTimes,
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
+import { generatePlayerName, generateGameName } from '../lib/nameGenerator';
 
 const Dashboard = () => {
   const { user, logout, fetchUserGames } = useAuth();
@@ -108,6 +109,11 @@ const Dashboard = () => {
     }
   };
 
+  const handleOpenNewGameModal = () => {
+    setGameName(generateGameName());
+    setShowNewGameModal(true);
+  };
+
   const handleCreateGame = async () => {
     if (!user) return;
 
@@ -115,7 +121,7 @@ const Dashboard = () => {
       setCreateLoading(true);
 
       // Use the gameName from the form, or create a default name if empty
-      const gameNameToUse = gameName.trim() || `${username || 'Player'}'s Game`;
+      const gameNameToUse = gameName.trim() || generateGameName();
 
       // Create a new game with the name field included
       const { data: gameData, error: gameError } = await supabase
@@ -125,7 +131,6 @@ const Dashboard = () => {
           status: 'waiting',
           current_day: 0,
           name: gameNameToUse,
-          // max_days defaults to 30 in the database
         })
         .select()
         .single();
@@ -140,14 +145,9 @@ const Dashboard = () => {
       const { error: playerError } = await supabase.from('players').insert({
         game_id: gameData.id,
         user_id: user.id,
-        username:
-          user.user_metadata?.username ||
-          `Player${Math.floor(Math.random() * 1000)}`,
+        username: user.user_metadata?.username || generatePlayerName(),
         cash: 0,
         location: 'downtown',
-        // loan_amount defaults to 2000 in the database
-        // loan_interest_rate defaults to 5.0 in the database
-        // inventory_capacity defaults to 100 in the database
       });
 
       if (playerError) {
@@ -314,7 +314,7 @@ const Dashboard = () => {
             Your Games
           </h1>
           <button
-            onClick={() => setShowNewGameModal(true)}
+            onClick={handleOpenNewGameModal}
             className="btn btn-primary flex items-center"
           >
             <FaPlus className="mr-2" /> New Game
