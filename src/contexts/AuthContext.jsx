@@ -118,6 +118,52 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Add a function to fetch user games that bypasses RLS issues
+  const fetchUserGames = async (userId) => {
+    if (!userId) return { activeGames: [], completedGames: [] };
+
+    try {
+      // First try to get the user's player records directly from the client
+      const { data: playerRecords, error: playerError } = await supabase.rpc(
+        'get_player_records_for_user',
+        { user_id_param: userId }
+      );
+
+      if (playerError) {
+        console.error('Error fetching player records:', playerError);
+        return { activeGames: [], completedGames: [], error: playerError };
+      }
+
+      if (!playerRecords || playerRecords.length === 0) {
+        return { activeGames: [], completedGames: [], noGames: true };
+      }
+
+      // Get the game data for each player record
+      const { data: gameData, error: gameError } = await supabase.rpc(
+        'get_games_for_user',
+        { user_id_param: userId }
+      );
+
+      if (gameError) {
+        console.error('Error fetching games:', gameError);
+        return { activeGames: [], completedGames: [], error: gameError };
+      }
+
+      // Process the game data
+      const activeGames = gameData.filter(
+        (game) => game.status !== 'completed'
+      );
+      const completedGames = gameData.filter(
+        (game) => game.status === 'completed'
+      );
+
+      return { activeGames, completedGames };
+    } catch (error) {
+      console.error('Error in fetchUserGames:', error);
+      return { activeGames: [], completedGames: [], error };
+    }
+  };
+
   // Logout function
   const logout = async () => {
     try {
@@ -143,6 +189,7 @@ export function AuthProvider({ children }) {
     register,
     logout,
     playInstantly,
+    fetchUserGames,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

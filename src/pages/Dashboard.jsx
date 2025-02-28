@@ -12,7 +12,7 @@ import {
 import toast from 'react-hot-toast';
 
 const Dashboard = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, fetchUserGames } = useAuth();
   const navigate = useNavigate();
 
   const [activeGames, setActiveGames] = useState([]);
@@ -23,6 +23,7 @@ const Dashboard = () => {
   const [gameName, setGameName] = useState('');
   const [joinLoading, setJoinLoading] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
+  const [username, setUsername] = useState('');
 
   const handleLogout = async () => {
     await logout();
@@ -30,7 +31,14 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    loadGames();
+    if (user) {
+      loadGames();
+    }
+
+    // Set username from user metadata
+    if (user && user.user_metadata && user.user_metadata.username) {
+      setUsername(user.user_metadata.username);
+    }
 
     // Set up realtime subscription for game updates
     const gamesSubscription = supabase
@@ -60,51 +68,25 @@ const Dashboard = () => {
     try {
       setLoading(true);
 
-      // Get games where user is a player
-      const { data: playersData, error: playersError } = await supabase
-        .from('players')
-        .select('game_id')
-        .eq('user_id', user.id);
+      // Use the new function from AuthContext
+      const {
+        activeGames: active,
+        completedGames: completed,
+        noGames,
+        error,
+      } = await fetchUserGames(user.id);
 
-      if (playersError) throw playersError;
+      if (error) {
+        throw error;
+      }
 
-      const gameIds = playersData.map((p) => p.game_id);
+      setActiveGames(active || []);
+      setCompletedGames(completed || []);
 
-      if (gameIds.length > 0) {
-        // Get active games
-        const { data: activeData, error: activeError } = await supabase
-          .from('games')
-          .select(
-            `
-            *,
-            players!inner(*)
-          `
-          )
-          .in('id', gameIds)
-          .neq('status', 'completed')
-          .order('updated_at', { ascending: false });
-
-        if (activeError) throw activeError;
-        setActiveGames(activeData || []);
-
-        // Get completed games
-        const { data: completedData, error: completedError } = await supabase
-          .from('games')
-          .select(
-            `
-            *,
-            players!inner(*)
-          `
-          )
-          .in('id', gameIds)
-          .eq('status', 'completed')
-          .order('updated_at', { ascending: false });
-
-        if (completedError) throw completedError;
-        setCompletedGames(completedData || []);
-      } else {
-        setActiveGames([]);
-        setCompletedGames([]);
+      // If no games found, check if we need to create a default game
+      if (noGames) {
+        console.log('No games found, showing new game modal');
+        setShowNewGameModal(true);
       }
     } catch (error) {
       console.error('Error loading games:', error);
@@ -303,7 +285,9 @@ const Dashboard = () => {
             Deli Wars
           </Link>
           <div className="flex items-center space-x-4">
-            <span className="text-gray-600">Welcome, {user?.email}</span>
+            <span className="text-gray-600">
+              Welcome, {username || user?.email || 'Player'}
+            </span>
             <button
               onClick={handleLogout}
               className="flex items-center text-gray-600 hover:text-gray-900"
