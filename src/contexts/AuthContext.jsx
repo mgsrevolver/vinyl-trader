@@ -5,6 +5,8 @@ import {
   signIn,
   signUp,
   signOut,
+  signInAnonymously,
+  tryAnonymousSignIn,
 } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
@@ -23,7 +25,15 @@ export function AuthProvider({ children }) {
     const loadUser = async () => {
       try {
         const currentUser = await getCurrentUser();
-        setUser(currentUser);
+        if (currentUser) {
+          setUser(currentUser);
+        } else {
+          // Try to sign in with anonymous credentials if available
+          const { data, error } = await tryAnonymousSignIn();
+          if (!error && data?.user) {
+            setUser(data.user);
+          }
+        }
       } catch (error) {
         console.error('Error loading user:', error);
       } finally {
@@ -88,6 +98,26 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Play instantly function
+  const playInstantly = async () => {
+    try {
+      const { data, error, username } = await signInAnonymously();
+
+      if (error) {
+        console.error('Play instantly error:', error);
+        toast.error('Unable to start instant play. Please try again.');
+        return { success: false, error };
+      }
+
+      toast.success(`Welcome ${username}! You can play instantly!`);
+      return { success: true, data, username };
+    } catch (error) {
+      console.error('Unexpected error during instant play:', error);
+      toast.error('An unexpected error occurred');
+      return { success: false, error };
+    }
+  };
+
   // Logout function
   const logout = async () => {
     try {
@@ -112,6 +142,7 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
+    playInstantly,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

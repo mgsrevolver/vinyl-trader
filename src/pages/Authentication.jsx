@@ -10,7 +10,7 @@ const Authentication = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const { user, login, register } = useAuth();
+  const { user, login, register, playInstantly } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -65,6 +65,25 @@ const Authentication = () => {
     }
   };
 
+  const handlePlayInstantly = async () => {
+    setError('');
+    setLoading(true);
+
+    try {
+      const { success, error } = await playInstantly();
+      if (success) {
+        navigate('/dashboard');
+      } else {
+        setError(error.message || 'Failed to start instant play');
+      }
+    } catch (err) {
+      setError('An unexpected error occurred');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -74,31 +93,8 @@ const Authentication = () => {
           </h1>
         </Link>
         <h2 className="mt-6 text-center text-2xl font-bold text-gray-900">
-          {isLogin ? 'Sign in to your account' : 'Create your account'}
+          Ready to play?
         </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          {isLogin ? (
-            <>
-              Don't have an account?{' '}
-              <button
-                onClick={() => setIsLogin(false)}
-                className="font-medium text-primary-600 hover:text-primary-500"
-              >
-                Register
-              </button>
-            </>
-          ) : (
-            <>
-              Already have an account?{' '}
-              <button
-                onClick={() => setIsLogin(true)}
-                className="font-medium text-primary-600 hover:text-primary-500"
-              >
-                Sign in
-              </button>
-            </>
-          )}
-        </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
@@ -109,7 +105,87 @@ const Authentication = () => {
             </div>
           )}
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
+          {/* Play Instantly Button */}
+          <div className="mb-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-2 text-center">
+              Fastest Way to Play
+            </h3>
+            <button
+              onClick={handlePlayInstantly}
+              disabled={loading}
+              className="w-full flex justify-center py-4 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+            >
+              {loading ? (
+                <span className="flex items-center">
+                  <svg
+                    className="animate-spin -ml-1 mr-2 h-5 w-5 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Setting up your game...
+                </span>
+              ) : (
+                'Play Instantly!'
+              )}
+            </button>
+            <p className="mt-3 text-sm text-center text-gray-600">
+              Start playing right away! We'll create a fun username for you and
+              you can save your progress later if you want.
+            </p>
+          </div>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-gray-500">
+                Or continue with
+              </span>
+            </div>
+          </div>
+
+          <form className="mt-6 space-y-6" onSubmit={handleSubmit}>
+            <div className="flex items-center justify-center space-x-4 mb-4">
+              <button
+                type="button"
+                onClick={() => setIsLogin(true)}
+                className={`px-4 py-2 rounded-md ${
+                  isLogin
+                    ? 'bg-gray-100 text-gray-800 font-medium'
+                    : 'text-gray-600'
+                }`}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsLogin(false)}
+                className={`px-4 py-2 rounded-md ${
+                  !isLogin
+                    ? 'bg-gray-100 text-gray-800 font-medium'
+                    : 'text-gray-600'
+                }`}
+              >
+                Register
+              </button>
+            </div>
+
             {!isLogin && (
               <div>
                 <label
