@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { FaPlus, FaDice, FaArrowRight, FaTimes } from 'react-icons/fa';
+import { FaPlus, FaDice, FaTimes } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { generatePlayerName, generateGameName } from '../lib/nameGenerator';
 
@@ -9,7 +9,6 @@ const Home = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [games, setGames] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [gameCode, setGameCode] = useState('');
   const [gameName, setGameName] = useState(generateGameName());
@@ -74,34 +73,6 @@ const Home = () => {
 
     return () => subscription.unsubscribe();
   }, []);
-
-  // Load games when user is available
-  useEffect(() => {
-    if (user) {
-      loadGames();
-    }
-  }, [user]);
-
-  const loadGames = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('players')
-        .select('game:games(id, name, status, current_day, max_days)')
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-
-      const gamesList = data
-        .map((player) => player.game)
-        .filter((game) => game !== null);
-
-      setGames(gamesList);
-    } catch (error) {
-      console.error('Error loading games:', error);
-    }
-  };
 
   const createGame = async () => {
     if (!user) return;
@@ -214,74 +185,46 @@ const Home = () => {
 
       {/* Main content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <h2 className="text-2xl font-bold text-gray-900">Your Games</h2>
-          <button
-            onClick={() => setShowModal(true)}
-            className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 flex items-center"
-          >
-            <FaPlus className="mr-2" /> New Game
-          </button>
-        </div>
+        <div className="bg-white rounded-lg shadow-lg p-6 max-w-md mx-auto">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
+            Welcome to Deli Wars
+          </h2>
 
-        {/* Games list */}
-        {games.length === 0 ? (
-          <div className="bg-white p-6 rounded-lg shadow text-center">
-            <p className="text-gray-600">You don't have any active games.</p>
-            <p className="mt-2 text-gray-500">
-              Start a new game or join an existing one!
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {games.map((game) => (
-              <div
-                key={game.id}
-                className="bg-white rounded-lg shadow overflow-hidden"
+          <div className="space-y-4">
+            <button
+              onClick={() => setShowModal(true)}
+              className="w-full px-4 py-3 bg-primary-600 text-white rounded-md hover:bg-primary-700 flex items-center justify-center"
+            >
+              <FaPlus className="mr-2" /> Create New Game
+            </button>
+
+            <div className="text-center text-gray-500">- or -</div>
+
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={gameCode}
+                onChange={(e) => setGameCode(e.target.value)}
+                className="w-full border border-gray-300 rounded-md shadow-sm p-3"
+                placeholder="Enter game code"
+              />
+              <button
+                onClick={joinGame}
+                className="w-full px-4 py-3 bg-primary-600 text-white rounded-md hover:bg-primary-700 flex items-center justify-center"
               >
-                <div className="p-5">
-                  <h3 className="font-bold text-lg mb-1">{game.name}</h3>
-                  <p className="text-gray-500 text-sm mb-3">
-                    Day {game.current_day} of {game.max_days || 30}
-                  </p>
-
-                  <div className="flex justify-between items-center mt-4">
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        game.status === 'waiting'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : game.status === 'completed'
-                          ? 'bg-gray-100 text-gray-800'
-                          : 'bg-green-100 text-green-800'
-                      }`}
-                    >
-                      {game.status === 'waiting'
-                        ? 'Waiting'
-                        : game.status === 'completed'
-                        ? 'Completed'
-                        : 'In Progress'}
-                    </span>
-
-                    <Link
-                      to={`/game/${game.id}`}
-                      className="px-3 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 flex items-center"
-                    >
-                      Enter <FaArrowRight className="ml-1" />
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            ))}
+                <FaDice className="mr-2" /> Join Game
+              </button>
+            </div>
           </div>
-        )}
+        </div>
       </main>
 
-      {/* Modal */}
+      {/* Create Game Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-lg max-w-md w-full">
             <div className="flex justify-between items-center p-5 border-b">
-              <h3 className="text-xl font-bold">Start or Join a Game</h3>
+              <h3 className="text-xl font-bold">Create New Game</h3>
               <button
                 onClick={() => setShowModal(false)}
                 className="text-gray-400 hover:text-gray-500"
@@ -291,54 +234,25 @@ const Home = () => {
             </div>
 
             <div className="p-5">
-              {/* Create Game */}
-              <div className="mb-6">
-                <h4 className="font-semibold mb-2">Create New Game</h4>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Game Name
-                    </label>
-                    <input
-                      type="text"
-                      value={gameName}
-                      onChange={(e) => setGameName(e.target.value)}
-                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                      placeholder="My Awesome Deli Game"
-                    />
-                  </div>
-                  <button
-                    onClick={createGame}
-                    className="w-full px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
-                  >
-                    <FaPlus className="inline mr-2" /> Create Game
-                  </button>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Game Name
+                  </label>
+                  <input
+                    type="text"
+                    value={gameName}
+                    onChange={(e) => setGameName(e.target.value)}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                    placeholder="My Awesome Deli Game"
+                  />
                 </div>
-              </div>
-
-              {/* Join Game */}
-              <div className="border-t pt-5">
-                <h4 className="font-semibold mb-2">Join Existing Game</h4>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Game Code
-                    </label>
-                    <input
-                      type="text"
-                      value={gameCode}
-                      onChange={(e) => setGameCode(e.target.value)}
-                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                      placeholder="Enter game ID"
-                    />
-                  </div>
-                  <button
-                    onClick={joinGame}
-                    className="w-full px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
-                  >
-                    <FaDice className="inline mr-2" /> Join Game
-                  </button>
-                </div>
+                <button
+                  onClick={createGame}
+                  className="w-full px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+                >
+                  <FaPlus className="inline mr-2" /> Create Game
+                </button>
               </div>
             </div>
           </div>
