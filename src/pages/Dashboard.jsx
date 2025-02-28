@@ -68,26 +68,38 @@ const Dashboard = () => {
     try {
       setLoading(true);
 
-      // Use the new function from AuthContext
-      const {
-        activeGames: active,
-        completedGames: completed,
-        noGames,
-        error,
-      } = await fetchUserGames(user.id);
+      // Fetch user's games using a direct query instead of the problematic approach
+      const { data: userGames, error } = await supabase
+        .from('players')
+        .select(
+          `
+          game:games(
+            id,
+            name,
+            status,
+            current_day,
+            max_days
+          )
+        `
+        )
+        .eq('user_id', user.id);
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
-      setActiveGames(active || []);
-      setCompletedGames(completed || []);
+      // Process the games data
+      const games = userGames
+        .map((player) => player.game)
+        .filter((game) => game !== null);
 
-      // If no games found, check if we need to create a default game
-      if (noGames) {
-        console.log('No games found, showing new game modal');
-        setShowNewGameModal(true);
-      }
+      // Separate active and completed games
+      const active = games.filter((game) => game.status !== 'completed');
+      const completed = games.filter((game) => game.status === 'completed');
+
+      setActiveGames(active);
+      setCompletedGames(completed);
+
+      // Only show the new game modal if there are no active games
+      setShowNewGameModal(active.length === 0);
     } catch (error) {
       console.error('Error loading games:', error);
       toast.error(`Error loading games: ${error.message}`);
@@ -97,57 +109,59 @@ const Dashboard = () => {
   };
 
   const handleCreateGame = async () => {
-    if (!gameName.trim()) {
-      toast.error('Please enter a game name');
-      return;
-    }
+    if (!user) return;
 
     try {
       setCreateLoading(true);
 
-      // Create a new game
+      // Use the gameName from the form, or create a default name if empty
+      const gameNameToUse = gameName.trim() || `${username || 'Player'}'s Game`;
+
+      // Create a new game with the name field included
       const { data: gameData, error: gameError } = await supabase
         .from('games')
         .insert({
-          name: gameName.trim(),
           created_by: user.id,
           status: 'waiting',
-          current_day: 1,
-          max_days: 30,
+          current_day: 0,
+          name: gameNameToUse,
+          // max_days defaults to 30 in the database
         })
         .select()
         .single();
 
-      if (gameError) throw gameError;
+      if (gameError) {
+        console.error('Error creating game:', gameError);
+        toast.error(`Error creating game: ${gameError.message}`);
+        return;
+      }
 
-      // Create a player for the game creator
-      const { data: playerData, error: playerError } = await supabase
-        .from('players')
-        .insert({
-          user_id: user.id,
-          game_id: gameData.id,
-          cash: 2000,
-          loan_amount: 2000,
-          location: 'Downtown',
-        })
-        .select()
-        .single();
+      // Add creator as the first player with only the fields that exist in the schema
+      const { error: playerError } = await supabase.from('players').insert({
+        game_id: gameData.id,
+        user_id: user.id,
+        username:
+          user.user_metadata?.username ||
+          `Player${Math.floor(Math.random() * 1000)}`,
+        cash: 0,
+        location: 'downtown',
+        // loan_amount defaults to 2000 in the database
+        // loan_interest_rate defaults to 5.0 in the database
+        // inventory_capacity defaults to 100 in the database
+      });
 
-      if (playerError) throw playerError;
+      if (playerError) {
+        console.error('Error adding player:', playerError);
+        toast.error(`Error adding player: ${playerError.message}`);
+        return;
+      }
 
-      // Initialize market inventories
-      await initializeMarkets(gameData.id);
-
-      toast.success('Game created successfully!');
+      // Close the modal and redirect to lobby
       setShowNewGameModal(false);
-      setGameName('');
-      loadGames();
-
-      // Navigate to the new game
-      navigate(`/game/${gameData.id}`);
+      navigate(`/lobby/${gameData.id}`);
     } catch (error) {
-      console.error('Error creating game:', error);
-      toast.error(`Error creating game: ${error.message}`);
+      console.error('Unexpected error in game creation:', error);
+      toast.error('An unexpected error occurred');
     } finally {
       setCreateLoading(false);
     }
@@ -206,10 +220,10 @@ const Dashboard = () => {
     try {
       setJoinLoading(true);
 
-      // Check if game exists
+      // Check if game exists using a simple query
       const { data: gameData, error: gameError } = await supabase
         .from('games')
-        .select('*')
+        .select('id, name, status')
         .eq('id', gameCode.trim())
         .single();
 
@@ -227,41 +241,36 @@ const Dashboard = () => {
         return;
       }
 
-      // Check if player is already in the game
-      const { data: playerData, error: playerCheckError } = await supabase
+      // Check if player is already in the game using a simple query
+      const { data: existingPlayer, error: playerCheckError } = await supabase
         .from('players')
-        .select('*')
+        .select('id')
         .eq('game_id', gameData.id)
         .eq('user_id', user.id)
         .maybeSingle();
 
       if (playerCheckError) throw playerCheckError;
 
-      if (playerData) {
+      if (existingPlayer) {
         toast.success('You are already part of this game!');
         navigate(`/game/${gameData.id}`);
         return;
       }
 
-      // Join the game
-      const { data: newPlayerData, error: playerError } = await supabase
-        .from('players')
-        .insert({
-          user_id: user.id,
-          game_id: gameData.id,
-          cash: 2000,
-          loan_amount: 2000,
-          location: 'Downtown',
-        })
-        .select()
-        .single();
+      // Join the game with a simple insert
+      const { error: joinError } = await supabase.from('players').insert({
+        user_id: user.id,
+        game_id: gameData.id,
+        cash: 2000,
+        loan_amount: 2000,
+        location: 'Downtown',
+      });
 
-      if (playerError) throw playerError;
+      if (joinError) throw joinError;
 
       toast.success(`Joined game "${gameData.name}" successfully!`);
       setGameCode('');
       setShowNewGameModal(false);
-      loadGames();
 
       // Navigate to the game
       navigate(`/game/${gameData.id}`);

@@ -15,6 +15,8 @@ import Dashboard from './pages/Dashboard';
 import Game from './pages/Game';
 import Market from './pages/Market';
 import NotFound from './pages/NotFound';
+import Lobby from './pages/Lobby';
+import JoinGame from './pages/JoinGame';
 
 // Import contexts
 import { AuthProvider } from './contexts/AuthContext';
@@ -91,6 +93,8 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/lobby/:gameId" element={<Lobby />} />
+          <Route path="/join/:gameId" element={<JoinGame />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Router>
