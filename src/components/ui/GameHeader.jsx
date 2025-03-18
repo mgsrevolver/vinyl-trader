@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FaCoins, FaWarehouse, FaClock } from 'react-icons/fa';
+import { FaCoins, FaWarehouse, FaClock, FaBolt } from 'react-icons/fa';
 import { useGame } from '../../contexts/GameContext';
 import { gameHourToTimeString, getHoursRemaining } from '../../lib/timeUtils';
+import { supabase } from '../../lib/supabase';
 
 const GameHeader = () => {
   const { currentGame, player, playerInventory, fetchGameData } = useGame();
+  const [actionsRemaining, setActionsRemaining] = useState(4); // Default to 4 actions
 
   // Add an effect to refresh data periodically
   useEffect(() => {
@@ -20,6 +22,37 @@ const GameHeader = () => {
     // Clean up interval when component unmounts
     return () => clearInterval(intervalId);
   }, [fetchGameData]);
+
+  // Add effect to fetch actions remaining
+  useEffect(() => {
+    const fetchActionsRemaining = async () => {
+      if (!player?.id || !currentGame?.id) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('player_actions')
+          .select('actions_available, actions_used')
+          .eq('player_id', player.id)
+          .eq('game_id', currentGame.id)
+          .eq('hour', currentGame.current_hour)
+          .single();
+
+        if (error) {
+          console.error('Error fetching actions:', error);
+          return;
+        }
+
+        if (data) {
+          const remaining = data.actions_available - data.actions_used;
+          setActionsRemaining(remaining);
+        }
+      } catch (error) {
+        console.error('Error in fetchActionsRemaining:', error);
+      }
+    };
+
+    fetchActionsRemaining();
+  }, [player?.id, currentGame?.id, currentGame?.current_hour]);
 
   // Listen for changes in currentGame.current_hour and update immediately
   useEffect(() => {
@@ -44,9 +77,9 @@ const GameHeader = () => {
   const hoursRemaining = getHoursRemaining(currentGame.current_hour);
 
   return (
-    <div className="status-bar">
+    <div className="status-bar top-bar">
       <div className="status-content">
-        {/* Clock */}
+        {/* Clock - first item */}
         <div className="status-stat">
           <FaClock />
           <span>
@@ -54,18 +87,24 @@ const GameHeader = () => {
           </span>
         </div>
 
-        {/* Cash - simplified to whole dollars */}
+        {/* Cash - second item */}
         <div className="status-stat">
           <FaCoins />
           <span>{formatMoney(player.cash)}</span>
         </div>
 
-        {/* Inventory */}
+        {/* Inventory - third item */}
         <div className="status-stat">
           <FaWarehouse />
           <span>
             {inventoryCount}/{player.inventory_capacity}
           </span>
+        </div>
+
+        {/* Actions Remaining - fourth item */}
+        <div className="status-stat">
+          <FaBolt />
+          <span>{actionsRemaining} actions</span>
         </div>
       </div>
     </div>
