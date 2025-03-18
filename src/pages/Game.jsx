@@ -156,17 +156,87 @@ const Game = () => {
     }
   };
 
-  const goToMarket = (boroughId, storeName) => {
-    if (!boroughId) {
-      // If no boroughId is provided, use the player's current borough
-      if (!playerState || !playerState.current_borough_id) {
-        toast.error('Cannot find your current location');
-        return;
-      }
-      boroughId = playerState.current_borough_id;
+  const goToStore = (storeId) => {
+    if (!playerState) {
+      toast.error('Player information not loaded yet');
+      return;
     }
 
-    navigate(`/market/${gameId}/${boroughId}/${encodeURIComponent(storeName)}`);
+    // Make sure we have the current borough
+    if (!playerState.current_borough_id) {
+      console.log('No current borough set for player');
+
+      // Find a borough to use as default
+      if (neighborhoods && neighborhoods.length > 0) {
+        const firstBorough = neighborhoods[0].id;
+        console.log('Using fallback borough:', firstBorough);
+
+        // Update the player record with this borough ID
+        updatePlayerBorough(firstBorough);
+
+        // Find a store in this borough
+        const storeInBorough = boroughStores.find(
+          (store) => store.borough_id === firstBorough
+        ) || { id: 'default-store' };
+
+        // Navigate to the store route
+        navigate(`/store/${gameId}/${firstBorough}/${storeInBorough.id}`);
+        return;
+      } else {
+        toast.error('Cannot find any valid locations');
+        return;
+      }
+    }
+
+    // If we have a current borough but no specific store,
+    // find an available store in the current borough
+    if (!storeId && boroughStores.length > 0) {
+      const availableStore = boroughStores[0];
+      storeId = availableStore.id;
+    }
+
+    // If we still don't have a store, create a default ID
+    if (!storeId) {
+      storeId = 'default-store';
+    }
+
+    console.log(
+      'Navigating to store:',
+      storeId,
+      'in borough:',
+      playerState.current_borough_id
+    );
+    navigate(`/store/${gameId}/${playerState.current_borough_id}/${storeId}`);
+  };
+
+  // Add this new function to update the player's borough
+  const updatePlayerBorough = async (boroughId) => {
+    try {
+      if (!player || !boroughId) return;
+
+      console.log('Updating player borough to:', boroughId);
+
+      // Update the player record in the database
+      const { error } = await supabase
+        .from('players')
+        .update({ current_borough_id: boroughId })
+        .eq('id', player.id);
+
+      if (error) {
+        console.error('Error updating player borough:', error);
+        return;
+      }
+
+      // Also update the local state
+      setPlayerState({
+        ...playerState,
+        current_borough_id: boroughId,
+      });
+
+      console.log('Player borough updated successfully');
+    } catch (err) {
+      console.error('Failed to update player borough:', err);
+    }
   };
 
   const goToTravel = () => {
@@ -353,14 +423,16 @@ const Game = () => {
 
                 <button
                   onClick={() =>
-                    goToMarket(playerState.current_borough_id, 'Local Market')
+                    goToStore(
+                      boroughStores.length > 0 ? boroughStores[0].id : null
+                    )
                   }
                   className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 p-6 rounded-lg transition-colors"
                 >
                   <FaStore className="text-3xl text-blue-600 mb-2" />
-                  <span className="font-medium">Market</span>
+                  <span className="font-medium">Store</span>
                   <span className="text-sm text-gray-600 mt-1">
-                    Buy and sell products
+                    Buy and sell records
                   </span>
                 </button>
 

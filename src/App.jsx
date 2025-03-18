@@ -13,7 +13,7 @@ import Home from './pages/Home';
 import Game from './pages/Game';
 import Lobby from './pages/Lobby';
 import JoinGame from './pages/JoinGame';
-import Market from './pages/Market';
+import Store from './pages/Store';
 import TravelScreen from './pages/TravelScreen';
 import NotFound from './pages/NotFound';
 
@@ -51,8 +51,8 @@ const App = () => {
           <Route path="/lobby/:gameId" element={<Lobby />} />
           <Route path="/join/:gameId" element={<JoinGame />} />
           <Route
-            path="/market/:gameId/:neighborhoodId/:storeName"
-            element={<Market />}
+            path="/store/:gameId/:boroughId/:storeId"
+            element={<Store />}
           />
           <Route path="/travel/:gameId" element={<TravelScreen />} />
           <Route path="/404" element={<NotFound />} />

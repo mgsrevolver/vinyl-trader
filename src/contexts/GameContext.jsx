@@ -59,6 +59,23 @@ export const GameProvider = ({ children }) => {
     try {
       setLoading(true);
 
+      // First get a default starting borough
+      let defaultBoroughId = null;
+      try {
+        const { data: borough } = await supabase
+          .from('boroughs')
+          .select('id')
+          .limit(1)
+          .single();
+
+        if (borough) {
+          defaultBoroughId = borough.id;
+          console.log('Using default borough:', defaultBoroughId);
+        }
+      } catch (boroughErr) {
+        console.error('Could not fetch a default borough:', boroughErr);
+      }
+
       // Use provided player name or generate one
       const username = playerName || generatePlayerName();
       const gameName = generateGameName();
@@ -94,6 +111,7 @@ export const GameProvider = ({ children }) => {
           loan_interest_rate: 5.0,
           inventory_capacity: 100,
           location: 'Downtown',
+          current_borough_id: defaultBoroughId, // Set the starting borough
         })
         .select()
         .single();
@@ -130,6 +148,23 @@ export const GameProvider = ({ children }) => {
 
     try {
       setLoading(true);
+
+      // First get a default starting borough
+      let defaultBoroughId = null;
+      try {
+        const { data: borough } = await supabase
+          .from('boroughs')
+          .select('id')
+          .limit(1)
+          .single();
+
+        if (borough) {
+          defaultBoroughId = borough.id;
+          console.log('Using default borough for joining:', defaultBoroughId);
+        }
+      } catch (boroughErr) {
+        console.error('Could not fetch a default borough:', boroughErr);
+      }
 
       // Check if game exists
       const { data: game, error: gameError } = await supabase
@@ -178,6 +213,7 @@ export const GameProvider = ({ children }) => {
           loan_interest_rate: 5.0,
           inventory_capacity: 100,
           location: 'Downtown',
+          current_borough_id: defaultBoroughId, // Set the starting borough
         })
         .select()
         .single();
