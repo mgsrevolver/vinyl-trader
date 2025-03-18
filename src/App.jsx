@@ -7,6 +7,7 @@ import {
 } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { GameProvider } from './contexts/GameContext';
+import GameHeader from './components/ui/GameHeader';
 
 // Pages
 import Home from './pages/Home';
@@ -16,6 +17,9 @@ import JoinGame from './pages/JoinGame';
 import Store from './pages/Store';
 import TravelScreen from './pages/TravelScreen';
 import NotFound from './pages/NotFound';
+
+// Import the CSS file to ensure styles are applied
+import './App.css';
 
 const App = () => {
   return (
@@ -47,14 +51,43 @@ const App = () => {
         />
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/game/:gameId" element={<Game />} />
-          <Route path="/lobby/:gameId" element={<Lobby />} />
+          <Route
+            path="/game/:gameId"
+            element={
+              <>
+                <Game />
+                <GameHeader />
+              </>
+            }
+          />
+          <Route
+            path="/lobby/:gameId"
+            element={
+              <>
+                <Lobby />
+                <GameHeader />
+              </>
+            }
+          />
           <Route path="/join/:gameId" element={<JoinGame />} />
           <Route
             path="/store/:gameId/:boroughId/:storeId"
-            element={<Store />}
+            element={
+              <>
+                <Store />
+                <GameHeader />
+              </>
+            }
           />
-          <Route path="/travel/:gameId" element={<TravelScreen />} />
+          <Route
+            path="/travel/:gameId"
+            element={
+              <>
+                <TravelScreen />
+                <GameHeader />
+              </>
+            }
+          />
           <Route path="/404" element={<NotFound />} />
           <Route path="*" element={<Navigate to="/404" replace />} />
         </Routes>

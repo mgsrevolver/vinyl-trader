@@ -151,14 +151,16 @@ export const advanceGameHour = async (gameId) => {
     return false;
   }
 
-  if (game.current_hour >= game.max_hours) {
+  // Check if the game has ended (current_hour is 0)
+  if (game.current_hour <= 0) {
     console.error('Game has already ended');
     return false;
   }
 
+  // Decrement the hour (counts down from max_hours to 0)
   const { error: updateError } = await supabase
     .from('games')
-    .update({ current_hour: game.current_hour + 1 })
+    .update({ current_hour: game.current_hour - 1 })
     .eq('id', gameId);
 
   if (updateError) {

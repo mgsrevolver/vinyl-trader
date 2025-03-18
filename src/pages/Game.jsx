@@ -48,6 +48,7 @@ const Game = () => {
   const [neighborhoods, setNeighborhoods] = useState([]);
   const [neighborhoodsLoading, setNeighborhoodsLoading] = useState(false);
   const [showPlayersModal, setShowPlayersModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (playerId) {
@@ -141,18 +142,25 @@ const Game = () => {
 
   const handleEndTurn = async () => {
     try {
-      const success = await advanceGameHour(gameId);
+      setSubmitting(true);
 
-      if (success) {
-        toast.success('Turn completed! Advancing to the next hour.');
-        // Reload game data after advancing
-        loadGameData();
-      } else {
-        toast.error('Failed to end turn. Please try again.');
+      // Attempt to advance the game hour
+      const advanced = await advanceGameHour(currentGame.id);
+
+      if (!advanced) {
+        toast.error('Unable to advance game. The game may have ended.');
+        setSubmitting(false);
+        return;
       }
+
+      // Refresh game data after advancing hour
+      await loadGameData();
+      toast.success('Turn completed! Game advanced to the next hour.');
     } catch (error) {
       console.error('Error ending turn:', error);
       toast.error('An error occurred while ending your turn.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -261,72 +269,7 @@ const Game = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-blue-100">
-      {/* Game Jam Banner */}
-      <a
-        target="_blank"
-        href="https://jam.pieter.com"
-        style={{
-          fontFamily: "'system-ui', sans-serif",
-          position: 'fixed',
-          bottom: '-1px',
-          right: '-1px',
-          padding: '7px',
-          fontSize: '14px',
-          fontWeight: 'bold',
-          background: '#fff',
-          color: '#000',
-          textDecoration: 'none',
-          zIndex: 10,
-          borderTopLeftRadius: '12px',
-          border: '1px solid #fff',
-        }}
-      >
-        🕹️ Vibe Jam 2025
-      </a>
-
-      {/* Header */}
-      <header className="bg-white shadow-md p-4">
-        <div className="max-w-6xl mx-auto flex flex-wrap justify-between items-center">
-          <div>
-            <h1 className="text-xl font-bold text-blue-700">
-              {gameState.game.name}
-            </h1>
-            <div className="flex items-center text-sm text-gray-600 mt-1">
-              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
-                {gameState.game.current_hour} hours remaining
-              </span>
-              <span className="mx-2">•</span>
-              <span>Location: {playerState.current_borough}</span>
-              {inventory.length <= 1 && (
-                <>
-                  <span className="mx-2">•</span>
-                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                    Single Player
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2 mt-2 sm:mt-0">
-            {/* Only show Players button in multiplayer */}
-            {inventory.length > 1 && (
-              <button
-                onClick={() => setShowPlayersModal(true)}
-                className="flex items-center bg-blue-100 text-blue-800 px-3 py-1 rounded-md hover:bg-blue-200"
-              >
-                <FaUsers className="mr-1" /> Players
-              </button>
-            )}
-
-            <div className="flex items-center bg-green-100 text-green-800 px-3 py-1 rounded-md">
-              <FaCoins className="mr-1" /> {formatMoney(playerState.cash)}
-            </div>
-          </div>
-        </div>
-      </header>
-
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-blue-100 pb-16">
       {/* Main content */}
       <main className="max-w-6xl mx-auto p-4 mt-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -467,10 +410,10 @@ const Game = () => {
                   </div>
                   <button
                     onClick={handleEndTurn}
-                    disabled={loading}
+                    disabled={submitting}
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {loading ? (
+                    {submitting ? (
                       <span className="flex items-center">
                         <FaSpinner className="animate-spin mr-2" />{' '}
                         Processing...
@@ -485,52 +428,6 @@ const Game = () => {
           </div>
         </div>
       </main>
-
-      {/* Players Modal - Only load this in multiplayer mode */}
-      {!isSinglePlayerMode && showPlayersModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            <div className="p-4 border-b flex justify-between items-center">
-              <h3 className="font-bold text-lg">Players in Game</h3>
-              <button
-                onClick={() => setShowPlayersModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="p-4 max-h-96 overflow-y-auto">
-              {players.length === 0 ? (
-                <p className="text-gray-500 italic">No other players found</p>
-              ) : (
-                <ul className="divide-y">
-                  {players.map((p) => (
-                    <li
-                      key={p.id}
-                      className="py-3 flex items-center justify-between"
-                    >
-                      <div>
-                        <span className="font-medium">{p.username}</span>
-                        {p.user_id === player.user_id && (
-                          <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                            You
-                          </span>
-                        )}
-                        <div className="text-sm text-gray-600">
-                          Location: {p.location}
-                        </div>
-                      </div>
-                      <div className="text-sm font-medium text-green-600">
-                        {formatMoney(p.cash)}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

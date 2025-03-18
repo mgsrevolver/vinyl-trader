@@ -5,6 +5,7 @@ import { generatePlayerName, generateGameName } from '../lib/nameGenerator';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
+import { initializePlayer } from '../lib/gameActions';
 
 const GameContext = createContext();
 
@@ -99,24 +100,33 @@ export const GameProvider = ({ children }) => {
 
       console.log('Game created successfully:', game.id);
 
-      // Add player - using proper UUID for user_id
-      const { data: playerData, error: playerError } = await supabase
+      // Use the initializePlayer function to create the player with correct values
+      const newPlayerId = await initializePlayer(
+        game.id,
+        playerId,
+        defaultBoroughId
+      );
+
+      if (!newPlayerId) {
+        throw new Error('Failed to initialize player');
+      }
+
+      // Now fetch the created player data
+      const { data: playerData, error: playerFetchError } = await supabase
         .from('players')
-        .insert({
-          game_id: game.id,
-          user_id: playerId,
-          username: username,
-          cash: 2000,
-          loan_amount: 2000,
-          loan_interest_rate: 5.0,
-          inventory_capacity: 100,
-          location: 'Downtown',
-          current_borough_id: defaultBoroughId, // Set the starting borough
-        })
-        .select()
+        .select('*')
+        .eq('id', newPlayerId)
         .single();
 
-      if (playerError) throw playerError;
+      if (playerFetchError) throw playerFetchError;
+
+      // Update the username separately since initializePlayer doesn't set it
+      const { error: usernameError } = await supabase
+        .from('players')
+        .update({ username: username })
+        .eq('id', newPlayerId);
+
+      if (usernameError) console.warn('Failed to set username:', usernameError);
 
       setCurrentGame(game);
       setPlayer(playerData);
@@ -201,24 +211,33 @@ export const GameProvider = ({ children }) => {
       // Use provided player name or generate one
       const username = playerName || generatePlayerName();
 
-      // Add player to game
-      const { data: playerData, error: playerError } = await supabase
+      // Use the initializePlayer function to create the player with correct values
+      const newPlayerId = await initializePlayer(
+        gameId,
+        playerId,
+        defaultBoroughId
+      );
+
+      if (!newPlayerId) {
+        throw new Error('Failed to initialize player');
+      }
+
+      // Now fetch the created player data
+      const { data: playerData, error: playerFetchError } = await supabase
         .from('players')
-        .insert({
-          game_id: gameId,
-          user_id: playerId,
-          username: username,
-          cash: 2000,
-          loan_amount: 2000,
-          loan_interest_rate: 5.0,
-          inventory_capacity: 100,
-          location: 'Downtown',
-          current_borough_id: defaultBoroughId, // Set the starting borough
-        })
-        .select()
+        .select('*')
+        .eq('id', newPlayerId)
         .single();
 
-      if (playerError) throw playerError;
+      if (playerFetchError) throw playerFetchError;
+
+      // Update the username separately since initializePlayer doesn't set it
+      const { error: usernameError } = await supabase
+        .from('players')
+        .update({ username: username })
+        .eq('id', newPlayerId);
+
+      if (usernameError) console.warn('Failed to set username:', usernameError);
 
       setCurrentGame(game);
       setPlayer(playerData);
@@ -623,7 +642,67 @@ export const GameProvider = ({ children }) => {
     }
   };
 
-  // End turn and move to next hour
+  // Add this function to fetch game data
+  const fetchGameData = async () => {
+    if (!currentGame?.id || !player?.id) return;
+
+    try {
+      // Fetch updated game data
+      const { data: gameData, error: gameError } = await supabase
+        .from('games')
+        .select('*')
+        .eq('id', currentGame.id)
+        .single();
+
+      if (gameError) {
+        console.error('Error fetching game data:', gameError);
+        return;
+      }
+
+      // Fetch updated player data
+      const { data: playerData, error: playerError } = await supabase
+        .from('players')
+        .select('*')
+        .eq('id', player.id)
+        .single();
+
+      if (playerError) {
+        console.error('Error fetching player data:', playerError);
+        return;
+      }
+
+      // Fetch updated inventory
+      const { data: inventory, error: inventoryError } = await supabase
+        .from('player_inventory')
+        .select(
+          `
+          *,
+          products:product_id (
+            name,
+            description
+          )
+        `
+        )
+        .eq('player_id', player.id);
+
+      if (inventoryError) {
+        console.error('Error fetching inventory data:', inventoryError);
+        return;
+      }
+
+      // Update all states with fresh data
+      setCurrentGame(gameData);
+      setPlayer(playerData);
+      setPlayerInventory(inventory || []);
+
+      return true;
+    } catch (error) {
+      console.error('Error in fetchGameData:', error);
+      return false;
+    }
+  };
+
+  // Modify endTurn function to update UI immediately
   const endTurn = async () => {
     if (!player || !currentGame) return { success: false };
 
@@ -679,6 +758,7 @@ export const GameProvider = ({ children }) => {
 
         if (resetError) throw resetError;
 
+        // Update local state immediately
         setCurrentGame(updatedGame);
 
         if (gameOver) {
@@ -690,14 +770,8 @@ export const GameProvider = ({ children }) => {
         toast.success('Turn completed, waiting for other players');
       }
 
-      // Update local player state
-      const { data: updatedPlayer } = await supabase
-        .from('players')
-        .select('*')
-        .eq('id', player.id)
-        .single();
-
-      setPlayer(updatedPlayer);
+      // Immediately fetch updated data to refresh UI
+      await fetchGameData();
 
       return { success: true };
     } catch (error) {
@@ -735,6 +809,7 @@ export const GameProvider = ({ children }) => {
         travelToNeighborhood,
         endTurn,
         playerId,
+        fetchGameData,
       }}
     >
       {children}
