@@ -1,9 +1,11 @@
 #root {
-  max-width: 1280px;
+  max-width: 430px; /* Set max width to largest phone resolution */
   margin: 0 auto;
-  padding: 2rem 2rem 5rem;
+  padding: 2rem 1rem 5rem;
   text-align: center;
   padding-top: 3.5rem; /* Add padding to account for the fixed header */
+  height: 100%;
+  min-height: 100vh;
 }
 
 .logo {
@@ -53,13 +55,15 @@
   display: flex;
   justify-content: center;
   width: 100%;
+  max-width: 430px; /* Match app max width */
+  margin: 0 auto;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 /* Top bar positioning */
 .top-bar {
   top: 0;
-  left: 0;
-  right: 0;
   border-top: none;
   border-bottom: 3px solid #4e341a;
 }
@@ -82,7 +86,7 @@
   justify-content: space-between;
   flex-wrap: nowrap;
   width: 100%;
-  max-width: 375px; /* Match the min width of your design */
+  max-width: 400px;
   margin: 0 auto;
   padding: 0 0.5rem;
 }
@@ -151,4 +155,241 @@
     margin-right: 0.25rem;
     font-size: 0.8rem;
   }
+}
+
+/* New styles for TravelScreen */
+.nyc-map-bg {
+  background-image: url('/nyc-map.jpg');
+  background-size: cover;
+  background-position: center;
+  height: 100vh;
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-width: 430px;
+  margin: 0 auto;
+  padding: 0;
+  overflow: hidden;
+}
+
+.map-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.2);
+  z-index: 1;
+}
+
+.travel-container {
+  position: relative;
+  z-index: 2;
+  padding: 0;
+  height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Location marker styles - simplified design */
+.location-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  filter: drop-shadow(0px 2px 3px rgba(0, 0, 0, 0.4));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 2; /* Lower z-index so pins are behind the drawer */
+}
+
+.location-marker.current {
+  color: #ff3b30;
+  transform: translate(-50%, -50%) scale(1.2);
+}
+
+.location-marker.selected {
+  color: #34c759;
+  transform: translate(-50%, -50%) scale(1.2);
+}
+
+.location-marker:not(.current):not(.selected) {
+  color: #007aff;
+}
+
+.location-marker:hover {
+  transform: translate(-50%, -50%) scale(1.2);
+}
+
+.location-label {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  background-color: rgba(255, 255, 255, 0.9);
+  color: #333;
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: bold;
+  white-space: nowrap;
+  margin-top: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Backdrop for the drawer */
+.travel-drawer-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  background-color: rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: flex-end;
+}
+
+/* New compact travel drawer */
+.travel-drawer {
+  width: 100%;
+  background-color: white;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.1);
+  max-height: 60vh; /* Shorter drawer */
+  overflow-y: auto;
+}
+
+/* Drawer handle for visual cue that it can be dragged */
+.drawer-handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background-color: #ddd;
+  margin: 12px auto 8px;
+}
+
+/* Drawer header */
+.drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px 10px;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 10px;
+}
+
+/* Close button */
+.close-button {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: #f5f5f5;
+  color: #666;
+}
+
+.close-button:hover {
+  background-color: #eee;
+}
+
+/* Transport grid layout */
+.transport-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  padding: 0 16px;
+  margin-bottom: 10px;
+}
+
+/* More compact transport options */
+.transport-option {
+  padding: 12px;
+  border-radius: 8px;
+  background-color: white;
+  border: 1px solid #eee;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.transport-option.selected {
+  background-color: #e3f2fd;
+  border: 1px solid #2196f3;
+}
+
+.transport-icon {
+  font-size: 20px;
+  margin-bottom: 4px;
+  color: #555;
+}
+
+.transport-option.selected .transport-icon {
+  color: #2196f3;
+}
+
+.transport-name {
+  font-weight: 600;
+  margin-bottom: 4px;
+  font-size: 15px;
+}
+
+.transport-price,
+.transport-time {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #666;
+}
+
+.transport-price {
+  margin-bottom: 2px;
+}
+
+.transport-price svg,
+.transport-time svg {
+  margin-right: 2px;
+}
+
+.travel-button {
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: bold;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.travel-button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.back-button {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  z-index: 10;
+  background-color: rgba(255, 255, 255, 0.8);
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }

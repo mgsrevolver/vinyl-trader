@@ -1,30 +1,78 @@
 // src/pages/TravelScreen.jsx
-import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   FaArrowLeft,
-  FaMapMarkerAlt,
-  FaCarSide,
-  FaSubway,
-  FaBicycle,
+  FaMapPin,
   FaSpinner,
+  FaTimes,
+  FaWalking,
+  FaBicycle,
+  FaSubway,
   FaTaxi,
+  FaDollarSign,
+  FaClock,
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useGame } from '../contexts/GameContext';
+import Button from '../components/ui/Button';
+
+// You'll need to add an NYC map image to your public/assets folder
+// This image should be a simplified map of NYC showing the boroughs
 
 const TravelScreen = () => {
   const { gameId } = useParams();
   const navigate = useNavigate();
   const { currentGame, player, loading, travelToNeighborhood } = useGame();
+  const drawerRef = useRef(null);
 
   const [neighborhoods, setNeighborhoods] = useState([]);
-  const [transportMethods, setTransportMethods] = useState([]);
   const [selectedNeighborhood, setSelectedNeighborhood] = useState(null);
   const [selectedTransport, setSelectedTransport] = useState(null);
   const [dataLoading, setDataLoading] = useState(true);
-  const [mapSize, setMapSize] = useState({ width: 600, height: 400 });
+  const [startY, setStartY] = useState(0);
+
+  // NYC borough coordinates based on the screenshot
+  const boroughCoordinates = {
+    manhattan: { x: 42, y: 55 },
+    brooklyn: { x: 52, y: 75 },
+    queens: { x: 65, y: 55 },
+    bronx: { x: 45, y: 40 },
+    staten_island: { x: 25, y: 85 },
+  };
+
+  // Fixed transportation options in the correct order
+  const transportOptions = [
+    {
+      id: 'walking',
+      name: 'Walking',
+      base_cost: 0.0,
+      speed_factor: 1,
+      icon: <FaWalking />,
+    },
+    {
+      id: 'bike',
+      name: 'Bike',
+      base_cost: 0.0,
+      speed_factor: 1.5,
+      icon: <FaBicycle />,
+    },
+    {
+      id: 'subway',
+      name: 'Subway',
+      base_cost: 1.0,
+      speed_factor: 2,
+      icon: <FaSubway />,
+    },
+    {
+      id: 'taxi',
+      name: 'Taxi',
+      base_cost: 10.0,
+      speed_factor: 3,
+      icon: <FaTaxi />,
+    },
+  ];
 
   useEffect(() => {
     const loadTravelData = async () => {
@@ -33,31 +81,27 @@ const TravelScreen = () => {
 
         // Load neighborhoods
         const { data: neighborhoodData, error: neighborhoodError } =
-          await supabase.from('neighborhoods').select('*');
+          await supabase.from('boroughs').select('*');
 
         if (neighborhoodError) throw neighborhoodError;
 
-        setNeighborhoods(neighborhoodData || []);
+        // Add coordinates from our mapping
+        const neighborhoodsWithCoords = neighborhoodData.map((hood) => {
+          // Using a simplified mapping for demo purposes
+          const boroughKey = hood.name.toLowerCase().replace(/\s+/g, '_');
+          const coords = boroughCoordinates[boroughKey] || { x: 50, y: 50 };
 
-        // Load transport methods
-        const { data: transportData, error: transportError } = await supabase
-          .from('transportation_methods')
-          .select('*');
+          return {
+            ...hood,
+            x_coordinate: coords.x,
+            y_coordinate: coords.y,
+          };
+        });
 
-        if (transportError) throw transportError;
+        setNeighborhoods(neighborhoodsWithCoords || []);
 
-        setTransportMethods(transportData || []);
-
-        // Set default transport method (usually the cheapest one)
-        if (transportData && transportData.length > 0) {
-          const cheapestTransport = transportData.reduce(
-            (cheapest, current) =>
-              current.base_cost < cheapest.base_cost ? current : cheapest,
-            transportData[0]
-          );
-
-          setSelectedTransport(cheapestTransport);
-        }
+        // Pre-select walking by default
+        setSelectedTransport(transportOptions[0]);
       } catch (err) {
         console.error('Error loading travel data:', err);
         toast.error('Failed to load travel data');
@@ -67,25 +111,11 @@ const TravelScreen = () => {
     };
 
     loadTravelData();
-
-    // Set map size based on screen width
-    const updateMapSize = () => {
-      const width = Math.min(window.innerWidth - 40, 600);
-      setMapSize({
-        width,
-        height: width * 0.67, // Maintain aspect ratio
-      });
-    };
-
-    updateMapSize();
-    window.addEventListener('resize', updateMapSize);
-
-    return () => window.removeEventListener('resize', updateMapSize);
   }, []);
 
   const handleSelectNeighborhood = (neighborhood) => {
     // Don't select current location
-    if (neighborhood.id === player.location) {
+    if (neighborhood.id === player.current_borough_id) {
       toast.error("You're already in this neighborhood!");
       return;
     }
@@ -93,8 +123,8 @@ const TravelScreen = () => {
     setSelectedNeighborhood(neighborhood);
   };
 
-  const handleSelectTransport = (transport) => {
-    setSelectedTransport(transport);
+  const handleCloseDrawer = () => {
+    setSelectedNeighborhood(null);
   };
 
   const handleTravel = async () => {
@@ -103,14 +133,11 @@ const TravelScreen = () => {
       return;
     }
 
-    // In a real implementation, we would:
-    // 1. Calculate travel cost based on distance and transport method
-    // 2. Check if player has enough money
-    // 3. Deduct travel cost from player cash
-    // 4. Advance game day based on travel time
-
+    // For demo purposes, we're just using the transport ID as a parameter
+    // In a real app, you'd use the actual transport ID from the database
     const { success, error } = await travelToNeighborhood(
-      selectedNeighborhood.id
+      selectedNeighborhood.id,
+      selectedTransport.id
     );
 
     if (success) {
@@ -121,254 +148,160 @@ const TravelScreen = () => {
     }
   };
 
-  const calculateTravelCost = (neighborhood) => {
-    if (!selectedTransport) return 0;
-
-    // In a real implementation, you would calculate distance between neighborhoods
-    // and apply the transport method's cost factor
-
-    // For now, just return the base cost of the transport method
-    return selectedTransport.base_cost;
-  };
-
   const formatMoney = (amount) => {
     return `$${parseFloat(amount).toFixed(2)}`;
   };
 
+  // Handle drawer swipe down
+  const handleTouchStart = (e) => {
+    setStartY(e.touches[0].clientY);
+  };
+
+  const handleTouchMove = (e) => {
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - startY;
+
+    // If swiping down
+    if (diff > 50) {
+      handleCloseDrawer();
+    }
+  };
+
   // Get the current neighborhood object
   const currentNeighborhood = neighborhoods.find(
-    (n) => n.id === player?.location
+    (n) => n.id === player?.current_borough_id
   );
 
   if (dataLoading || !player) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-blue-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
-          <p className="mt-3 text-blue-700">Loading travel options...</p>
+      <div className="nyc-map-bg flex items-center justify-center">
+        <div className="text-center bg-white bg-opacity-80 p-6 rounded-lg">
+          <FaSpinner className="animate-spin text-4xl mx-auto text-blue-600 mb-3" />
+          <p className="text-blue-900 font-semibold">
+            Loading travel options...
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-blue-100">
-      {/* Game Jam Banner */}
-      <a
-        target="_blank"
-        href="https://jam.pieter.com"
-        style={{
-          fontFamily: "'system-ui', sans-serif",
-          position: 'fixed',
-          bottom: '-1px',
-          right: '-1px',
-          padding: '7px',
-          fontSize: '14px',
-          fontWeight: 'bold',
-          background: '#fff',
-          color: '#000',
-          textDecoration: 'none',
-          zIndex: 10,
-          borderTopLeftRadius: '12px',
-          border: '1px solid #fff',
-        }}
-      >
-        🕹️ Vibe Jam 2025
-      </a>
+    <div
+      className="nyc-map-bg"
+      onClick={selectedNeighborhood ? handleCloseDrawer : undefined}
+    >
+      <div className="map-overlay"></div>
 
-      {/* Header */}
-      <header className="bg-white shadow-md p-4">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center">
-            <Link
-              to={`/game/${gameId}`}
-              className="mr-4 text-blue-600 hover:text-blue-800"
-            >
-              <FaArrowLeft />
-            </Link>
-            <div>
-              <h1 className="text-xl font-bold text-blue-700">Travel</h1>
-              <div className="flex items-center text-sm text-gray-600 mt-1">
-                <span>
-                  Current Location:{' '}
-                  {currentNeighborhood?.name || player.location}
-                </span>
-                <span className="mx-2">•</span>
-                <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                  {formatMoney(player.cash)}
-                </span>
-              </div>
+      <div className="travel-container">
+        {/* Back Button */}
+        <button
+          className="back-button"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/game/${gameId}`);
+          }}
+        >
+          <FaArrowLeft />
+        </button>
+
+        {/* Location Markers - Simplified Design */}
+        {neighborhoods.map((neighborhood) => (
+          <div
+            key={neighborhood.id}
+            className={`location-marker ${
+              neighborhood.id === player.current_borough_id
+                ? 'current'
+                : selectedNeighborhood?.id === neighborhood.id
+                ? 'selected'
+                : ''
+            }`}
+            style={{
+              left: `${neighborhood.x_coordinate}%`,
+              top: `${neighborhood.y_coordinate}%`,
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleSelectNeighborhood(neighborhood);
+            }}
+          >
+            <FaMapPin size={24} />
+            <div className="location-label">
+              {neighborhood.name}
+              {neighborhood.id === player.current_borough_id && ' (You)'}
             </div>
           </div>
-        </div>
-      </header>
+        ))}
 
-      {/* Main content */}
-      <main className="max-w-6xl mx-auto p-4 mt-4">
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="p-4">
-            <h2 className="text-lg font-medium mb-4">Select Destination</h2>
-
-            {/* Map visualization */}
+        {/* Transport Options Panel */}
+        {selectedNeighborhood && (
+          <div
+            className="travel-drawer-backdrop"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div
-              className="border rounded-lg overflow-hidden mb-6 relative bg-blue-50"
-              style={{
-                height: mapSize.height,
-                width: '100%',
-                maxWidth: mapSize.width,
-                margin: '0 auto',
-              }}
+              className="travel-drawer"
+              ref={drawerRef}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
             >
-              {neighborhoods.map((neighborhood) => (
-                <button
-                  key={neighborhood.id}
-                  onClick={() => handleSelectNeighborhood(neighborhood)}
-                  className={`absolute transform -translate-x-1/2 -translate-y-1/2 ${
-                    neighborhood.id === player.location
-                      ? 'text-red-600'
-                      : selectedNeighborhood?.id === neighborhood.id
-                      ? 'text-green-600'
-                      : 'text-blue-600'
-                  }`}
-                  style={{
-                    left: `${
-                      (neighborhood.x_coordinate / 100) * mapSize.width
-                    }px`,
-                    top: `${
-                      (neighborhood.y_coordinate / 100) * mapSize.height
-                    }px`,
-                  }}
-                  title={neighborhood.name}
-                >
-                  <div className="relative">
-                    <FaMapMarkerAlt size={26} />
-                    {neighborhood.id === player.location && (
-                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-600 rounded-full border-2 border-white" />
-                    )}
-                  </div>
+              <div className="drawer-handle"></div>
+
+              <div className="drawer-header">
+                <h2 className="text-xl font-bold">
+                  Travel to {selectedNeighborhood.name}
+                </h2>
+                <button className="close-button" onClick={handleCloseDrawer}>
+                  <FaTimes />
+                </button>
+              </div>
+
+              <p className="text-sm mb-2 px-4">
+                Choose your transportation method:
+              </p>
+
+              <div className="transport-grid">
+                {transportOptions.map((transport) => (
                   <div
-                    className={`text-xs mt-1 font-medium ${
-                      neighborhood.id === player.location
-                        ? 'text-red-700'
-                        : selectedNeighborhood?.id === neighborhood.id
-                        ? 'text-green-700'
-                        : 'text-gray-700'
+                    key={transport.id}
+                    onClick={() => setSelectedTransport(transport)}
+                    className={`transport-option ${
+                      selectedTransport?.id === transport.id ? 'selected' : ''
                     }`}
                   >
-                    {neighborhood.name}
+                    <div className="transport-icon">{transport.icon}</div>
+                    <div className="transport-name">{transport.name}</div>
+                    <div className="transport-price">
+                      <FaDollarSign className="text-gray-500" size={10} />
+                      <span>{formatMoney(transport.base_cost)}</span>
+                    </div>
+                    <div className="transport-time">
+                      <FaClock className="text-gray-500" size={10} />
+                      <span>{transport.speed_factor} hours</span>
+                    </div>
                   </div>
-                </button>
-              ))}
+                ))}
+              </div>
 
-              {/* Legend */}
-              <div className="absolute bottom-2 left-2 bg-white bg-opacity-80 p-2 rounded text-xs">
-                <div className="flex items-center">
-                  <FaMapMarkerAlt className="text-red-600 mr-1" />
-                  <span>Your Location</span>
-                </div>
-                <div className="flex items-center mt-1">
-                  <FaMapMarkerAlt className="text-blue-600 mr-1" />
-                  <span>Other Neighborhoods</span>
-                </div>
-                <div className="flex items-center mt-1">
-                  <FaMapMarkerAlt className="text-green-600 mr-1" />
-                  <span>Selected Destination</span>
-                </div>
+              <div className="px-4 pb-4 pt-2">
+                <Button
+                  onClick={handleTravel}
+                  disabled={loading || !selectedTransport}
+                  className="w-full py-3"
+                >
+                  {loading ? (
+                    <span className="flex items-center justify-center">
+                      <FaSpinner className="animate-spin mr-2" />
+                      Traveling...
+                    </span>
+                  ) : (
+                    'Travel Now'
+                  )}
+                </Button>
               </div>
             </div>
-
-            {/* Transport selection */}
-            {selectedNeighborhood && (
-              <div className="mt-6">
-                <h3 className="font-medium mb-3">Select Transportation:</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {transportMethods.map((transport) => (
-                    <button
-                      key={transport.id}
-                      onClick={() => handleSelectTransport(transport)}
-                      className={`p-4 rounded-lg border ${
-                        selectedTransport?.id === transport.id
-                          ? 'border-blue-600 bg-blue-50'
-                          : 'border-gray-200 hover:bg-gray-50'
-                      }`}
-                    >
-                      <div className="flex flex-col items-center">
-                        {transport.type === 'bicycle' ? (
-                          <FaBicycle className="text-2xl mb-2" />
-                        ) : transport.type === 'subway' ? (
-                          <FaSubway className="text-2xl mb-2" />
-                        ) : transport.type === 'taxi' ? (
-                          <FaTaxi className="text-2xl mb-2" />
-                        ) : (
-                          <FaCarSide className="text-2xl mb-2" />
-                        )}
-                        <span className="font-medium">{transport.name}</span>
-                        <span className="text-sm text-gray-600 mt-1">
-                          {formatMoney(transport.base_cost)}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Travel summary */}
-            {selectedNeighborhood && selectedTransport && (
-              <div className="mt-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-                <h3 className="font-medium mb-2">Travel Summary:</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>From:</span>
-                    <span className="font-medium">
-                      {currentNeighborhood?.name || player.location}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>To:</span>
-                    <span className="font-medium">
-                      {selectedNeighborhood.name}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Transport:</span>
-                    <span className="font-medium">
-                      {selectedTransport.name}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Cost:</span>
-                    <span className="font-medium">
-                      {formatMoney(calculateTravelCost(selectedNeighborhood))}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Day Cost:</span>
-                    <span className="font-medium">1 day</span>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex justify-end">
-                  <button
-                    onClick={handleTravel}
-                    disabled={loading}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loading ? (
-                      <span className="flex items-center">
-                        <FaSpinner className="animate-spin mr-2" />
-                        Traveling...
-                      </span>
-                    ) : (
-                      'Travel Now'
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
-        </div>
-      </main>
+        )}
+      </div>
     </div>
   );
 };
