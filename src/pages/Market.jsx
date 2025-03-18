@@ -12,6 +12,7 @@ import {
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useGame } from '../contexts/GameContext';
+import { getBoroughStores, getStoreInventory } from '../lib/gameActions';
 
 const Market = () => {
   const { gameId, neighborhoodId, storeName } = useParams();
@@ -34,6 +35,7 @@ const Market = () => {
   const [selectedStore, setSelectedStore] = useState(null);
   const [purchaseQuantity, setPurchaseQuantity] = useState({});
   const [sellQuantity, setSellQuantity] = useState({});
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!gameId || !neighborhoodId) {
@@ -42,14 +44,64 @@ const Market = () => {
     }
 
     const initMarket = async () => {
-      // Ensure player data is loaded
-      await loadGame(gameId);
+      try {
+        setMarketLoading(true);
 
-      // Load neighborhood data
-      fetchNeighborhood();
+        // 1. Fetch the borough (not neighborhood) data
+        const { data: borough, error: boroughError } = await supabase
+          .from('boroughs') // Use boroughs instead of neighborhoods
+          .select('*')
+          .eq('id', neighborhoodId) // Use whatever parameter name your component has
+          .single();
 
-      // Load stores in this neighborhood
-      fetchStores();
+        if (boroughError) {
+          console.error('Error fetching borough:', boroughError);
+          setError('Failed to load location data');
+          return;
+        }
+
+        setNeighborhood(borough); // Store in state (even if named neighborhood)
+
+        // 2. Fetch the stores in this borough using getBoroughStores from gameActions
+        const storeData = await getBoroughStores(neighborhoodId);
+
+        if (!storeData || storeData.length === 0) {
+          setError('No stores found in this location');
+          return;
+        }
+
+        setStores(storeData);
+
+        // If you need a specific store:
+        const selectedStore = storeData.find(
+          (store) =>
+            store.name === decodeURIComponent(storeName) ||
+            store.id === neighborhoodId // Or whatever identifier you use
+        );
+
+        if (selectedStore) {
+          setSelectedStore(selectedStore);
+
+          // 3. Load store inventory using getStoreInventory from gameActions
+          const { items, error } = await getStoreInventory(
+            selectedStore.id,
+            gameId
+          );
+
+          if (error) {
+            console.error('Error loading inventory:', error);
+            setError('Failed to load store inventory');
+            return;
+          }
+
+          setMarketItems(items);
+        }
+      } catch (error) {
+        console.error('Error initializing market:', error);
+        setError('An unexpected error occurred');
+      } finally {
+        setMarketLoading(false);
+      }
     };
 
     initMarket();
@@ -61,62 +113,6 @@ const Market = () => {
       fetchMarketInventory(selectedStore.id);
     }
   }, [selectedStore]);
-
-  const fetchNeighborhood = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('neighborhoods')
-        .select('*')
-        .eq('id', neighborhoodId)
-        .single();
-
-      if (error) throw error;
-
-      setNeighborhood(data);
-    } catch (err) {
-      console.error('Error fetching neighborhood:', err);
-      toast.error('Failed to load neighborhood data');
-    }
-  };
-
-  const fetchStores = async () => {
-    try {
-      // Get stores for this neighborhood
-      const { data, error } = await supabase
-        .from('neighborhood_stores')
-        .select(
-          `
-          id,
-          stores:store_id (
-            id,
-            name,
-            description,
-            inventory_size,
-            price_multiplier,
-            volatility_factor,
-            min_product_quality
-          )
-        `
-        )
-        .eq('neighborhood_id', neighborhoodId);
-
-      if (error) throw error;
-
-      const storeList = data
-        .map((item) => item.stores)
-        .filter((store) => store !== null);
-
-      setStores(storeList);
-
-      // Select first store by default if any exist
-      if (storeList.length > 0) {
-        setSelectedStore(storeList[0]);
-      }
-    } catch (err) {
-      console.error('Error fetching stores:', err);
-      toast.error('Failed to load stores');
-    }
-  };
 
   const fetchMarketInventory = async (storeId) => {
     try {

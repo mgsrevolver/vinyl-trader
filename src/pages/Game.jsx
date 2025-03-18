@@ -13,6 +13,15 @@ import {
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useGame } from '../contexts/GameContext';
+import {
+  getGameState,
+  getPlayerInventory,
+  getTransportationOptions,
+  getBoroughStores,
+  advanceGameHour,
+  usePlayerAction,
+  upgradeCarrier,
+} from '../lib/gameActions';
 
 const Game = () => {
   const { gameId } = useParams();
@@ -26,38 +35,138 @@ const Game = () => {
     loadGame,
     playerInventory,
     endTurn,
+    playerId,
   } = useGame();
 
+  // State management
+  const [gameState, setGameState] = useState(null);
+  const [playerState, setPlayerState] = useState(null);
+  const [inventory, setInventory] = useState([]);
+  const [transportOptions, setTransportOptions] = useState([]);
+  const [boroughStores, setBoroughStores] = useState([]);
+  const [loadingGameState, setLoadingGameState] = useState(true);
   const [neighborhoods, setNeighborhoods] = useState([]);
   const [neighborhoodsLoading, setNeighborhoodsLoading] = useState(false);
   const [showPlayersModal, setShowPlayersModal] = useState(false);
-  const initAttempted = useRef(false);
 
   useEffect(() => {
-    // Load the game once with no fanfare
-    loadGame(gameId);
+    if (playerId) {
+      // Load game data using gameActions
+      loadGameData();
 
-    // Load neighborhoods
-    supabase
-      .from('neighborhoods')
-      .select('*')
-      .then(({ data }) => {
-        setNeighborhoods(data || []);
-      });
-  }, []); // Empty dependency array, runs only once
+      // Load neighborhoods
+      loadNeighborhoods();
 
-  const handleEndTurn = async () => {
-    const { success, error } = await endTurn();
+      // Set up subscription for realtime updates
+      const gameSubscription = supabase
+        .channel(`game-${gameId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'games',
+            filter: `id=eq.${gameId}`,
+          },
+          (payload) => {
+            // Reload game data when game changes
+            loadGameData();
+          }
+        )
+        .subscribe();
 
-    if (!success) {
-      toast.error(`Failed to end turn: ${error?.message || 'Unknown error'}`);
+      return () => {
+        gameSubscription.unsubscribe();
+      };
+    }
+  }, [gameId, playerId]);
+
+  const loadGameData = async () => {
+    if (!playerId) {
+      console.error('No player ID available');
+      toast.error('Unable to load game data - missing player information');
+      return;
+    }
+
+    try {
+      setLoadingGameState(true);
+
+      // First get the player ID for the current user
+      const { data: playerData, error: playerError } = await supabase
+        .from('players')
+        .select('id')
+        .eq('game_id', gameId)
+        .eq('user_id', playerId)
+        .single();
+
+      if (playerError) {
+        console.error('Error getting player:', playerError);
+        toast.error('Could not find your player in this game');
+        navigate('/');
+        return;
+      }
+
+      // Now use our gameActions functions to get all the data we need
+      const gameStateData = await getGameState(playerData.id, gameId);
+
+      if (gameStateData && !gameStateData.error) {
+        setGameState(gameStateData);
+        setPlayerState(gameStateData.playerState);
+        setInventory(gameStateData.inventory);
+        setTransportOptions(gameStateData.transportOptions);
+        setBoroughStores(gameStateData.boroughStores);
+      } else {
+        console.error('Error loading game state:', gameStateData?.error);
+        toast.error('Failed to load game data. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error in loadGameData:', error);
+      toast.error('An unexpected error occurred loading game data.');
+    } finally {
+      setLoadingGameState(false);
     }
   };
 
-  const goToMarket = (neighborhoodId, storeName) => {
-    navigate(
-      `/market/${gameId}/${neighborhoodId}/${encodeURIComponent(storeName)}`
-    );
+  const loadNeighborhoods = async () => {
+    setNeighborhoodsLoading(true);
+    const { data, error } = await supabase.from('neighborhoods').select('*');
+
+    if (error) {
+      console.error('Error loading neighborhoods:', error);
+    } else {
+      setNeighborhoods(data || []);
+    }
+    setNeighborhoodsLoading(false);
+  };
+
+  const handleEndTurn = async () => {
+    try {
+      const success = await advanceGameHour(gameId);
+
+      if (success) {
+        toast.success('Turn completed! Advancing to the next hour.');
+        // Reload game data after advancing
+        loadGameData();
+      } else {
+        toast.error('Failed to end turn. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error ending turn:', error);
+      toast.error('An error occurred while ending your turn.');
+    }
+  };
+
+  const goToMarket = (boroughId, storeName) => {
+    if (!boroughId) {
+      // If no boroughId is provided, use the player's current borough
+      if (!playerState || !playerState.current_borough_id) {
+        toast.error('Cannot find your current location');
+        return;
+      }
+      boroughId = playerState.current_borough_id;
+    }
+
+    navigate(`/market/${gameId}/${boroughId}/${encodeURIComponent(storeName)}`);
   };
 
   const goToTravel = () => {
@@ -70,7 +179,7 @@ const Game = () => {
 
   const isSinglePlayerMode = players && players.length <= 1;
 
-  if (gameLoading || !player || !currentGame) {
+  if (loadingGameState || !gameState || !playerState) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-blue-100 flex items-center justify-center">
         <div className="text-center">
@@ -111,15 +220,15 @@ const Game = () => {
         <div className="max-w-6xl mx-auto flex flex-wrap justify-between items-center">
           <div>
             <h1 className="text-xl font-bold text-blue-700">
-              {currentGame.name}
+              {gameState.game.name}
             </h1>
             <div className="flex items-center text-sm text-gray-600 mt-1">
               <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
-                {currentGame.current_hour} hours remaining
+                {gameState.game.current_hour} hours remaining
               </span>
               <span className="mx-2">•</span>
-              <span>Location: {player.location}</span>
-              {isSinglePlayerMode && (
+              <span>Location: {playerState.current_borough}</span>
+              {inventory.length <= 1 && (
                 <>
                   <span className="mx-2">•</span>
                   <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
@@ -132,7 +241,7 @@ const Game = () => {
 
           <div className="flex items-center space-x-2 mt-2 sm:mt-0">
             {/* Only show Players button in multiplayer */}
-            {!isSinglePlayerMode && (
+            {inventory.length > 1 && (
               <button
                 onClick={() => setShowPlayersModal(true)}
                 className="flex items-center bg-blue-100 text-blue-800 px-3 py-1 rounded-md hover:bg-blue-200"
@@ -142,7 +251,7 @@ const Game = () => {
             )}
 
             <div className="flex items-center bg-green-100 text-green-800 px-3 py-1 rounded-md">
-              <FaCoins className="mr-1" /> {formatMoney(player.cash)}
+              <FaCoins className="mr-1" /> {formatMoney(playerState.cash)}
             </div>
           </div>
         </div>
@@ -161,38 +270,35 @@ const Game = () => {
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Cash:</span>
                   <span className="font-medium text-green-700">
-                    {formatMoney(player.cash)}
+                    {formatMoney(playerState.cash)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Loan:</span>
                   <span className="font-medium text-red-600">
-                    {formatMoney(player.loan_amount)}
+                    {formatMoney(playerState.loan_amount)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Interest Rate:</span>
                   <span className="font-medium">
-                    {player.loan_interest_rate}%
+                    {playerState.loan_interest_rate}%
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Inventory:</span>
                   <span className="font-medium">
-                    {playerInventory.reduce(
-                      (acc, item) => acc + item.quantity,
-                      0
-                    )}
-                    /{player.inventory_capacity}
+                    {inventory.reduce((acc, item) => acc + item.quantity, 0)}/
+                    {playerState.inventory_capacity}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Net Worth:</span>
                   <span className="font-medium text-blue-700">
                     {formatMoney(
-                      player.cash -
-                        player.loan_amount +
-                        playerInventory.reduce(
+                      playerState.cash -
+                        playerState.loan_amount +
+                        inventory.reduce(
                           (acc, item) =>
                             acc + item.purchase_price * item.quantity,
                           0
@@ -202,23 +308,21 @@ const Game = () => {
                 </div>
               </div>
 
-              {/* Simple Inventory Preview */}
+              {/* Inventory Preview */}
               <div className="mt-4">
                 <h3 className="font-medium mb-2 text-gray-700">
-                  Inventory ({playerInventory.length} items)
+                  Inventory ({inventory.length} items)
                 </h3>
                 <div className="bg-gray-50 p-2 rounded-md max-h-32 overflow-y-auto">
-                  {playerInventory.length === 0 ? (
+                  {inventory.length === 0 ? (
                     <p className="text-sm text-gray-500 italic">
                       Your inventory is empty
                     </p>
                   ) : (
                     <ul className="text-sm space-y-1">
-                      {playerInventory.map((item) => (
+                      {inventory.map((item) => (
                         <li key={item.id} className="flex justify-between">
-                          <span>
-                            {item.products?.name || 'Unknown Product'}
-                          </span>
+                          <span>{item.product_name || 'Unknown Product'}</span>
                           <span>{item.quantity}x</span>
                         </li>
                       ))}
@@ -248,7 +352,9 @@ const Game = () => {
                 </button>
 
                 <button
-                  onClick={() => goToMarket(player.location, 'Local Market')}
+                  onClick={() =>
+                    goToMarket(playerState.current_borough_id, 'Local Market')
+                  }
                   className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 p-6 rounded-lg transition-colors"
                 >
                   <FaStore className="text-3xl text-blue-600 mb-2" />
@@ -283,7 +389,7 @@ const Game = () => {
                       Take your actions and end your turn to advance the game.
                       <br />
                       <span className="font-semibold">
-                        {currentGame.current_hour} hours remaining
+                        {gameState.game.current_hour} hours remaining
                       </span>
                     </p>
                   </div>

@@ -36,24 +36,19 @@ export const GameProvider = ({ children }) => {
   useEffect(() => {
     const storedPlayerId = localStorage.getItem('deliWarsPlayerId');
 
-    // Check if the stored ID is a valid UUID format
-    const isValidUuid =
+    if (
       storedPlayerId &&
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
         storedPlayerId
-      );
-
-    if (storedPlayerId && isValidUuid) {
+      )
+    ) {
+      console.log('Using stored playerId:', storedPlayerId);
       setPlayerId(storedPlayerId);
     } else {
-      // Generate a UUID instead of a random string
-      const newPlayerId = generateUUID();
+      const newPlayerId = uuidv4();
+      console.log('Creating new playerId:', newPlayerId);
       localStorage.setItem('deliWarsPlayerId', newPlayerId);
       setPlayerId(newPlayerId);
-
-      // Clear related stored data since we're creating a new identity
-      localStorage.removeItem('deliWarsCurrentGame');
-      localStorage.removeItem('deliWarsPlayerName');
     }
   }, []);
 

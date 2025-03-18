@@ -11,6 +11,11 @@ import {
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { generatePlayerName, generateGameName } from '../lib/nameGenerator';
+import {
+  createNewGame,
+  initializePlayer,
+  initializeGameMarket,
+} from '../lib/gameActions';
 
 const Dashboard = () => {
   const { user, logout, fetchUserGames } = useAuth();
@@ -123,42 +128,38 @@ const Dashboard = () => {
       // Use the gameName from the form, or create a default name if empty
       const gameNameToUse = gameName.trim() || generateGameName();
 
-      // Create a new game with the name field included
-      const { data: gameData, error: gameError } = await supabase
-        .from('games')
-        .insert({
-          created_by: user.id,
-          status: 'waiting',
-          current_day: 0,
-          name: gameNameToUse,
-        })
-        .select()
-        .single();
+      // 1. Create a new game
+      // Create a new game with our gameActions function
+      const gameId = await createNewGame(user.id, gameNameToUse);
 
-      if (gameError) {
-        console.error('Error creating game:', gameError);
-        toast.error(`Error creating game: ${gameError.message}`);
+      if (!gameId) {
+        toast.error('Failed to create the game. Please try again.');
         return;
       }
 
-      // Add creator as the first player with only the fields that exist in the schema
-      const { error: playerError } = await supabase.from('players').insert({
-        game_id: gameData.id,
-        user_id: user.id,
-        username: user.user_metadata?.username || generatePlayerName(),
-        cash: 0,
-        location: 'downtown',
-      });
+      // Get the first borough as default starting location
+      const { data: boroughs, error: boroughError } = await supabase
+        .from('boroughs')
+        .select('id')
+        .limit(1);
 
-      if (playerError) {
-        console.error('Error adding player:', playerError);
-        toast.error(`Error adding player: ${playerError.message}`);
+      if (boroughError) {
+        console.error('Error getting starting borough:', boroughError);
+        toast.error("Couldn't set starting location. Please try again.");
         return;
       }
 
-      // Close the modal and redirect to lobby
+      // Use our initializePlayer function
+      const playerId = await initializePlayer(gameId, user.id, boroughs[0]?.id);
+
+      if (!playerId) {
+        toast.error('Failed to initialize player. Please try again.');
+        return;
+      }
+
+      // Close the modal and redirect to the game
       setShowNewGameModal(false);
-      navigate(`/lobby/${gameData.id}`);
+      navigate(`/game/${gameId}`);
     } catch (error) {
       console.error('Unexpected error in game creation:', error);
       toast.error('An unexpected error occurred');
