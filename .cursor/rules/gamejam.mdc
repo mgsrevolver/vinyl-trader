@@ -3,8 +3,75 @@ description: I am making a game to participate in a game jam it must follow thes
 globs: 
 alwaysApply: false
 ---
+NYC Vinyl Trader (1985): Project Summary
+Game Concept
+NYC Vinyl Trader is a turn-based trading game where players assume the role of vinyl record traders in 1985 NYC. Players compete to accumulate the most wealth within a 24-hour timeframe after repaying their initial loan.
+Core Mechanics
 
-I'm organizing the
+Trading System: Buy low, sell high across different NYC boroughs
+Time Management: 24-hour game clock with turns representing 1 hour
+Actions: 4 actions per turn (shop, buy/sell, travel, expand inventory)
+Limited Inventory: Start with backpack holding 10 records, upgrades available
+Loans: Start with a $100 loan that must be repaid ($150) to survive
+Travel: Moving between boroughs costs 1-4 actions based on method
+Special Events: Record convention at hour 12, random estate sales
+24-Hour Economy: Mix of standard stores and night-only trading opportunities
+
+Win Condition
+
+Must repay $150 loan after 24 hours (survival)
+Highest cash amount after loan repayment determines winner
+All inventory must be sold - loan shark only accepts cash
+Public scoreboard for single-player competition
+
+Tech Stack
+
+Frontend: React & Tailwind CSS
+Backend: Supabase (Authentication, Database, Storage)
+Realtime: Supabase Realtime for scoreboard updates
+Vibe Jam Requirement: Mobile web compatible
+
+Data Structure
+
+Games: Game state, settings, and current time
+Players: Cash, inventory, loan status, and location
+Markets: Boroughs with different record stores and prices
+Products: Vinyl records with genre, condition, rarity and prices
+Transactions: History of all buys, sells, and trades
+
+Key Features
+
+10 authentic 1985 NYC record stores across all five boroughs
+Inventory upgrades (backpack → tote → record case → flight case)
+Borough-specific record genre specialties (hip-hop in Bronx, jazz in Harlem)
+Multiple transportation methods with time/money tradeoffs
+Record convention at hour 12, random estate sales
+24-hour gameplay with day/night economy differences
+60-second turn timer for real-time urgency
+
+Store Layout
+
+Manhattan: 4 stores (Tower Records, Record Shack, Village Oldies, Golden Disc)
+Brooklyn: 2 stores (Bleecker Bob's Brooklyn, Birdel's Records)
+Queens: 2 stores (Sunshine Records, House of Oldies Jamaica)
+Bronx: 1 store (Downstairs Records)
+Staten Island: 1 store (Richmond Records)
+Special: Convention (hour 12) + Random Estate Sale
+
+Transit Options
+
+Subway: $1 fare, moderate speed, 10 record capacity
+Taxi: $5-15 fare, fastest, 15 record capacity
+Walking: Free, slowest, 5 record capacity
+Bike: Free, moderate speed, 7 record capacity
+
+Game Timeline
+1-8 hours: Early game - building initial inventory and capital
+9-16 hours: Mid-game - convention opportunity, strategic investments
+17-24 hours: Late game - liquidation pressure, final profit maximization
+
+
+I'm creatig a game for a game jam,. Here are the requirements
 
 🌟 2025 Vibe Coding Game Jam
 
