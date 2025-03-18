@@ -1,3 +1,4 @@
+// src/App.jsx
 import {
   BrowserRouter as Router,
   Routes,
@@ -5,131 +6,61 @@ import {
   Navigate,
 } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { useState, useEffect } from 'react';
-import { supabase, getCurrentUser } from './lib/supabase';
+import { GameProvider } from './contexts/GameContext';
 
-// Import pages
+// Pages
 import Home from './pages/Home';
-import Authentication from './pages/Authentication';
-import Dashboard from './pages/Dashboard';
 import Game from './pages/Game';
-import Market from './pages/Market';
-import NotFound from './pages/NotFound';
 import Lobby from './pages/Lobby';
 import JoinGame from './pages/JoinGame';
+import Market from './pages/Market';
+import TravelScreen from './pages/TravelScreen';
+import NotFound from './pages/NotFound';
 
-// Import contexts
-import { AuthProvider } from './contexts/AuthContext';
-
-function App() {
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // Check for active session on app load
-    const checkSession = async () => {
-      try {
-        await getCurrentUser();
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error checking session:', error);
-        setIsLoading(false);
-      }
-    };
-
-    checkSession();
-
-    // Set up auth listener
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN') {
-        console.log('User signed in');
-      } else if (event === 'SIGNED_OUT') {
-        console.log('User signed out');
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
-      </div>
-    );
-  }
-
+const App = () => {
   return (
-    <AuthProvider>
-      <Router>
-        <Toaster position="top-right" />
+    <Router>
+      <GameProvider>
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 3000,
+            style: {
+              background: '#363636',
+              color: '#fff',
+            },
+            success: {
+              duration: 2000,
+              iconTheme: {
+                primary: '#10B981',
+                secondary: 'white',
+              },
+            },
+            error: {
+              duration: 3000,
+              iconTheme: {
+                primary: '#EF4444',
+                secondary: 'white',
+              },
+            },
+          }}
+        />
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/auth" element={<Authentication />} />
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/game/:gameId"
-            element={
-              <ProtectedRoute>
-                <Game />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/market/:gameId/:neighborhoodId"
-            element={
-              <ProtectedRoute>
-                <Market />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/game/:gameId" element={<Game />} />
           <Route path="/lobby/:gameId" element={<Lobby />} />
           <Route path="/join/:gameId" element={<JoinGame />} />
-          <Route path="*" element={<NotFound />} />
+          <Route
+            path="/market/:gameId/:neighborhoodId/:storeName"
+            element={<Market />}
+          />
+          <Route path="/travel/:gameId" element={<TravelScreen />} />
+          <Route path="/404" element={<NotFound />} />
+          <Route path="*" element={<Navigate to="/404" replace />} />
         </Routes>
-      </Router>
-    </AuthProvider>
+      </GameProvider>
+    </Router>
   );
-}
-
-// Protected route component
-function ProtectedRoute({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const checkUser = async () => {
-      const user = await getCurrentUser();
-      setUser(user);
-      setLoading(false);
-    };
-
-    checkUser();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-
-  return children;
-}
+};
 
 export default App;

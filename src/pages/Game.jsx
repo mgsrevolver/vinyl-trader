@@ -1,147 +1,358 @@
-import { useEffect, useState } from 'react';
+// src/pages/Game.jsx
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
+import {
+  FaStore,
+  FaMapMarkedAlt,
+  FaWarehouse,
+  FaCoins,
+  FaMoneyBillWave,
+  FaSpinner,
+  FaUsers,
+} from 'react-icons/fa';
 import toast from 'react-hot-toast';
+import { supabase } from '../lib/supabase';
+import { useGame } from '../contexts/GameContext';
 
 const Game = () => {
   const { gameId } = useParams();
-  const { user } = useAuth();
   const navigate = useNavigate();
+  const {
+    currentGame,
+    player,
+    players,
+    loading,
+    gameLoading,
+    loadGame,
+    playerInventory,
+    endTurn,
+  } = useGame();
 
-  const [loading, setLoading] = useState(true);
-  const [game, setGame] = useState(null);
-  const [player, setPlayer] = useState(null);
+  const [neighborhoods, setNeighborhoods] = useState([]);
+  const [neighborhoodsLoading, setNeighborhoodsLoading] = useState(false);
+  const [showPlayersModal, setShowPlayersModal] = useState(false);
+  const initAttempted = useRef(false);
 
   useEffect(() => {
-    if (!gameId || !user) return;
+    // Load the game once with no fanfare
+    loadGame(gameId);
 
-    const loadGameData = async () => {
-      try {
-        setLoading(true);
+    // Load neighborhoods
+    supabase
+      .from('neighborhoods')
+      .select('*')
+      .then(({ data }) => {
+        setNeighborhoods(data || []);
+      });
+  }, []); // Empty dependency array, runs only once
 
-        // Load game data
-        const { data: gameData, error: gameError } = await supabase
-          .from('games')
-          .select('*')
-          .eq('id', gameId)
-          .single();
+  const handleEndTurn = async () => {
+    const { success, error } = await endTurn();
 
-        if (gameError) throw gameError;
-        setGame(gameData);
+    if (!success) {
+      toast.error(`Failed to end turn: ${error?.message || 'Unknown error'}`);
+    }
+  };
 
-        // Load player data
-        const { data: playerData, error: playerError } = await supabase
-          .from('players')
-          .select('*')
-          .eq('game_id', gameId)
-          .eq('user_id', user.id)
-          .single();
+  const goToMarket = (neighborhoodId, storeName) => {
+    navigate(
+      `/market/${gameId}/${neighborhoodId}/${encodeURIComponent(storeName)}`
+    );
+  };
 
-        if (playerError) {
-          if (playerError.code === 'PGRST116') {
-            // Player not found in this game, redirect to dashboard
-            toast.error("You're not part of this game!");
-            navigate('/dashboard');
-            return;
-          }
-          throw playerError;
-        }
+  const goToTravel = () => {
+    navigate(`/travel/${gameId}`);
+  };
 
-        setPlayer(playerData);
-      } catch (error) {
-        console.error('Error loading game data:', error);
-        toast.error(`Error: ${error.message}`);
-        navigate('/dashboard');
-      } finally {
-        setLoading(false);
-      }
-    };
+  const formatMoney = (amount) => {
+    return `$${parseFloat(amount).toFixed(2)}`;
+  };
 
-    loadGameData();
-  }, [gameId, user, navigate]);
+  const isSinglePlayerMode = players && players.length <= 1;
 
-  if (loading) {
+  if (gameLoading || !player || !currentGame) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-blue-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-3 text-gray-600">Loading game...</p>
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+          <p className="mt-3 text-blue-700">Loading game...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <div>
-            <Link to="/dashboard" className="text-gray-600 hover:text-gray-900">
-              ← Back to Dashboard
-            </Link>
-            <h1 className="text-2xl font-display font-bold text-primary-700 mt-1">
-              {game?.name}
-            </h1>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="text-sm text-gray-600">
-              Day <span className="font-semibold">{game?.current_day}</span> of{' '}
-              {game?.max_days}
-            </div>
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-blue-100">
+      {/* Game Jam Banner */}
+      <a
+        target="_blank"
+        href="https://jam.pieter.com"
+        style={{
+          fontFamily: "'system-ui', sans-serif",
+          position: 'fixed',
+          bottom: '-1px',
+          right: '-1px',
+          padding: '7px',
+          fontSize: '14px',
+          fontWeight: 'bold',
+          background: '#fff',
+          color: '#000',
+          textDecoration: 'none',
+          zIndex: 10,
+          borderTopLeftRadius: '12px',
+          border: '1px solid #fff',
+        }}
+      >
+        🕹️ Vibe Jam 2025
+      </a>
 
-            <div className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-              ${player?.cash.toFixed(2)}
+      {/* Header */}
+      <header className="bg-white shadow-md p-4">
+        <div className="max-w-6xl mx-auto flex flex-wrap justify-between items-center">
+          <div>
+            <h1 className="text-xl font-bold text-blue-700">
+              {currentGame.name}
+            </h1>
+            <div className="flex items-center text-sm text-gray-600 mt-1">
+              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                {currentGame.current_hour} hours remaining
+              </span>
+              <span className="mx-2">•</span>
+              <span>Location: {player.location}</span>
+              {isSinglePlayerMode && (
+                <>
+                  <span className="mx-2">•</span>
+                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                    Single Player
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 mt-2 sm:mt-0">
+            {/* Only show Players button in multiplayer */}
+            {!isSinglePlayerMode && (
+              <button
+                onClick={() => setShowPlayersModal(true)}
+                className="flex items-center bg-blue-100 text-blue-800 px-3 py-1 rounded-md hover:bg-blue-200"
+              >
+                <FaUsers className="mr-1" /> Players
+              </button>
+            )}
+
+            <div className="flex items-center bg-green-100 text-green-800 px-3 py-1 rounded-md">
+              <FaCoins className="mr-1" /> {formatMoney(player.cash)}
             </div>
           </div>
         </div>
       </header>
 
       {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Game Dashboard</h2>
-          <p className="text-gray-600">
-            This is a placeholder for the main game interface. Your current
-            location: {player?.location}
-          </p>
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="p-4 border rounded-lg">
-              <h3 className="font-semibold mb-2">Player Stats</h3>
-              <div className="text-sm text-gray-600">
-                <p>Cash: ${player?.cash.toFixed(2)}</p>
-                <p>Loan: ${player?.loan_amount.toFixed(2)}</p>
-                <p>Interest Rate: {player?.loan_interest_rate}%</p>
-                <p>Inventory Capacity: {player?.inventory_capacity} units</p>
+      <main className="max-w-6xl mx-auto p-4 mt-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Player Stats */}
+          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div className="bg-blue-600 text-white p-3">
+              <h2 className="font-bold">Your Status</h2>
+            </div>
+            <div className="p-4">
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Cash:</span>
+                  <span className="font-medium text-green-700">
+                    {formatMoney(player.cash)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Loan:</span>
+                  <span className="font-medium text-red-600">
+                    {formatMoney(player.loan_amount)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Interest Rate:</span>
+                  <span className="font-medium">
+                    {player.loan_interest_rate}%
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Inventory:</span>
+                  <span className="font-medium">
+                    {playerInventory.reduce(
+                      (acc, item) => acc + item.quantity,
+                      0
+                    )}
+                    /{player.inventory_capacity}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Net Worth:</span>
+                  <span className="font-medium text-blue-700">
+                    {formatMoney(
+                      player.cash -
+                        player.loan_amount +
+                        playerInventory.reduce(
+                          (acc, item) =>
+                            acc + item.purchase_price * item.quantity,
+                          0
+                        )
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {/* Simple Inventory Preview */}
+              <div className="mt-4">
+                <h3 className="font-medium mb-2 text-gray-700">
+                  Inventory ({playerInventory.length} items)
+                </h3>
+                <div className="bg-gray-50 p-2 rounded-md max-h-32 overflow-y-auto">
+                  {playerInventory.length === 0 ? (
+                    <p className="text-sm text-gray-500 italic">
+                      Your inventory is empty
+                    </p>
+                  ) : (
+                    <ul className="text-sm space-y-1">
+                      {playerInventory.map((item) => (
+                        <li key={item.id} className="flex justify-between">
+                          <span>
+                            {item.products?.name || 'Unknown Product'}
+                          </span>
+                          <span>{item.quantity}x</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
             </div>
+          </div>
 
-            <div className="p-4 border rounded-lg">
-              <h3 className="font-semibold mb-2">Location</h3>
-              <p className="text-sm text-gray-600">
-                You are currently in {player?.location}
-              </p>
-              <button className="mt-3 btn btn-primary text-sm">
-                Travel to Another Neighborhood
-              </button>
+          {/* Actions */}
+          <div className="bg-white rounded-lg shadow-md overflow-hidden md:col-span-2">
+            <div className="bg-blue-600 text-white p-3">
+              <h2 className="font-bold">Actions</h2>
             </div>
+            <div className="p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <button
+                  onClick={goToTravel}
+                  className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 p-6 rounded-lg transition-colors"
+                >
+                  <FaMapMarkedAlt className="text-3xl text-blue-600 mb-2" />
+                  <span className="font-medium">Travel</span>
+                  <span className="text-sm text-gray-600 mt-1">
+                    Visit other neighborhoods
+                  </span>
+                </button>
 
-            <div className="p-4 border rounded-lg">
-              <h3 className="font-semibold mb-2">Market</h3>
-              <p className="text-sm text-gray-600">
-                Visit the market to buy and sell products.
-              </p>
-              <Link
-                to={`/market/${gameId}/placeholder`}
-                className="mt-3 btn btn-primary text-sm block text-center"
-              >
-                Go to Market
-              </Link>
+                <button
+                  onClick={() => goToMarket(player.location, 'Local Market')}
+                  className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 p-6 rounded-lg transition-colors"
+                >
+                  <FaStore className="text-3xl text-blue-600 mb-2" />
+                  <span className="font-medium">Market</span>
+                  <span className="text-sm text-gray-600 mt-1">
+                    Buy and sell products
+                  </span>
+                </button>
+
+                <button className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 p-6 rounded-lg transition-colors">
+                  <FaWarehouse className="text-3xl text-blue-600 mb-2" />
+                  <span className="font-medium">Inventory</span>
+                  <span className="text-sm text-gray-600 mt-1">
+                    Manage your products
+                  </span>
+                </button>
+
+                <button className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 p-6 rounded-lg transition-colors">
+                  <FaMoneyBillWave className="text-3xl text-blue-600 mb-2" />
+                  <span className="font-medium">Bank</span>
+                  <span className="text-sm text-gray-600 mt-1">
+                    Manage loans and cash
+                  </span>
+                </button>
+              </div>
+
+              <div className="mt-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <div className="flex flex-col sm:flex-row items-center justify-between">
+                  <div className="mb-3 sm:mb-0">
+                    <h3 className="font-medium text-gray-800">Current Turn</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Take your actions and end your turn to advance the game.
+                      <br />
+                      <span className="font-semibold">
+                        {currentGame.current_hour} hours remaining
+                      </span>
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleEndTurn}
+                    disabled={loading}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? (
+                      <span className="flex items-center">
+                        <FaSpinner className="animate-spin mr-2" />{' '}
+                        Processing...
+                      </span>
+                    ) : (
+                      'End Turn'
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </main>
+
+      {/* Players Modal - Only load this in multiplayer mode */}
+      {!isSinglePlayerMode && showPlayersModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-4 border-b flex justify-between items-center">
+              <h3 className="font-bold text-lg">Players in Game</h3>
+              <button
+                onClick={() => setShowPlayersModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 max-h-96 overflow-y-auto">
+              {players.length === 0 ? (
+                <p className="text-gray-500 italic">No other players found</p>
+              ) : (
+                <ul className="divide-y">
+                  {players.map((p) => (
+                    <li
+                      key={p.id}
+                      className="py-3 flex items-center justify-between"
+                    >
+                      <div>
+                        <span className="font-medium">{p.username}</span>
+                        {p.user_id === player.user_id && (
+                          <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                            You
+                          </span>
+                        )}
+                        <div className="text-sm text-gray-600">
+                          Location: {p.location}
+                        </div>
+                      </div>
+                      <div className="text-sm font-medium text-green-600">
+                        {formatMoney(p.cash)}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

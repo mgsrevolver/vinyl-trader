@@ -1,254 +1,353 @@
-import { createContext, useState, useEffect, useContext } from 'react';
+// src/contexts/GameContext.jsx
+import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from './AuthContext';
+import { generatePlayerName, generateGameName } from '../lib/nameGenerator';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { v4 as uuidv4 } from 'uuid';
 
 const GameContext = createContext();
 
-export function useGame() {
-  return useContext(GameContext);
-}
+export const useGame = () => useContext(GameContext);
 
-export function GameProvider({ children, gameId }) {
-  const { user } = useAuth();
-  const [game, setGame] = useState(null);
+export const GameProvider = ({ children }) => {
+  const navigate = useNavigate();
+  const [currentGame, setCurrentGame] = useState(null);
   const [player, setPlayer] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [playerInventory, setPlayerInventory] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [currentNeighborhood, setCurrentNeighborhood] = useState(null);
-  const [marketInventory, setMarketInventory] = useState([]);
+  const [gameLoading, setGameLoading] = useState(false);
+  const [players, setPlayers] = useState([]);
+  const [playerId, setPlayerId] = useState(null);
 
-  // Load game data when component mounts or gameId changes
+  function generateUUID() {
+    // This is RFC4122 version 4 compliant
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(
+      /[xy]/g,
+      function (c) {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      }
+    );
+  }
+
+  // Generate or retrieve player ID
   useEffect(() => {
-    if (!gameId || !user) return;
+    const storedPlayerId = localStorage.getItem('deliWarsPlayerId');
 
-    const loadGameData = async () => {
+    // Check if the stored ID is a valid UUID format
+    const isValidUuid =
+      storedPlayerId &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        storedPlayerId
+      );
+
+    if (storedPlayerId && isValidUuid) {
+      setPlayerId(storedPlayerId);
+    } else {
+      // Generate a UUID instead of a random string
+      const newPlayerId = generateUUID();
+      localStorage.setItem('deliWarsPlayerId', newPlayerId);
+      setPlayerId(newPlayerId);
+
+      // Clear related stored data since we're creating a new identity
+      localStorage.removeItem('deliWarsCurrentGame');
+      localStorage.removeItem('deliWarsPlayerName');
+    }
+  }, []);
+
+  // Create a new game
+  const createGame = async (playerName = null) => {
+    if (!playerId) return { success: false, error: new Error('No player ID') };
+
+    try {
       setLoading(true);
-      try {
-        // Load game data
-        const { data: gameData, error: gameError } = await supabase
-          .from('games')
-          .select('*')
-          .eq('id', gameId)
-          .single();
 
-        if (gameError) throw gameError;
-        setGame(gameData);
+      // Use provided player name or generate one
+      const username = playerName || generatePlayerName();
+      const gameName = generateGameName();
 
-        // Load player data
-        const { data: playerData, error: playerError } = await supabase
-          .from('players')
-          .select('*')
-          .eq('game_id', gameId)
-          .eq('user_id', user.id)
-          .single();
+      console.log('Creating game with player ID:', playerId);
 
-        if (playerError && playerError.code !== 'PGRST116') {
-          // PGRST116 is "no rows returned" - this is fine if player hasn't joined yet
-          throw playerError;
-        }
-
-        if (playerData) {
-          setPlayer(playerData);
-
-          // Load player's inventory
-          const { data: inventoryData, error: inventoryError } = await supabase
-            .from('player_inventory')
-            .select(
-              `
-              *,
-              product:products(*)
-            `
-            )
-            .eq('player_id', playerData.id);
-
-          if (inventoryError) throw inventoryError;
-          setPlayerInventory(inventoryData);
-
-          // Load neighborhood data
-          const { data: neighborhoodData, error: neighborhoodError } =
-            await supabase
-              .from('neighborhoods')
-              .select('*')
-              .eq('name', playerData.location)
-              .single();
-
-          if (neighborhoodError) throw neighborhoodError;
-          setCurrentNeighborhood(neighborhoodData);
-
-          // Load market inventory for current neighborhood
-          await loadMarketInventory(gameId, neighborhoodData.id);
-        }
-      } catch (err) {
-        console.error('Error loading game data:', err);
-        setError(err.message);
-        toast.error(`Error: ${err.message}`);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadGameData();
-
-    // Set up real-time subscription for game updates
-    const gameSubscription = supabase
-      .channel(`game:${gameId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'games',
-          filter: `id=eq.${gameId}`,
-        },
-        (payload) => {
-          setGame(payload.new);
-        }
-      )
-      .subscribe();
-
-    // Set up subscription for player updates if player exists
-    let playerSubscription;
-    if (player) {
-      playerSubscription = supabase
-        .channel(`player:${player.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'players',
-            filter: `id=eq.${player.id}`,
-          },
-          (payload) => {
-            setPlayer(payload.new);
-          }
-        )
-        .subscribe();
-    }
-
-    return () => {
-      gameSubscription.unsubscribe();
-      if (playerSubscription) {
-        playerSubscription.unsubscribe();
-      }
-    };
-  }, [gameId, user, player?.id]);
-
-  // Function to load market inventory for a neighborhood
-  const loadMarketInventory = async (gameId, neighborhoodId) => {
-    try {
-      const { data, error } = await supabase
-        .from('market_inventory')
-        .select(
-          `
-          *,
-          product:products(*)
-        `
-        )
-        .eq('game_id', gameId)
-        .eq('neighborhood_id', neighborhoodId);
-
-      if (error) throw error;
-      setMarketInventory(data);
-    } catch (err) {
-      console.error('Error loading market inventory:', err);
-      toast.error(`Error loading market: ${err.message}`);
-    }
-  };
-
-  // Function to travel to a new neighborhood
-  const travelToNeighborhood = async (neighborhoodId) => {
-    if (!player) return { success: false, error: 'Player not found' };
-
-    try {
-      // Get neighborhood data
-      const { data: neighborhoodData, error: neighborhoodError } =
-        await supabase
-          .from('neighborhoods')
-          .select('*')
-          .eq('id', neighborhoodId)
-          .single();
-
-      if (neighborhoodError) throw neighborhoodError;
-
-      // Update player location and deduct a day
-      const { data, error } = await supabase
-        .from('players')
-        .update({
-          location: neighborhoodData.name,
+      // Create game - using proper UUID for created_by
+      const { data: game, error: gameError } = await supabase
+        .from('games')
+        .insert({
+          created_by: playerId,
+          status: 'waiting',
+          current_hour: 24,
+          max_hours: 24,
+          name: gameName,
         })
-        .eq('id', player.id)
         .select()
         .single();
 
-      if (error) throw error;
+      if (gameError) throw gameError;
 
-      // Add travel transaction
-      await supabase.from('transactions').insert({
-        game_id: gameId,
-        player_id: player.id,
-        transaction_type: 'travel',
-        neighborhood_id: neighborhoodId,
-        day: game.current_day,
-      });
+      console.log('Game created successfully:', game.id);
 
-      // Update game day if this player is the current player
-      if (game.current_player_id === user.id) {
-        await supabase
-          .from('games')
-          .update({
-            current_day: game.current_day + 1,
-            current_player_id: null, // This would be replaced with next player logic
-          })
-          .eq('id', gameId);
-      }
+      // Add player - using proper UUID for user_id
+      const { data: playerData, error: playerError } = await supabase
+        .from('players')
+        .insert({
+          game_id: game.id,
+          user_id: playerId,
+          username: username,
+          cash: 2000,
+          loan_amount: 2000,
+          loan_interest_rate: 5.0,
+          inventory_capacity: 100,
+          location: 'Downtown',
+        })
+        .select()
+        .single();
 
-      setPlayer(data);
-      setCurrentNeighborhood(neighborhoodData);
+      if (playerError) throw playerError;
 
-      // Load market inventory for new neighborhood
-      await loadMarketInventory(gameId, neighborhoodId);
+      setCurrentGame(game);
+      setPlayer(playerData);
 
-      toast.success(`Traveled to ${neighborhoodData.name}`);
-      return { success: true, data };
-    } catch (err) {
-      console.error('Error traveling:', err);
-      toast.error(`Travel failed: ${err.message}`);
-      return { success: false, error: err.message };
+      // Store in local storage for persistence
+      localStorage.setItem('deliWarsCurrentGame', game.id);
+      localStorage.setItem('deliWarsPlayerName', username);
+
+      return {
+        success: true,
+        gameId: game.id,
+        game: game,
+        player: playerData,
+      };
+    } catch (error) {
+      console.error('Error creating game:', error);
+      toast.error('Failed to create game');
+      return { success: false, error };
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Function to buy products
-  const buyProduct = async (productId, quantity, price) => {
-    if (!player || !currentNeighborhood) {
-      return { success: false, error: 'Player or neighborhood not found' };
-    }
+  // Join an existing game
+  const joinGame = async (gameId, playerName = null) => {
+    if (!playerId) return { success: false, error: new Error('No player ID') };
+    if (!gameId)
+      return { success: false, error: new Error('No game ID provided') };
 
     try {
-      // Check if player has enough money
-      const totalCost = price * quantity;
+      setLoading(true);
+
+      // Check if game exists
+      const { data: game, error: gameError } = await supabase
+        .from('games')
+        .select('*')
+        .eq('id', gameId)
+        .single();
+
+      if (gameError) throw gameError;
+
+      if (game.status === 'completed') {
+        throw new Error('This game has already ended');
+      }
+
+      // Check if player is already in the game
+      const { data: existingPlayer } = await supabase
+        .from('players')
+        .select('*')
+        .eq('game_id', gameId)
+        .eq('user_id', playerId)
+        .maybeSingle();
+
+      if (existingPlayer) {
+        // Already in game, just return the player
+        setCurrentGame(game);
+        setPlayer(existingPlayer);
+
+        localStorage.setItem('deliWarsCurrentGame', game.id);
+        localStorage.setItem('deliWarsPlayerName', existingPlayer.username);
+
+        return { success: true, gameId, existing: true };
+      }
+
+      // Use provided player name or generate one
+      const username = playerName || generatePlayerName();
+
+      // Add player to game
+      const { data: playerData, error: playerError } = await supabase
+        .from('players')
+        .insert({
+          game_id: gameId,
+          user_id: playerId,
+          username: username,
+          cash: 2000,
+          loan_amount: 2000,
+          loan_interest_rate: 5.0,
+          inventory_capacity: 100,
+          location: 'Downtown',
+        })
+        .select()
+        .single();
+
+      if (playerError) throw playerError;
+
+      setCurrentGame(game);
+      setPlayer(playerData);
+
+      localStorage.setItem('deliWarsCurrentGame', game.id);
+      localStorage.setItem('deliWarsPlayerName', username);
+
+      return { success: true, gameId };
+    } catch (error) {
+      console.error('Error joining game:', error);
+      toast.error(`Error: ${error.message}`);
+      return { success: false, error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load game data
+  const loadGame = async (gameId) => {
+    if (!playerId || !gameId) return { success: false };
+
+    try {
+      setGameLoading(true);
+
+      // Load game data
+      const { data: game, error: gameError } = await supabase
+        .from('games')
+        .select('*')
+        .eq('id', gameId)
+        .single();
+
+      if (gameError) throw gameError;
+
+      // Load player data
+      const { data: playerData, error: playerError } = await supabase
+        .from('players')
+        .select('*')
+        .eq('game_id', gameId)
+        .eq('user_id', playerId)
+        .single();
+
+      if (playerError) {
+        // Player not in game, might need to join
+        return { success: false, needsJoin: true, game };
+      }
+
+      // Load all players in game
+      const { data: allPlayers } = await supabase
+        .from('players')
+        .select('*')
+        .eq('game_id', gameId);
+
+      // Load player inventory
+      const { data: inventory } = await supabase
+        .from('player_inventory')
+        .select(
+          `
+          *,
+          products:product_id (
+            name,
+            description
+          )
+        `
+        )
+        .eq('player_id', playerData.id);
+
+      setCurrentGame(game);
+      setPlayer(playerData);
+      setPlayers(allPlayers || []);
+      setPlayerInventory(inventory || []);
+
+      localStorage.setItem('deliWarsCurrentGame', game.id);
+
+      return { success: true, game, player: playerData };
+    } catch (error) {
+      console.error('Error loading game:', error);
+      toast.error(`Error: ${error.message}`);
+      return { success: false, error };
+    } finally {
+      setGameLoading(false);
+    }
+  };
+
+  // Start game
+  const startGame = async (gameId) => {
+    if (!gameId) return { success: false };
+
+    try {
+      setLoading(true);
+
+      // Update game status
+      const { error } = await supabase
+        .from('games')
+        .update({
+          status: 'active',
+          current_hour: 24,
+          started_at: new Date().toISOString(),
+        })
+        .eq('id', gameId);
+
+      if (error) throw error;
+
+      // Update local state
+      if (currentGame && currentGame.id === gameId) {
+        setCurrentGame({
+          ...currentGame,
+          status: 'active',
+          current_hour: 24,
+        });
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error starting game:', error);
+      toast.error(`Error: ${error.message}`);
+      return { success: false, error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Transaction functions (buy, sell)
+  const buyProduct = async (productId, quantity, storeId, neighborhoodId) => {
+    if (!player || !currentGame) return { success: false };
+
+    try {
+      setLoading(true);
+
+      // Get product from market inventory
+      const { data: marketItem, error: marketError } = await supabase
+        .from('market_inventory')
+        .select('*')
+        .eq('game_id', currentGame.id)
+        .eq('neighborhood_id', neighborhoodId)
+        .eq('product_id', productId)
+        .eq('store_id', storeId)
+        .single();
+
+      if (marketError) throw marketError;
+
+      if (!marketItem || marketItem.quantity < quantity) {
+        throw new Error('Not enough inventory available');
+      }
+
+      const totalCost = marketItem.current_price * quantity;
+
       if (player.cash < totalCost) {
         throw new Error('Not enough cash');
       }
 
-      // Check if player has enough inventory space
-      const product = marketInventory.find(
-        (item) => item.product.id === productId
-      )?.product;
-      if (!product) throw new Error('Product not found');
+      // Check if player already has this product in inventory
+      const { data: existingItem } = await supabase
+        .from('player_inventory')
+        .select('*')
+        .eq('player_id', player.id)
+        .eq('product_id', productId)
+        .maybeSingle();
 
-      const spaceRequired = product.space_required * quantity;
-      const usedSpace = playerInventory.reduce((total, item) => {
-        return total + item.product.space_required * item.quantity;
-      }, 0);
-
-      if (usedSpace + spaceRequired > player.inventory_capacity) {
-        throw new Error('Not enough inventory space');
-      }
-
-      // Update player's cash
+      // Start a transaction
+      // 1. Update player cash
       const { data: updatedPlayer, error: playerError } = await supabase
         .from('players')
         .update({ cash: player.cash - totalCost })
@@ -258,349 +357,358 @@ export function GameProvider({ children, gameId }) {
 
       if (playerError) throw playerError;
 
-      // Check if player already has this product
-      const existingInventory = playerInventory.find(
-        (item) => item.product.id === productId
-      );
+      // 2. Update market inventory
+      const { error: marketUpdateError } = await supabase
+        .from('market_inventory')
+        .update({ quantity: marketItem.quantity - quantity })
+        .eq('id', marketItem.id);
 
-      if (existingInventory) {
-        // Update existing inventory
+      if (marketUpdateError) throw marketUpdateError;
+
+      // 3. Update or insert player inventory
+      if (existingItem) {
+        // Update existing inventory item
         const { error: inventoryError } = await supabase
           .from('player_inventory')
           .update({
-            quantity: existingInventory.quantity + quantity,
-            updated_at: new Date(),
+            quantity: existingItem.quantity + quantity,
+            // Weighted average for purchase price
+            purchase_price:
+              (existingItem.purchase_price * existingItem.quantity +
+                totalCost) /
+              (existingItem.quantity + quantity),
           })
-          .eq('id', existingInventory.id);
+          .eq('id', existingItem.id);
 
         if (inventoryError) throw inventoryError;
       } else {
-        // Add new inventory item
+        // Create new inventory item
         const { error: inventoryError } = await supabase
           .from('player_inventory')
           .insert({
             player_id: player.id,
             product_id: productId,
             quantity: quantity,
-            purchase_price: price,
+            purchase_price: marketItem.current_price,
           });
 
         if (inventoryError) throw inventoryError;
       }
 
-      // Update market inventory
-      const marketItem = marketInventory.find(
-        (item) => item.product.id === productId
-      );
-      if (marketItem) {
-        const { error: marketError } = await supabase
-          .from('market_inventory')
-          .update({
-            quantity: marketItem.quantity - quantity,
-            updated_at: new Date(),
-          })
-          .eq('id', marketItem.id);
+      // 4. Record transaction
+      const { error: transactionError } = await supabase
+        .from('transactions')
+        .insert({
+          game_id: currentGame.id,
+          player_id: player.id,
+          product_id: productId,
+          neighborhood_id: neighborhoodId,
+          transaction_type: 'buy',
+          quantity: quantity,
+          price: marketItem.current_price,
+          hour: currentGame.current_hour,
+        });
 
-        if (marketError) throw marketError;
-      }
+      if (transactionError) throw transactionError;
 
-      // Record transaction
-      await supabase.from('transactions').insert({
-        game_id: gameId,
-        player_id: player.id,
-        product_id: productId,
-        neighborhood_id: currentNeighborhood.id,
-        transaction_type: 'buy',
-        quantity: quantity,
-        price: price,
-        day: game.current_day,
-      });
+      // Update local state
+      setPlayer(updatedPlayer);
 
-      // Refresh player inventory
-      const { data: newInventory, error: newInventoryError } = await supabase
+      // Reload inventory
+      const { data: inventory } = await supabase
         .from('player_inventory')
         .select(
           `
           *,
-          product:products(*)
+          products:product_id (
+            name,
+            description
+          )
         `
         )
         .eq('player_id', player.id);
 
-      if (newInventoryError) throw newInventoryError;
+      setPlayerInventory(inventory || []);
 
-      setPlayer(updatedPlayer);
-      setPlayerInventory(newInventory);
-
-      // Refresh market inventory
-      await loadMarketInventory(gameId, currentNeighborhood.id);
-
-      toast.success(`Bought ${quantity} ${product.name}`);
+      toast.success(`Bought ${quantity} items for $${totalCost.toFixed(2)}`);
       return { success: true };
-    } catch (err) {
-      console.error('Error buying product:', err);
-      toast.error(`Purchase failed: ${err.message}`);
-      return { success: false, error: err.message };
+    } catch (error) {
+      console.error('Error buying product:', error);
+      toast.error(`Error: ${error.message}`);
+      return { success: false, error };
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Function to sell products
-  const sellProduct = async (productId, quantity, price) => {
-    if (!player || !currentNeighborhood) {
-      return { success: false, error: 'Player or neighborhood not found' };
-    }
+  const sellProduct = async (inventoryItemId, quantity, neighborhoodId) => {
+    if (!player || !currentGame) return { success: false };
 
     try {
-      // Find product in player's inventory
-      const inventoryItem = playerInventory.find(
-        (item) => item.product.id === productId
-      );
+      setLoading(true);
+
+      // Get inventory item
+      const { data: inventoryItem, error: inventoryError } = await supabase
+        .from('player_inventory')
+        .select(
+          `
+          *,
+          products:product_id (*)
+        `
+        )
+        .eq('id', inventoryItemId)
+        .single();
+
+      if (inventoryError) throw inventoryError;
+
       if (!inventoryItem || inventoryItem.quantity < quantity) {
-        throw new Error('Not enough products in inventory');
+        throw new Error('Not enough items in inventory');
       }
 
-      const totalEarnings = price * quantity;
+      // Get current price in neighborhood
+      const { data: marketItem, error: marketError } = await supabase
+        .from('market_inventory')
+        .select('*')
+        .eq('game_id', currentGame.id)
+        .eq('neighborhood_id', neighborhoodId)
+        .eq('product_id', inventoryItem.product_id)
+        .single();
 
-      // Update player's cash
+      if (marketError) throw marketError;
+
+      const salePrice = marketItem.current_price;
+      const totalValue = salePrice * quantity;
+
+      // Start a transaction
+      // 1. Update player cash
       const { data: updatedPlayer, error: playerError } = await supabase
         .from('players')
-        .update({ cash: player.cash + totalEarnings })
+        .update({ cash: player.cash + totalValue })
         .eq('id', player.id)
         .select()
         .single();
 
       if (playerError) throw playerError;
 
-      // Update player inventory
+      // 2. Update market inventory
+      const { error: marketUpdateError } = await supabase
+        .from('market_inventory')
+        .update({ quantity: marketItem.quantity + quantity })
+        .eq('id', marketItem.id);
+
+      if (marketUpdateError) throw marketUpdateError;
+
+      // 3. Update player inventory
       if (inventoryItem.quantity === quantity) {
-        // Remove item if all are sold
-        const { error: inventoryError } = await supabase
+        // Remove item entirely
+        const { error: removeError } = await supabase
           .from('player_inventory')
           .delete()
-          .eq('id', inventoryItem.id);
+          .eq('id', inventoryItemId);
 
-        if (inventoryError) throw inventoryError;
+        if (removeError) throw removeError;
       } else {
-        // Update quantity if some remain
-        const { error: inventoryError } = await supabase
+        // Decrease quantity
+        const { error: updateError } = await supabase
           .from('player_inventory')
-          .update({
-            quantity: inventoryItem.quantity - quantity,
-            updated_at: new Date(),
-          })
-          .eq('id', inventoryItem.id);
+          .update({ quantity: inventoryItem.quantity - quantity })
+          .eq('id', inventoryItemId);
 
-        if (inventoryError) throw inventoryError;
+        if (updateError) throw updateError;
       }
 
-      // Update market inventory
-      const marketItem = marketInventory.find(
-        (item) => item.product.id === productId
-      );
-      if (marketItem) {
-        const { error: marketError } = await supabase
-          .from('market_inventory')
-          .update({
-            quantity: marketItem.quantity + quantity,
-            updated_at: new Date(),
-          })
-          .eq('id', marketItem.id);
+      // 4. Record transaction
+      const { error: transactionError } = await supabase
+        .from('transactions')
+        .insert({
+          game_id: currentGame.id,
+          player_id: player.id,
+          product_id: inventoryItem.product_id,
+          neighborhood_id: neighborhoodId,
+          transaction_type: 'sell',
+          quantity: quantity,
+          price: salePrice,
+          hour: currentGame.current_hour,
+        });
 
-        if (marketError) throw marketError;
-      } else {
-        // Add to market if not present
-        const { error: marketError } = await supabase
-          .from('market_inventory')
-          .insert({
-            game_id: gameId,
-            neighborhood_id: currentNeighborhood.id,
-            product_id: productId,
-            quantity: quantity,
-            current_price: price,
-            day_updated: game.current_day,
-          });
+      if (transactionError) throw transactionError;
 
-        if (marketError) throw marketError;
-      }
+      // Update local state
+      setPlayer(updatedPlayer);
 
-      // Record transaction
-      await supabase.from('transactions').insert({
-        game_id: gameId,
-        player_id: player.id,
-        product_id: productId,
-        neighborhood_id: currentNeighborhood.id,
-        transaction_type: 'sell',
-        quantity: quantity,
-        price: price,
-        day: game.current_day,
-      });
-
-      // Refresh player inventory
-      const { data: newInventory, error: newInventoryError } = await supabase
+      // Reload inventory
+      const { data: inventory } = await supabase
         .from('player_inventory')
         .select(
           `
           *,
-          product:products(*)
+          products:product_id (
+            name,
+            description
+          )
         `
         )
         .eq('player_id', player.id);
 
-      if (newInventoryError) throw newInventoryError;
+      setPlayerInventory(inventory || []);
+
+      toast.success(`Sold ${quantity} items for $${totalValue.toFixed(2)}`);
+      return { success: true };
+    } catch (error) {
+      console.error('Error selling product:', error);
+      toast.error(`Error: ${error.message}`);
+      return { success: false, error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Travel to another neighborhood
+  const travelToNeighborhood = async (neighborhoodId) => {
+    if (!player || !currentGame) return { success: false };
+
+    try {
+      setLoading(true);
+
+      // Update player location
+      const { data: updatedPlayer, error } = await supabase
+        .from('players')
+        .update({ location: neighborhoodId })
+        .eq('id', player.id)
+        .select()
+        .single();
+
+      if (error) throw error;
 
       setPlayer(updatedPlayer);
-      setPlayerInventory(newInventory);
-
-      // Refresh market inventory
-      await loadMarketInventory(gameId, currentNeighborhood.id);
-
-      toast.success(
-        `Sold ${quantity} ${
-          inventoryItem.product.name
-        } for ${totalEarnings.toFixed(2)}`
-      );
+      toast.success('Traveled to new location');
       return { success: true };
-    } catch (err) {
-      console.error('Error selling product:', err);
-      toast.error(`Sale failed: ${err.message}`);
-      return { success: false, error: err.message };
+    } catch (error) {
+      console.error('Error traveling:', error);
+      toast.error(`Error: ${error.message}`);
+      return { success: false, error };
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Function to create a new game
-  const createGame = async (gameName, maxDays = 30) => {
-    if (!user) return { success: false, error: 'User not authenticated' };
+  // End turn and move to next hour
+  const endTurn = async () => {
+    if (!player || !currentGame) return { success: false };
 
     try {
-      // Create new game
-      const { data: gameData, error: gameError } = await supabase
-        .from('games')
-        .insert({
-          name: gameName,
-          max_days: maxDays,
-          created_by: user.id,
-        })
-        .select()
-        .single();
+      setLoading(true);
 
-      if (gameError) throw gameError;
-
-      // Create player for game creator
-      const { data: playerData, error: playerError } = await supabase
+      // Check if all players have completed their turns
+      const { data: activePlayers, error: playersError } = await supabase
         .from('players')
-        .insert({
-          user_id: user.id,
-          game_id: gameData.id,
-          cash: 2000.0, // Starting cash after loan
-          loan_amount: 2000.0, // Starting loan
-        })
-        .select()
-        .single();
+        .select('id, turn_completed')
+        .eq('game_id', currentGame.id);
 
-      if (playerError) throw playerError;
+      if (playersError) throw playersError;
 
-      // Initialize market inventory for each neighborhood
-      const { data: neighborhoods, error: neighborhoodError } = await supabase
-        .from('neighborhoods')
-        .select('*');
+      // Mark this player's turn as completed
+      const { error: updateError } = await supabase
+        .from('players')
+        .update({ turn_completed: true })
+        .eq('id', player.id);
 
-      if (neighborhoodError) throw neighborhoodError;
+      if (updateError) throw updateError;
 
-      const { data: products, error: productsError } = await supabase
-        .from('products')
-        .select('*');
+      // Check if all players have completed their turn
+      const allCompleted = activePlayers.every(
+        (p) => p.id === player.id || p.turn_completed === true
+      );
 
-      if (productsError) throw productsError;
+      if (allCompleted) {
+        // Decrease hours remaining
+        const nextHour = currentGame.current_hour - 1;
+        const gameOver = nextHour <= 0;
 
-      // Create initial market inventory for each neighborhood
-      for (const neighborhood of neighborhoods) {
-        for (const product of products) {
-          // Calculate a random price variation
-          const priceVariation = 0.8 + Math.random() * 0.4; // 0.8 to 1.2
-          const initialPrice = product.base_price * priceVariation;
-          const initialQuantity = Math.floor(10 + Math.random() * 20); // 10-30
+        // Update game status
+        const { data: updatedGame, error: gameError } = await supabase
+          .from('games')
+          .update({
+            current_hour: nextHour,
+            current_player_id: null,
+            status: gameOver ? 'completed' : 'active',
+            ended_at: gameOver ? new Date().toISOString() : null,
+          })
+          .eq('id', currentGame.id)
+          .select()
+          .single();
 
-          await supabase.from('market_inventory').insert({
-            game_id: gameData.id,
-            neighborhood_id: neighborhood.id,
-            product_id: product.id,
-            quantity: initialQuantity,
-            current_price: initialPrice,
-            day_updated: 1,
-          });
-        }
-      }
+        if (gameError) throw gameError;
 
-      toast.success(`Game "${gameName}" created successfully!`);
-      return { success: true, gameId: gameData.id };
-    } catch (err) {
-      console.error('Error creating game:', err);
-      toast.error(`Game creation failed: ${err.message}`);
-      return { success: false, error: err.message };
-    }
-  };
-
-  // Function to join an existing game
-  const joinGame = async (gameId) => {
-    if (!user) return { success: false, error: 'User not authenticated' };
-
-    try {
-      // Check if player already exists in this game
-      const { data: existingPlayer, error: existingPlayerError } =
-        await supabase
+        // Reset all players' turn_completed flags
+        const { error: resetError } = await supabase
           .from('players')
-          .select('*')
-          .eq('game_id', gameId)
-          .eq('user_id', user.id)
-          .maybeSingle();
+          .update({ turn_completed: false })
+          .eq('game_id', currentGame.id);
 
-      if (existingPlayerError) throw existingPlayerError;
+        if (resetError) throw resetError;
 
-      if (existingPlayer) {
-        return {
-          success: true,
-          playerId: existingPlayer.id,
-          alreadyJoined: true,
-        };
+        setCurrentGame(updatedGame);
+
+        if (gameOver) {
+          toast.success('Game over! Final results are in.');
+        } else {
+          toast.success(`Time passing... ${nextHour} hours remaining`);
+        }
+      } else {
+        toast.success('Turn completed, waiting for other players');
       }
 
-      // Create new player for this game
-      const { data: playerData, error: playerError } = await supabase
+      // Update local player state
+      const { data: updatedPlayer } = await supabase
         .from('players')
-        .insert({
-          user_id: user.id,
-          game_id: gameId,
-          cash: 2000.0, // Starting cash after loan
-          loan_amount: 2000.0, // Starting loan
-        })
-        .select()
+        .select('*')
+        .eq('id', player.id)
         .single();
 
-      if (playerError) throw playerError;
+      setPlayer(updatedPlayer);
 
-      toast.success('Joined game successfully!');
-      return { success: true, playerId: playerData.id };
-    } catch (err) {
-      console.error('Error joining game:', err);
-      toast.error(`Failed to join game: ${err.message}`);
-      return { success: false, error: err.message };
+      return { success: true };
+    } catch (error) {
+      console.error('Error ending turn:', error);
+      toast.error(`Error: ${error.message}`);
+      return { success: false, error };
+    } finally {
+      setLoading(false);
     }
   };
 
-  const value = {
-    game,
-    player,
-    loading,
-    error,
-    playerInventory,
-    currentNeighborhood,
-    marketInventory,
-    travelToNeighborhood,
-    buyProduct,
-    sellProduct,
-    createGame,
-    joinGame,
-  };
+  // Check for stored game on mount
+  useEffect(() => {
+    const storedGameId = localStorage.getItem('deliWarsCurrentGame');
+    if (storedGameId && playerId) {
+      loadGame(storedGameId);
+    }
+  }, [playerId]);
 
-  return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
-}
+  return (
+    <GameContext.Provider
+      value={{
+        currentGame,
+        player,
+        playerInventory,
+        players,
+        loading,
+        gameLoading,
+        createGame,
+        joinGame,
+        loadGame,
+        startGame,
+        buyProduct,
+        sellProduct,
+        travelToNeighborhood,
+        endTurn,
+        playerId,
+      }}
+    >
+      {children}
+    </GameContext.Provider>
+  );
+};
+
+export default GameContext;
