@@ -12,6 +12,7 @@ import { supabase } from '../lib/supabase';
 import { useGame } from '../contexts/GameContext';
 import { getStoreInventory, buyRecord, sellRecord } from '../lib/gameActions';
 import ActionButton from '../components/ui/ActionButton';
+import ProductCard from '../components/ui/ProductCard';
 
 const Store = () => {
   const { gameId, boroughId, storeId } = useParams();
@@ -240,7 +241,7 @@ const Store = () => {
             }}
           >
             <FaShoppingCart style={{ marginRight: '8px' }} />
-            Buy Records
+            Buy
           </button>
 
           <button
@@ -260,21 +261,9 @@ const Store = () => {
             }}
           >
             <FaShoppingBag style={{ marginRight: '8px' }} />
-            Sell Records
+            Sell
           </button>
         </div>
-
-        {/* Inventory heading */}
-        <h2
-          style={{
-            fontSize: '32px',
-            fontWeight: 'bold',
-            marginBottom: '24px',
-            marginTop: '8px',
-          }}
-        >
-          {buyMode ? 'Store Inventory' : 'Your Inventory'}
-        </h2>
 
         {/* Inventory Display */}
         <div className="bg-white shadow-md mb-4 rounded-lg">
@@ -286,38 +275,28 @@ const Store = () => {
                     No records available in this store
                   </p>
                 ) : (
-                  storeInventory.map((item) => (
-                    <div
-                      key={item.id}
-                      className="border rounded-md p-4 hover:shadow-md transition-shadow"
-                    >
-                      <h3 className="font-medium">
-                        {item.products?.name || 'Unknown Record'}
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        {item.products?.artist || 'Unknown Artist'} (
-                        {item.products?.year || 'N/A'})
-                      </p>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Genre: {item.products?.genre || 'Various'}
-                      </p>
-                      <div className="mt-2 flex justify-between items-center">
-                        <span className="font-medium text-green-600">
-                          ${parseFloat(item.current_price).toFixed(2)}
-                        </span>
-                        <span className="text-sm text-gray-500">
-                          In stock: {item.quantity}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => handleBuy(item.products.id, 1)}
-                        disabled={gameLoading || item.quantity < 1}
-                        className="mt-3 w-full px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        Buy
-                      </button>
-                    </div>
-                  ))
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {storeInventory.map((item) => (
+                      <ProductCard
+                        key={item.id}
+                        product={{
+                          id: item.product_id,
+                          name: item.products?.name || 'Unknown Record',
+                          artist: item.products?.artist || 'Unknown Artist',
+                          genre: item.products?.genre || 'Various',
+                          year: item.products?.year || 'N/A',
+                          condition: item.products?.condition || 'Unknown',
+                          rarity: item.products?.rarity || 0.5,
+                          description: item.products?.description || '',
+                        }}
+                        price={item.current_price}
+                        quantity={item.quantity}
+                        onBuy={handleBuy}
+                        actionLabel="Buy"
+                        showAction={true}
+                      />
+                    ))}
+                  </div>
                 )}
               </div>
             ) : (
@@ -327,36 +306,32 @@ const Store = () => {
                     Your inventory is empty
                   </p>
                 ) : (
-                  playerInventory.map((item) => (
-                    <div
-                      key={item.id}
-                      className="border rounded-md p-4 hover:shadow-md transition-shadow"
-                    >
-                      <h3 className="font-medium">
-                        {item.products?.name || 'Unknown Record'}
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        {item.products?.artist || 'Unknown Artist'} (
-                        {item.products?.year || 'N/A'})
-                      </p>
-                      <div className="mt-2 flex justify-between items-center">
-                        <span className="font-medium text-blue-600">
-                          You paid: $
-                          {parseFloat(item.purchase_price).toFixed(2)}
-                        </span>
-                        <span className="text-sm text-gray-500">
-                          Qty: {item.quantity}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => handleSell(item.product_id, 1)}
-                        disabled={gameLoading}
-                        className="mt-3 w-full px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50"
-                      >
-                        Sell
-                      </button>
-                    </div>
-                  ))
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {playerInventory.map((item) => (
+                      <ProductCard
+                        key={item.id}
+                        product={{
+                          id: item.product_id,
+                          name: item.products?.name || 'Unknown Record',
+                          artist: item.products?.artist || 'Unknown Artist',
+                          genre: item.products?.genre || 'Various',
+                          year: item.products?.year || 'N/A',
+                          condition: item.products?.condition || 'Unknown',
+                          rarity: item.products?.rarity || 0.5,
+                          description: item.products?.description || '',
+                        }}
+                        price={
+                          item.estimated_current_price || item.purchase_price
+                        }
+                        quantity={item.quantity}
+                        onSell={handleSell}
+                        purchasePrice={item.purchase_price}
+                        estimatedValue={item.estimated_current_price}
+                        actionLabel="Sell"
+                        showAction={true}
+                      />
+                    ))}
+                  </div>
                 )}
               </div>
             )}
