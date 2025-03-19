@@ -421,17 +421,72 @@ export const getStoreInventory = async (storeId, gameId) => {
  * @returns {Promise<Array>} - Stores in the borough
  */
 export const getBoroughStores = async (boroughId) => {
-  const { data, error } = await supabase
-    .from('stores')
-    .select('*')
-    .eq('borough_id', boroughId);
+  try {
+    // First try to get stores directly related through borough_id
+    const { data: directStores, error: directError } = await supabase
+      .from('stores')
+      .select('*')
+      .eq('borough_id', boroughId);
 
-  if (error) {
-    console.error('Error getting borough stores:', error);
+    if (directError) {
+      console.error('Error getting directly related stores:', directError);
+    }
+
+    // Then check the store_boroughs junction table
+    const { data: junctionData, error: junctionError } = await supabase
+      .from('store_boroughs')
+      .select('store_id')
+      .eq('borough_id', boroughId);
+
+    if (junctionError) {
+      console.error(
+        'Error getting store_boroughs relationships:',
+        junctionError
+      );
+      // If both queries failed, return an empty array
+      if (directError) return [];
+      // If only junction query failed but direct query succeeded, return directStores
+      return directStores || [];
+    }
+
+    // If no junction relationships found and direct query failed, return empty array
+    if (!junctionData.length && directError) return [];
+    // If no junction relationships but direct query succeeded, return directStores
+    if (!junctionData.length) return directStores || [];
+
+    // Extract store IDs from the junction table
+    const storeIds = junctionData.map((item) => item.store_id);
+
+    // Get the actual store data for these IDs
+    const { data: junctionStores, error: storesError } = await supabase
+      .from('stores')
+      .select('*')
+      .in('id', storeIds);
+
+    if (storesError) {
+      console.error('Error getting stores by IDs:', storesError);
+      // Fall back to direct stores if fetching junction stores failed
+      return directStores || [];
+    }
+
+    // Combine stores from both sources (avoiding duplicates by ID)
+    let allStores = [...(junctionStores || [])];
+
+    // Add direct stores if they exist, avoiding duplicates
+    if (directStores && directStores.length > 0) {
+      const existingIds = new Set(allStores.map((store) => store.id));
+      for (const store of directStores) {
+        if (!existingIds.has(store.id)) {
+          allStores.push(store);
+        }
+      }
+    }
+
+    return allStores;
+  } catch (error) {
+    console.error('Exception in getBoroughStores:', error);
     return [];
   }
-
-  return data;
 };
 
 /**

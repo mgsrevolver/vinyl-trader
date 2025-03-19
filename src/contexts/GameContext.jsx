@@ -128,9 +128,9 @@ export const GameProvider = ({ children }) => {
           game_id: game.id,
           username: playerName,
           current_borough_id: downtown.id,
-          cash: 1000,
+          cash: 100,
           loan_amount: 100,
-          inventory_capacity: 100,
+          inventory_capacity: 10,
         })
         .select()
         .single();
