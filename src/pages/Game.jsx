@@ -22,6 +22,7 @@ import {
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
+import StoreCard from '../components/ui/StoreCard';
 
 const Game = () => {
   const { gameId } = useParams();
@@ -281,45 +282,13 @@ const Game = () => {
                 currentHour < store.close_hour;
 
               return (
-                <Card
+                <StoreCard
                   key={store.id}
+                  store={store}
+                  isOpen={isOpen}
+                  formatTime={formatTime}
                   onClick={() => goToStore(store.id)}
-                  className="hover:shadow-lg active:shadow-md"
-                >
-                  <div className="p-4">
-                    <h3 className="text-xl font-bold text-left mb-3">
-                      {store.name}
-                    </h3>
-
-                    <div className="flex items-center mb-3 text-left">
-                      <BiTimeFive className="mr-2 text-gray-500" size={18} />
-                      <span>
-                        {formatTime(store.open_hour)} -{' '}
-                        {formatTime(store.close_hour)}{' '}
-                      </span>
-                      <span
-                        className={`ml-2 ${
-                          isOpen ? 'text-green-700' : 'text-gray-500'
-                        }`}
-                      >
-                        ({isOpen ? 'OPEN' : 'CLOSED'})
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between items-center text-left">
-                      <div>
-                        Genre:{' '}
-                        <span className="font-semibold">
-                          {store.specialty_genre || 'Various'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-gray-100 px-4 py-2 border-t border-gray-200 flex justify-end">
-                    <div className="text-gray-500 text-sm">Tap to view →</div>
-                  </div>
-                </Card>
+                />
               );
             })}
           </div>
@@ -327,14 +296,7 @@ const Game = () => {
 
         {/* End Turn Section */}
         <div className="mt-12 flex flex-col items-center">
-          <div className="text-center mb-6">
-            <h3 className="text-lg font-medium mb-1">
-              Ready to end your turn?
-            </h3>
-            <p className="text-sm text-gray-600">
-              Current hour: {formatTime(gameState.current_hour)}
-            </p>
-          </div>
+          <div className="text-center mb-6"></div>
 
           <Button
             onClick={handleEndTurn}
@@ -351,11 +313,6 @@ const Game = () => {
               'End Turn'
             )}
           </Button>
-
-          <div className="mt-4 text-xs text-gray-500 text-center">
-            {playerActions.actions_available - playerActions.actions_used}{' '}
-            actions remaining this hour
-          </div>
         </div>
       </div>
     </div>

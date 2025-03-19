@@ -1,5 +1,7 @@
 import React from 'react';
+import { BiChevronRight } from 'react-icons/bi';
 import { useGame } from '../../contexts/GameContext';
+import './CardReset.css'; // Import the CSS reset
 
 const Card = ({
   children,
@@ -12,21 +14,15 @@ const Card = ({
 
   // Store card variant
   if (variant === 'store') {
-    // Check if we have the store data needed
-    const hasStoreHours =
+    // Calculate if store is open if we have store data
+    let isOpen = false;
+    if (
       storeData &&
       typeof storeData.open_hour === 'number' &&
-      typeof storeData.close_hour === 'number';
-
-    // Determine if store is open based on current game hour
-    let isOpen = false;
-    let currentHour = 0;
-
-    if (hasStoreHours && currentGame?.current_hour) {
-      // Convert 24-hour countdown to 12-hour format
-      currentHour = (24 - currentGame.current_hour) % 24;
-
-      // Check if current hour is within open hours
+      typeof storeData.close_hour === 'number' &&
+      currentGame?.current_hour
+    ) {
+      const currentHour = (24 - currentGame.current_hour) % 24;
       isOpen =
         currentHour >= storeData.open_hour &&
         currentHour < storeData.close_hour;
@@ -34,31 +30,28 @@ const Card = ({
 
     return (
       <div
-        className={`bg-white rounded-lg shadow-md overflow-hidden cursor-pointer border border-gray-200 ${className}`}
+        className={`store-card-wrapper border border-gray-200 rounded-md shadow-sm mb-4 relative cursor-pointer hover:shadow-md ${className}`}
         onClick={onClick}
         style={{
-          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+          backgroundColor: 'white',
+          padding: '12px 40px 12px 12px',
           transition: 'all 0.2s ease',
-          transform: 'translateZ(0)', // Forces hardware acceleration for smoother transitions
         }}
       >
-        <div className="p-4">
-          {/* We'll let the children handle all content */}
-          {children}
+        {/* Pass isOpen to children as a prop */}
+        {React.Children.map(children, (child) => {
+          if (React.isValidElement(child)) {
+            return React.cloneElement(child, { isOpen });
+          }
+          return child;
+        })}
 
-          {/* We pass isOpen to children via React.cloneElement if needed */}
-          {hasStoreHours &&
-            React.Children.map(children, (child) => {
-              if (React.isValidElement(child)) {
-                return React.cloneElement(child, { isOpen });
-              }
-              return child;
-            })}
-        </div>
-
-        {/* Make it look more tappable with a bottom gray bar */}
-        <div className="bg-gray-100 px-4 py-2 border-t border-gray-200 flex justify-end">
-          <div className="text-gray-500 text-sm">Tap to view →</div>
+        {/* Arrow positioned on the right */}
+        <div
+          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"
+          style={{ fontSize: '24px' }}
+        >
+          <BiChevronRight />
         </div>
       </div>
     );
@@ -67,12 +60,9 @@ const Card = ({
   // Default card
   return (
     <div
-      className={`bg-white rounded-lg shadow-md overflow-hidden cursor-pointer border border-gray-200 hover:shadow-lg ${className}`}
+      className={`card-wrapper bg-white rounded-md shadow-sm cursor-pointer ${className}`}
       onClick={onClick}
-      style={{
-        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
-        transition: 'all 0.2s ease',
-      }}
+      style={{ marginBottom: '16px' }}
     >
       {children}
     </div>

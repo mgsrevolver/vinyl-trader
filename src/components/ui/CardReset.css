@@ -1,0 +1,97 @@
+/* CSS reset for cards to prevent conflicts */
+.store-card-wrapper {
+  /* Card appearance */
+  background-color: white !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08) !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 8px !important;
+  padding: 16px !important;
+  padding-right: 48px !important; /* Make space for chevron */
+  margin-bottom: 16px !important;
+  position: relative !important;
+  cursor: pointer !important;
+
+  /* Animation */
+  transition: all 0.2s ease-out !important;
+  transform: translateZ(0) !important; /* Hardware acceleration */
+}
+
+.store-card-wrapper:hover {
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1) !important;
+  transform: translateY(-3px) !important;
+  border-color: #d1d5db !important;
+}
+
+.store-card-wrapper:active {
+  transform: translateY(0) !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Card content styling */
+.store-card-title {
+  font-size: 1.5rem !important;
+  font-weight: 700 !important;
+  margin-bottom: 10px !important;
+  color: #111827 !important;
+}
+
+.store-card-hours {
+  display: flex !important;
+  align-items: center !important;
+  margin-bottom: 8px !important;
+  font-size: 1rem !important;
+  color: #4b5563 !important;
+}
+
+.time-icon {
+  margin-right: 8px !important;
+  color: #6b7280 !important;
+}
+
+.status-open {
+  margin-left: 6px !important;
+  color: #16a34a !important;
+  font-weight: 600 !important;
+}
+
+.status-closed {
+  margin-left: 6px !important;
+  color: #6b7280 !important;
+  font-weight: 400 !important;
+}
+
+.store-card-genre {
+  font-size: 1rem !important;
+  color: #4b5563 !important;
+}
+
+.genre-value {
+  font-weight: 600 !important;
+  color: #111827 !important;
+}
+
+/* Chevron positioning - far right and vertically centered */
+.store-card-chevron {
+  position: absolute !important;
+  right: 16px !important; /* Increased from 3px to 16px to push it further right */
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  font-size: 28px !important; /* Larger chevron */
+  color: #9ca3af !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* On hover make the chevron more visible */
+.store-card-wrapper:hover .store-card-chevron {
+  color: #6b7280 !important;
+  right: 14px !important; /* Slight movement on hover */
+}
+
+/* Reset any conflicting card styles from App.css or index.css */
+.store-card-wrapper * {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
