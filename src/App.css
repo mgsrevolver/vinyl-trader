@@ -815,3 +815,23 @@ h3 {
 .store-card-title .font-records {
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
 }
+
+/* Add these styles at the end of your App.css file */
+/* Target the action button specifically to avoid conflicts */
+.action-button {
+  /* Reset any conflicting styles */
+  all: initial;
+  font-family: 'Inter', system-ui, sans-serif;
+  box-sizing: border-box;
+  border-radius: 6px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+/* Ensure the travel-button class doesn't affect our action button */
+button.action-button.travel-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}

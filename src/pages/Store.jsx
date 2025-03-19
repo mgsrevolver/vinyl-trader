@@ -3,13 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   FaArrowLeft,
   FaCoins,
-  FaCartPlus,
+  FaShoppingCart,
   FaShoppingBag,
+  FaBolt,
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useGame } from '../contexts/GameContext';
 import { getStoreInventory, buyRecord, sellRecord } from '../lib/gameActions';
+import ActionButton from '../components/ui/ActionButton';
 
 const Store = () => {
   const { gameId, boroughId, storeId } = useParams();
@@ -208,38 +210,74 @@ const Store = () => {
           </h1>
         </div>
 
-        {/* Buy/Sell toggle buttons */}
-        <div className="flex space-x-2 mb-4 mt-4">
+        {/* Horizontal tab toggle - properly styled */}
+        <div
+          style={{
+            display: 'flex',
+            width: '100%',
+            marginBottom: '16px',
+            marginTop: '16px',
+            borderRadius: '8px',
+            overflow: 'hidden',
+            border: '1px solid #d1d5db',
+          }}
+        >
           <button
             onClick={() => setBuyMode(true)}
-            className={`flex-1 px-4 py-2 rounded-md ${
-              buyMode ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'
-            }`}
+            style={{
+              flex: 1,
+              backgroundColor: buyMode ? '#f59e0b' : '#e5e7eb',
+              color: buyMode ? 'black' : '#6b7280',
+              padding: '12px 16px',
+              fontWeight: buyMode ? 600 : 500,
+              fontSize: '16px',
+              border: 'none',
+              borderRight: '1px solid #d1d5db',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
           >
-            <FaCartPlus className="inline mr-2" /> Buy Records
+            <FaShoppingCart style={{ marginRight: '8px' }} />
+            Buy Records
           </button>
+
           <button
             onClick={() => setBuyMode(false)}
-            className={`flex-1 px-4 py-2 rounded-md ${
-              !buyMode ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'
-            }`}
+            style={{
+              flex: 1,
+              backgroundColor: !buyMode ? '#f59e0b' : '#e5e7eb',
+              color: !buyMode ? 'black' : '#6b7280',
+              padding: '12px 16px',
+              fontWeight: !buyMode ? 600 : 500,
+              fontSize: '16px',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
           >
-            <FaShoppingBag className="inline mr-2" /> Sell Records
+            <FaShoppingBag style={{ marginRight: '8px' }} />
+            Sell Records
           </button>
         </div>
 
+        {/* Inventory heading */}
+        <h2
+          style={{
+            fontSize: '32px',
+            fontWeight: 'bold',
+            marginBottom: '24px',
+            marginTop: '8px',
+          }}
+        >
+          {buyMode ? 'Store Inventory' : 'Your Inventory'}
+        </h2>
+
         {/* Inventory Display */}
         <div className="bg-white shadow-md mb-4 rounded-lg">
-          <div className="bg-blue-600 text-white p-3 rounded-t-lg flex justify-between items-center">
-            <h2 className="font-bold">
-              {buyMode ? 'Store Inventory' : 'Your Inventory'}
-            </h2>
-            {!buyMode && (
-              <div className="text-sm">
-                <span>{playerInventory.length} items</span>
-              </div>
-            )}
-          </div>
           <div className="p-4">
             {buyMode ? (
               <div className="space-y-4">
