@@ -1,6 +1,6 @@
 import React from 'react';
 import { BiTimeFive, BiChevronRight } from 'react-icons/bi';
-import './CardReset.css';
+import '../../App.css';
 
 const StoreCard = ({ store, isOpen, formatTime, onClick, className = '' }) => {
   return (

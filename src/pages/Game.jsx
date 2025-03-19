@@ -4,24 +4,18 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   FaMapMarkedAlt,
   FaSpinner,
-  FaClock,
-  FaArrowRight,
   FaRecordVinyl,
   FaStore,
-  FaHome,
 } from 'react-icons/fa';
-import { BiTimeFive, BiChevronRight } from 'react-icons/bi';
 import toast from 'react-hot-toast';
 import { useGame } from '../contexts/GameContext';
 import {
   getGameState,
-  getBoroughStores,
   advanceGameHour,
   getPlayerActions,
 } from '../lib/gameActions';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
-import Card from '../components/ui/Card';
 import StoreCard from '../components/ui/StoreCard';
 
 const Game = () => {
@@ -241,26 +235,21 @@ const Game = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
-      {/* Borough Header */}
-      <div className="bg-gradient-to-r from-purple-800 to-black text-white p-6 shadow-md">
-        <h1 className="text-2xl font-bold text-center flex items-center justify-center">
-          <FaRecordVinyl className="mr-2" /> {currentBoroughName}
-        </h1>
-      </div>
-
-      {/* Stores in Borough */}
       <div className="max-w-xl mx-auto p-4 mt-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-800">Record Stores</h2>
-          <Button
-            onClick={goToTravel}
-            variant="play"
-            size="md"
-            icon={<FaMapMarkedAlt />}
-          >
-            Travel
-          </Button>
+        {/* Header Row with Downtown and Travel */}
+        <div className="header-row">
+          <div className="flex items-center">
+            <h1 className="text-2xl font-bold">Downtown</h1>
+          </div>
+
+          <button onClick={goToTravel} className="travel-button">
+            <FaMapMarkedAlt className="mr-2" /> Travel
+          </button>
         </div>
+
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">
+          Record Stores
+        </h2>
 
         {boroughStores.length === 0 ? (
           <div className="text-center p-6 bg-white rounded-lg shadow-md">

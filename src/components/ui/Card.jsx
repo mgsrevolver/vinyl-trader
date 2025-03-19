@@ -1,7 +1,7 @@
 import React from 'react';
 import { BiChevronRight } from 'react-icons/bi';
 import { useGame } from '../../contexts/GameContext';
-import './CardReset.css'; // Import the CSS reset
+import '../../App.css';
 
 const Card = ({
   children,
@@ -29,15 +29,7 @@ const Card = ({
     }
 
     return (
-      <div
-        className={`store-card-wrapper border border-gray-200 rounded-md shadow-sm mb-4 relative cursor-pointer hover:shadow-md ${className}`}
-        onClick={onClick}
-        style={{
-          backgroundColor: 'white',
-          padding: '12px 40px 12px 12px',
-          transition: 'all 0.2s ease',
-        }}
-      >
+      <div className={`store-card-wrapper ${className}`} onClick={onClick}>
         {/* Pass isOpen to children as a prop */}
         {React.Children.map(children, (child) => {
           if (React.isValidElement(child)) {
@@ -46,11 +38,8 @@ const Card = ({
           return child;
         })}
 
-        {/* Arrow positioned on the right */}
-        <div
-          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"
-          style={{ fontSize: '24px' }}
-        >
+        {/* Arrow positioned on the right using the class from App.css */}
+        <div className="store-card-chevron">
           <BiChevronRight />
         </div>
       </div>
@@ -59,11 +48,7 @@ const Card = ({
 
   // Default card
   return (
-    <div
-      className={`card-wrapper bg-white rounded-md shadow-sm cursor-pointer ${className}`}
-      onClick={onClick}
-      style={{ marginBottom: '16px' }}
-    >
+    <div className={`card ${className}`} onClick={onClick}>
       {children}
     </div>
   );
