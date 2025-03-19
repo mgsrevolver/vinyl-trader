@@ -313,70 +313,24 @@ export const getStoreInventory = async (storeId, gameId) => {
 };
 
 /**
- * Get the stores in a borough
+ * Get the stores in a borough - OPTIMIZED VERSION
  * @param {string} boroughId - UUID of the borough
  * @returns {Promise<Array>} - Stores in the borough
  */
 export const getBoroughStores = async (boroughId) => {
   try {
-    // Try to get stores directly related through borough_id
-    const { data: directStores, error: directError } = await supabase
+    // Optimized query - get only needed fields and use a more direct approach
+    const { data, error } = await supabase
       .from('stores')
-      .select('*')
+      .select('id, name, specialty_genre, open_hour, close_hour')
       .eq('borough_id', boroughId);
 
-    // Then check the store_boroughs junction table
-    const { data: junctionData, error: junctionError } = await supabase
-      .from('store_boroughs')
-      .select('store_id')
-      .eq('borough_id', boroughId);
-
-    if (junctionError && directError) {
+    if (error) {
+      console.error('Error fetching borough stores:', error);
       return [];
     }
 
-    // If no junction relationships found and direct query succeeded, return directStores
-    if ((!junctionData || !junctionData.length) && !directError) {
-      return directStores || [];
-    }
-
-    // If no direct stores and no junction relationships, return empty array
-    if (
-      (!directStores || !directStores.length) &&
-      (!junctionData || !junctionData.length)
-    ) {
-      return [];
-    }
-
-    // Extract store IDs from the junction table
-    const storeIds = junctionData
-      ? junctionData.map((item) => item.store_id)
-      : [];
-
-    // Get the actual store data for these IDs if any exist
-    if (storeIds.length > 0) {
-      const { data: junctionStores, error: storesError } = await supabase
-        .from('stores')
-        .select('*')
-        .in('id', storeIds);
-
-      if (storesError) {
-        return directStores || [];
-      }
-
-      // Combine stores from both sources (avoiding duplicates by ID)
-      if (directStores && directStores.length > 0) {
-        const existingIds = new Set(junctionStores.map((store) => store.id));
-        return [
-          ...junctionStores,
-          ...directStores.filter((store) => !existingIds.has(store.id)),
-        ];
-      }
-
-      return junctionStores || [];
-    }
-
-    return directStores || [];
+    return data || [];
   } catch (error) {
     console.error('Exception in getBoroughStores:', error);
     return [];
@@ -384,36 +338,74 @@ export const getBoroughStores = async (boroughId) => {
 };
 
 /**
- * Get all transportation methods
- * @returns {Promise<Array>} - Available transportation methods
+ * Get all transportation methods - OPTIMIZED VERSION
+ * Cache the result since it rarely changes
  */
-export const getTransportationMethods = async () => {
-  const { data, error } = await supabase
-    .from('transportation_methods')
-    .select('*')
-    .order('speed_factor', { ascending: true });
+let cachedTransportMethods = null;
+let transportCacheTime = 0;
 
-  if (error) {
-    console.error('Error getting transportation methods:', error);
-    return [];
+export const getTransportationMethods = async () => {
+  // Return cached data if available and not too old (10 minutes)
+  const now = Date.now();
+  if (cachedTransportMethods && now - transportCacheTime < 600000) {
+    return cachedTransportMethods;
   }
 
-  return data || [];
+  try {
+    const { data, error } = await supabase
+      .from('transportation_methods')
+      .select('*')
+      .order('speed_factor', { ascending: true });
+
+    if (error) {
+      console.error('Error getting transportation methods:', error);
+      return [];
+    }
+
+    // Cache the result
+    cachedTransportMethods = data || [];
+    transportCacheTime = now;
+
+    return cachedTransportMethods;
+  } catch (error) {
+    console.error('Error in getTransportationMethods:', error);
+    return [];
+  }
 };
 
 /**
- * Get all borough distances
- * @returns {Promise<Array>} - Borough distances
+ * Get all borough distances - OPTIMIZED VERSION
+ * Cache the result since it rarely changes
  */
-export const getBoroughDistances = async () => {
-  const { data, error } = await supabase.from('borough_distances').select('*');
+let cachedBoroughDistances = null;
+let distancesCacheTime = 0;
 
-  if (error) {
-    console.error('Error getting borough distances:', error);
-    return [];
+export const getBoroughDistances = async () => {
+  // Return cached data if available and not too old (10 minutes)
+  const now = Date.now();
+  if (cachedBoroughDistances && now - distancesCacheTime < 600000) {
+    return cachedBoroughDistances;
   }
 
-  return data || [];
+  try {
+    const { data, error } = await supabase
+      .from('borough_distances')
+      .select('*');
+
+    if (error) {
+      console.error('Error getting borough distances:', error);
+      return [];
+    }
+
+    // Cache the result
+    cachedBoroughDistances = data || [];
+    distancesCacheTime = now;
+
+    return cachedBoroughDistances;
+  } catch (error) {
+    console.error('Error in getBoroughDistances:', error);
+    return [];
+  }
 };
 
 /**
