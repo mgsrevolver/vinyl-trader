@@ -62,23 +62,22 @@ const ProductCard = ({
             }
           }}
         >
-          {/* Skip indicator */}
+          {/* Swipe indicators */}
           <motion.div
-            className="swipe-indicator skip-indicator"
+            className="swipe-indicator-large skip-indicator-large"
             style={{ opacity: leftIndicatorOpacity }}
           >
-            <FaTimes size={30} />
+            <FaTimes size={60} />
           </motion.div>
 
-          {/* Like indicator */}
           <motion.div
-            className="swipe-indicator like-indicator"
+            className="swipe-indicator-large like-indicator-large"
             style={{ opacity: rightIndicatorOpacity }}
           >
-            <FaCheck size={30} />
+            <FaCheck size={60} />
           </motion.div>
 
-          {/* Card content */}
+          {/* Card content - following wireframe layout */}
           <div className="product-card-image">
             {image_url ? (
               <img src={image_url} alt={name} className="product-image" />
@@ -88,19 +87,27 @@ const ProductCard = ({
           </div>
 
           <div className="product-card-info">
-            <div className="product-title-row">
-              <div className="product-title">
-                {name} - {artist}
-              </div>
-              <div className="product-genre-year">
-                {genre} ({year})
-              </div>
+            {/* Title and artist on top line */}
+            <div className="product-title">
+              {name} - {artist}
             </div>
 
-            <div className="product-condition">Condition: {condition}</div>
+            {/* Genre and year on second line */}
+            <div className="product-genre-year">
+              {genre} ({year})
+            </div>
 
+            {/* Condition and stock info together */}
+            <div className="product-details">
+              <div className="product-condition">Condition: {condition}</div>
+              {quantity !== undefined && (
+                <div className="product-stock">In Stock: {quantity}</div>
+              )}
+            </div>
+
+            {/* Rarity and price at bottom */}
             <div className="product-footer">
-              <div className="product-rarity">
+              <div className="product-rarity" style={{ marginBottom: '50px' }}>
                 {[...Array(5)].map((_, i) => (
                   <FaStar
                     key={i}
@@ -111,85 +118,18 @@ const ProductCard = ({
                   />
                 ))}
               </div>
-
-              <div className="product-price">
+              <div className="product-price" style={{ marginBottom: '50px' }}>
                 ${parseFloat(displayPrice).toFixed(2)}
               </div>
             </div>
-
-            {quantity !== undefined && (
-              <div className="product-quantity">In stock: {quantity}</div>
-            )}
           </div>
 
-          {/* X/✓ Buttons */}
-          <div className="swipe-buttons">
-            <button
-              className="swipe-button skip-button"
-              onClick={() => onSkip(id)}
-              aria-label="Skip"
-            >
-              <FaTimes size={24} />
-            </button>
-
-            <button
-              className="swipe-button like-button"
-              onClick={() => onLike(id)}
-              aria-label="Like"
-            >
-              <FaCheck size={24} />
-            </button>
-          </div>
-        </motion.div>
-      ) : (
-        // Non-swipeable version for sell mode
-        <div className="product-card">
-          <div className="product-card-image">
-            {image_url ? (
-              <img src={image_url} alt={name} className="product-image" />
-            ) : (
-              <div className="product-image-placeholder">{'{image_url}'}</div>
-            )}
-          </div>
-
-          <div className="product-card-info">
-            <div className="product-title-row">
-              <div className="product-title">
-                {name} - {artist}
-              </div>
-              <div className="product-genre-year">
-                {genre} ({year})
-              </div>
-            </div>
-
-            <div className="product-condition">Condition: {condition}</div>
-
-            <div className="product-footer">
-              <div className="product-rarity">
-                {[...Array(5)].map((_, i) => (
-                  <FaStar
-                    key={i}
-                    size={14}
-                    className={
-                      i < rarityStars ? 'star-active' : 'star-inactive'
-                    }
-                  />
-                ))}
-              </div>
-
-              <div className="product-price">
-                ${parseFloat(displayPrice).toFixed(2)}
-              </div>
-            </div>
-
-            {quantity !== undefined && (
-              <div className="product-quantity">In stock: {quantity}</div>
-            )}
-          </div>
-
-          {/* Buy/Sell button */}
+          {/* Buy/Sell button - positioned properly as a sibling, not child element */}
           {showAction && (onBuy || onSell) && (
-            <div className="product-action">
+            <div
+              className="product-action"
+              style={{ top: '45%', bottom: 'auto', zIndex: 10 }}
+            >
               {onBuy && (
                 <button
                   onClick={() => onBuy(id, 1)}
@@ -210,6 +150,93 @@ const ProductCard = ({
               )}
             </div>
           )}
+
+          {/* Swipe X/✓ Buttons */}
+          <div className="swipe-buttons">
+            <button
+              className="swipe-button skip-button"
+              onClick={() => onSkip(id)}
+              aria-label="Skip"
+            >
+              <FaTimes size={24} />
+            </button>
+
+            <button
+              className="swipe-button like-button"
+              onClick={() => onLike(id)}
+              aria-label="Like"
+            >
+              <FaCheck size={24} />
+            </button>
+          </div>
+        </motion.div>
+      ) : (
+        // Non-swipeable version - also update to match wireframe
+        <div className="product-card">
+          <div className="product-card-image">
+            {image_url ? (
+              <img src={image_url} alt={name} className="product-image" />
+            ) : (
+              <div className="product-image-placeholder">{'{image_url}'}</div>
+            )}
+          </div>
+
+          <div className="product-card-info">
+            {/* Title and artist on top line */}
+            <div className="product-title">
+              {name} - {artist}
+            </div>
+
+            {/* Genre and year on second line */}
+            <div className="product-genre-year">
+              {genre} ({year})
+            </div>
+
+            {/* Condition and stock info together */}
+            <div className="product-details">
+              <div className="product-condition">Condition: {condition}</div>
+              {quantity !== undefined && (
+                <div className="product-stock">In Stock: {quantity}</div>
+              )}
+            </div>
+
+            {/* Rarity and price at bottom */}
+            <div className="product-footer">
+              <div className="product-rarity" style={{ marginBottom: '50px' }}>
+                {[...Array(5)].map((_, i) => (
+                  <FaStar
+                    key={i}
+                    size={14}
+                    className={
+                      i < rarityStars ? 'star-active' : 'star-inactive'
+                    }
+                  />
+                ))}
+              </div>
+              <div className="product-price" style={{ marginBottom: '50px' }}>
+                ${parseFloat(displayPrice).toFixed(2)}
+              </div>
+            </div>
+          </div>
+
+          {/* Swipe X/✓ Buttons */}
+          <div className="swipe-buttons">
+            <button
+              className="swipe-button skip-button"
+              onClick={() => onSkip(id)}
+              aria-label="Skip"
+            >
+              <FaTimes size={24} />
+            </button>
+
+            <button
+              className="swipe-button like-button"
+              onClick={() => onLike(id)}
+              aria-label="Like"
+            >
+              <FaCheck size={24} />
+            </button>
+          </div>
         </div>
       )}
     </div>
