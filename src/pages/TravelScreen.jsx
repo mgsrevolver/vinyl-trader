@@ -141,16 +141,31 @@ const TravelScreen = () => {
       }
 
       try {
-        // Use the utility function from gameActions.js
-        const stores = await getBoroughStores(selectedNeighborhood.id);
-        console.log(
-          'Stores found for borough:',
-          stores.length,
-          'borough id:',
-          selectedNeighborhood.id
-        );
+        // Special case for Uptown - use the correct ID
+        if (selectedNeighborhood.name === 'Uptown') {
+          // Use the known correct ID for Uptown
+          const uptownId = '5886f15f-e81d-4d83-8705-100a58adada1';
 
-        setNeighborhoodStores(stores || []);
+          console.log('Using hardcoded Uptown ID:', uptownId);
+          console.log('Selected neighborhood ID was:', selectedNeighborhood.id);
+
+          // Get stores for the known Uptown ID
+          const stores = await getBoroughStores(uptownId);
+          console.log(`Found ${stores.length} stores for Uptown`);
+
+          setNeighborhoodStores(stores || []);
+        } else {
+          // Normal behavior for other neighborhoods
+          const stores = await getBoroughStores(selectedNeighborhood.id);
+          console.log(
+            'Stores found for borough:',
+            stores.length,
+            'borough id:',
+            selectedNeighborhood.id
+          );
+
+          setNeighborhoodStores(stores || []);
+        }
       } catch (err) {
         console.error('Error fetching stores for neighborhood:', err);
         toast.error('Failed to load stores');
