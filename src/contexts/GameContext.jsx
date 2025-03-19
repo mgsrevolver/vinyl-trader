@@ -40,6 +40,25 @@ export const GameProvider = ({ children }) => {
 
   // Generate or retrieve player ID
   useEffect(() => {
+    // First check for game-specific player ID
+    const currentGameId = localStorage.getItem('deliWarsCurrentGame');
+    const gameSpecificPlayerId = currentGameId
+      ? localStorage.getItem(`player_${currentGameId}`)
+      : null;
+
+    // If we have a game-specific player ID, use that
+    if (
+      gameSpecificPlayerId &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        gameSpecificPlayerId
+      )
+    ) {
+      console.log('Using game-specific playerId:', gameSpecificPlayerId);
+      setPlayerId(gameSpecificPlayerId);
+      return;
+    }
+
+    // Otherwise use/create general player ID
     const storedPlayerId = localStorage.getItem('deliWarsPlayerId');
 
     if (
@@ -131,6 +150,14 @@ export const GameProvider = ({ children }) => {
 
       // IMPORTANT: Store the player ID in localStorage so Game.jsx can find it
       localStorage.setItem(`player_${game.id}`, player.id);
+      localStorage.setItem('deliWarsCurrentGame', game.id);
+
+      // Set player ID in state to match what we stored
+      setPlayerId(player.id);
+
+      // Immediately set current game and player to avoid UI loading issues
+      setCurrentGame(game);
+      setPlayer(player);
 
       return { success: true, gameId: game.id };
     } catch (error) {
@@ -248,10 +275,28 @@ export const GameProvider = ({ children }) => {
 
   // Load game data
   const loadGame = async (gameId) => {
-    if (!playerId || !gameId) return { success: false };
+    if (!gameId) return { success: false };
 
     try {
       setGameLoading(true);
+
+      // Get game-specific player ID if available
+      const gameSpecificPlayerId = localStorage.getItem(`player_${gameId}`);
+      const playerIdToUse = gameSpecificPlayerId || playerId;
+
+      // If we found a game-specific ID that's different, update state
+      if (gameSpecificPlayerId && gameSpecificPlayerId !== playerId) {
+        console.log(
+          'Updating playerId to game-specific ID:',
+          gameSpecificPlayerId
+        );
+        setPlayerId(gameSpecificPlayerId);
+      }
+
+      if (!playerIdToUse) {
+        console.error('No player ID available for this game');
+        return { success: false, needsJoin: true };
+      }
 
       // Load game data
       const { data: game, error: gameError } = await supabase
@@ -262,16 +307,15 @@ export const GameProvider = ({ children }) => {
 
       if (gameError) throw gameError;
 
-      // Load player data
+      // Load player data using playerIdToUse directly instead of user_id
       const { data: playerData, error: playerError } = await supabase
         .from('players')
         .select('*')
-        .eq('game_id', gameId)
-        .eq('user_id', playerId)
+        .eq('id', playerIdToUse)
         .single();
 
       if (playerError) {
-        // Player not in game, might need to join
+        console.error('Player not found with ID:', playerIdToUse);
         return { success: false, needsJoin: true, game };
       }
 
