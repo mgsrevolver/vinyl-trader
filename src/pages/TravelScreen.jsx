@@ -23,6 +23,7 @@ import {
   getTransportationMethods,
   getBoroughDistances,
   getBoroughStores,
+  getPlayerActions,
 } from '../lib/gameActions';
 
 // You'll need to add an NYC map image to your public/assets folder
@@ -42,6 +43,8 @@ const TravelScreen = () => {
   const [transportOptions, setTransportOptions] = useState([]);
   const [boroughDistances, setBoroughDistances] = useState([]);
   const [neighborhoodStores, setNeighborhoodStores] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [playerActions, setPlayerActions] = useState({ used: 0, available: 4 });
 
   // NYC borough coordinates based on the screenshot
   const boroughCoordinates = {
@@ -175,6 +178,29 @@ const TravelScreen = () => {
     fetchStoresForNeighborhood();
   }, [selectedNeighborhood]);
 
+  useEffect(() => {
+    const fetchPlayerActions = async () => {
+      if (!player?.id || !currentGame?.id) return;
+
+      try {
+        const actionsData = await getPlayerActions(
+          player.id,
+          currentGame.id,
+          currentGame.current_hour
+        );
+
+        setPlayerActions({
+          used: actionsData.actions_used || 0,
+          available: actionsData.actions_available || 4,
+        });
+      } catch (err) {
+        console.error('Error fetching player actions:', err);
+      }
+    };
+
+    fetchPlayerActions();
+  }, [player?.id, currentGame?.id, currentGame?.current_hour]);
+
   const handleSelectNeighborhood = (neighborhood) => {
     // Don't select current location
     if (neighborhood.id === player.current_borough_id) {
@@ -211,18 +237,48 @@ const TravelScreen = () => {
       return;
     }
 
-    // For demo purposes, we're just using the transport ID as a parameter
-    // In a real app, you'd use the actual transport ID from the database
-    const { success, error } = await travelToNeighborhood(
-      selectedNeighborhood.id,
-      selectedTransport.id
-    );
+    try {
+      // Set UI to loading state
+      setIsLoading(true);
 
-    if (success) {
-      toast.success(`Traveled to ${selectedNeighborhood.name}`);
-      navigate(`/game/${gameId}`);
-    } else {
-      toast.error(`Travel failed: ${error?.message || 'Unknown error'}`);
+      console.log('Starting travel to:', selectedNeighborhood.name);
+
+      // Call travel function with selected neighborhood and transport
+      const result = await travelToNeighborhood(
+        selectedNeighborhood.id,
+        selectedTransport.id
+      );
+
+      // Show special message for hours advancing
+      if (result && result.hourAdvanced) {
+        toast.success(
+          `Advanced to next hour - ${result.newHour} hours remaining`
+        );
+      }
+
+      // Always wait a bit for backend operations to complete
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      // Navigate back to game with refresh flag regardless of result
+      // This ensures the UI updates with current data from the database
+      navigate(`/game/${gameId}`, {
+        state: {
+          refresh: true,
+          fromTravel: true,
+          destinationName: selectedNeighborhood.name,
+        },
+        replace: true, // Replace history to prevent back-button issues
+      });
+    } catch (err) {
+      console.error('Travel error:', err);
+
+      // Still navigate back to game
+      navigate(`/game/${gameId}`, {
+        state: { refresh: true },
+        replace: true,
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -297,6 +353,9 @@ const TravelScreen = () => {
     const displayHour = hour % 12 || 12;
     return `${displayHour}${period}`;
   };
+
+  // Check if player has enough actions
+  const hasEnoughActions = playerActions.available - playerActions.used > 0;
 
   if (dataLoading || !player) {
     return (
@@ -508,6 +567,14 @@ const TravelScreen = () => {
 
               {/* Travel button with reasonable padding */}
               <div style={{ padding: '12px 10px 6px 10px' }}>
+                {!hasEnoughActions && (
+                  <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-2 mb-2 text-sm">
+                    <p>
+                      <strong>No actions left for this hour!</strong> Traveling
+                      will advance to the next hour.
+                    </p>
+                  </div>
+                )}
                 <Button
                   onClick={handleTravel}
                   disabled={loading || !selectedTransport}
@@ -519,8 +586,10 @@ const TravelScreen = () => {
                       <FaSpinner className="animate-spin mr-2" />
                       Traveling...
                     </span>
-                  ) : (
+                  ) : hasEnoughActions ? (
                     'Travel Now'
+                  ) : (
+                    'Advance Hour & Travel'
                   )}
                 </Button>
               </div>

@@ -1,6 +1,6 @@
 // src/pages/Game.jsx
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   FaStore,
   FaMapMarkedAlt,
@@ -16,13 +16,15 @@ import {
   getGameState,
   getBoroughStores,
   advanceGameHour,
+  getPlayerActions,
 } from '../lib/gameActions';
 import { supabase } from '../lib/supabase';
 
 const Game = () => {
   const { gameId } = useParams();
   const navigate = useNavigate();
-  const { player, playerId } = useGame();
+  const location = useLocation();
+  const { player, playerId, refreshPlayerData } = useGame();
 
   // State management
   const [gameState, setGameState] = useState(null);
@@ -30,37 +32,117 @@ const Game = () => {
   const [boroughStores, setBoroughStores] = useState([]);
   const [loadingGameState, setLoadingGameState] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [currentBoroughName, setCurrentBoroughName] =
+    useState('Unknown Location');
+  const [playerActions, setPlayerActions] = useState({
+    actions_used: 0,
+    actions_available: 4,
+  });
 
   useEffect(() => {
     if (playerId) {
-      // Load game data using gameActions
-      loadGameData();
-    }
-  }, [gameId, playerId]);
+      // Check if we need to refresh data after returning from travel
+      const needsRefresh = location.state?.refresh || false;
 
-  const loadGameData = async () => {
+      // Load game data using gameActions
+      loadGameData(needsRefresh);
+
+      // If we just came from travel, show a toast notification
+      if (location.state?.fromTravel) {
+        toast.success(`You're now in ${location.state.destinationName}`);
+        // Clear the state to prevent showing the toast again on manual refresh
+        navigate(location.pathname, { replace: true });
+      }
+    }
+  }, [gameId, playerId, location]);
+
+  const loadGameData = async (forceRefresh = false) => {
     try {
       setLoadingGameState(true);
 
-      // Get playerId from localStorage using gameId
-      const storedPlayerId = localStorage.getItem(`player_${gameId}`);
+      // Get the game and player information
+      let playerId;
 
-      if (!storedPlayerId) {
-        console.error('No player ID found in localStorage');
-        toast.error('Could not find your player in this game');
-        navigate('/');
-        return;
+      // First try to get player ID from context
+      if (player?.id) {
+        playerId = player.id;
+        console.log('Using player ID from context:', playerId);
+      } else {
+        // Fall back to localStorage
+        const storedPlayerId = localStorage.getItem(`player_${gameId}`);
+        if (!storedPlayerId) {
+          console.error('No player ID found in localStorage');
+          toast.error('Could not find your player in this game');
+          navigate('/');
+          return;
+        }
+        playerId = storedPlayerId;
+        console.log('Using player ID from localStorage:', playerId);
       }
 
-      console.log('Using player ID from localStorage:', storedPlayerId);
+      // If we have a refresh flag, refresh the player data in context first
+      if ((forceRefresh || location.state?.refresh) && refreshPlayerData) {
+        console.log('Forcing player data refresh');
+        await refreshPlayerData();
+      }
 
       // Now use our gameActions functions to get all the data we need
-      const gameStateData = await getGameState(storedPlayerId, gameId);
+      const gameStateData = await getGameState(playerId, gameId);
 
       if (gameStateData && !gameStateData.error) {
         setGameState(gameStateData.game);
         setPlayerState(gameStateData.playerState);
         setBoroughStores(gameStateData.boroughStores);
+
+        // Fetch player actions for the current hour
+        if (gameStateData.game && gameStateData.game.current_hour) {
+          try {
+            const actionsData = await getPlayerActions(
+              playerId,
+              gameId,
+              gameStateData.game.current_hour
+            );
+
+            if (actionsData) {
+              setPlayerActions(actionsData);
+            }
+          } catch (actionError) {
+            console.warn('Could not fetch player actions:', actionError);
+            // Use default action values
+            setPlayerActions({ actions_used: 0, actions_available: 4 });
+          }
+        }
+
+        // Update the current borough name - First check the context player data
+        if (player && player.current_borough) {
+          console.log(
+            'Setting borough name from context:',
+            player.current_borough
+          );
+          setCurrentBoroughName(player.current_borough);
+        }
+        // Then check the player state from gameActions
+        else if (
+          gameStateData.playerState &&
+          gameStateData.playerState.current_borough
+        ) {
+          console.log(
+            'Setting borough name from playerState:',
+            gameStateData.playerState.current_borough
+          );
+          setCurrentBoroughName(gameStateData.playerState.current_borough);
+        }
+        // If still not found, try to get borough name from the borough ID
+        else if (gameStateData.playerState?.current_borough_id) {
+          const currentBorough = await getCurrentBoroughName(
+            gameStateData.playerState.current_borough_id
+          );
+          console.log('Setting borough name via lookup:', currentBorough);
+          setCurrentBoroughName(currentBorough || 'Unknown Location');
+        } else {
+          console.log('No borough information found');
+          setCurrentBoroughName('Unknown Location');
+        }
       } else {
         console.error('Error loading game state:', gameStateData?.error);
         toast.error('Failed to load game data. Please try again.');
@@ -70,6 +152,25 @@ const Game = () => {
       toast.error('An unexpected error occurred loading game data.');
     } finally {
       setLoadingGameState(false);
+    }
+  };
+
+  // Helper function to get borough name if it's not in the player state
+  const getCurrentBoroughName = async (boroughId) => {
+    if (!boroughId) return 'Unknown Location';
+
+    try {
+      const { data, error } = await supabase
+        .from('boroughs')
+        .select('name')
+        .eq('id', boroughId)
+        .single();
+
+      if (error) throw error;
+      return data?.name || 'Unknown Location';
+    } catch (err) {
+      console.error('Error fetching borough name:', err);
+      return 'Unknown Location';
     }
   };
 
@@ -134,17 +235,11 @@ const Game = () => {
     );
   }
 
-  // Get current borough name
-  const currentBoroughName = playerState.current_borough || 'Unknown Location';
-
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       {/* Borough Header */}
       <div className="bg-blue-600 text-white p-6 shadow-md">
         <h1 className="text-2xl font-bold text-center">{currentBoroughName}</h1>
-        <div className="text-sm text-center opacity-80 mt-1">
-          Game Hour: {gameState.current_hour} / {gameState.max_hours}
-        </div>
       </div>
 
       {/* Stores in Borough */}

@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { FaCoins, FaWarehouse, FaClock, FaBolt } from 'react-icons/fa';
 import { useGame } from '../../contexts/GameContext';
 import { gameHourToTimeString, getHoursRemaining } from '../../lib/timeUtils';
 import { supabase } from '../../lib/supabase';
+import { getPlayerActions } from '../../lib/gameActions';
+import toast from 'react-hot-toast';
 
 const GameHeader = () => {
   const { currentGame, player, playerInventory, fetchGameData } = useGame();
   const [actionsRemaining, setActionsRemaining] = useState(4); // Default to 4 actions
+  const previousHourRef = useRef(null);
 
   // Add an effect to refresh data periodically
   useEffect(() => {
@@ -23,43 +26,72 @@ const GameHeader = () => {
     return () => clearInterval(intervalId);
   }, [fetchGameData]);
 
+  // Function to fetch actions remaining
+  const fetchActionsRemaining = async () => {
+    if (!player?.id || !currentGame?.id) return;
+
+    try {
+      // Use the getPlayerActions function from gameActions.js instead of direct query
+      const actionsData = await getPlayerActions(
+        player.id,
+        currentGame.id,
+        currentGame.current_hour
+      );
+
+      if (actionsData) {
+        const remaining =
+          actionsData.actions_available - actionsData.actions_used;
+        console.log('Updated actions remaining:', remaining);
+        setActionsRemaining(remaining);
+      }
+    } catch (error) {
+      console.error('Error in fetchActionsRemaining:', error);
+      // Don't update state on error, keep previous value
+    }
+  };
+
   // Add effect to fetch actions remaining
   useEffect(() => {
-    const fetchActionsRemaining = async () => {
-      if (!player?.id || !currentGame?.id) return;
-
-      try {
-        const { data, error } = await supabase
-          .from('player_actions')
-          .select('actions_available, actions_used')
-          .eq('player_id', player.id)
-          .eq('game_id', currentGame.id)
-          .eq('hour', currentGame.current_hour)
-          .single();
-
-        if (error) {
-          console.error('Error fetching actions:', error);
-          return;
-        }
-
-        if (data) {
-          const remaining = data.actions_available - data.actions_used;
-          setActionsRemaining(remaining);
-        }
-      } catch (error) {
-        console.error('Error in fetchActionsRemaining:', error);
-      }
-    };
-
     fetchActionsRemaining();
+
+    // Set up an interval to refresh actions less frequently to avoid too many errors
+    const actionsInterval = setInterval(() => {
+      fetchActionsRemaining();
+    }, 10000); // Check every 10 seconds instead of 5
+
+    return () => clearInterval(actionsInterval);
   }, [player?.id, currentGame?.id, currentGame?.current_hour]);
 
-  // Listen for changes in currentGame.current_hour and update immediately
+  // Add effect to detect hour changes
   useEffect(() => {
-    // This effect will run whenever currentGame.current_hour changes
-    // We don't need to do anything here, as React will re-render automatically
-    // when the currentGame state in context changes
+    // If we have a previous hour and it changed
+    if (
+      previousHourRef.current !== null &&
+      currentGame?.current_hour &&
+      previousHourRef.current !== currentGame.current_hour
+    ) {
+      // Show a toast notification about the hour change
+      toast.success(
+        `Hour advanced! ${getHoursRemaining(
+          currentGame.current_hour
+        )} hours remaining`
+      );
+    }
+
+    // Update the ref with current hour
+    if (currentGame?.current_hour) {
+      previousHourRef.current = currentGame.current_hour;
+    }
   }, [currentGame?.current_hour]);
+
+  // Add effect to refetch actions when location changes
+  useEffect(() => {
+    if (player?.current_borough_id) {
+      // Only log if we have debug enabled
+      // console.log('Borough changed, updating actions');
+      fetchActionsRemaining();
+    }
+  }, [player?.current_borough_id]);
 
   // Format money as whole dollars only
   const formatMoney = (amount) => {

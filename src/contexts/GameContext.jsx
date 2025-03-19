@@ -9,6 +9,7 @@ import {
   initializePlayer,
   createNewGame,
   initializeGameMarket,
+  travelToBorough,
 } from '../lib/gameActions';
 
 const GameContext = createContext();
@@ -603,29 +604,133 @@ export const GameProvider = ({ children }) => {
     }
   };
 
-  // Travel to another neighborhood
-  const travelToNeighborhood = async (neighborhoodId) => {
+  // Add this function to refresh player data
+  const refreshPlayerData = async () => {
+    if (!player?.id) return false;
+
+    try {
+      // Fetch updated player data with borough information
+      const { data, error } = await supabase
+        .from('players')
+        .select(
+          `
+          *,
+          boroughs:current_borough_id (id, name)
+        `
+        )
+        .eq('id', player.id)
+        .single();
+
+      if (error) {
+        console.error('Error refreshing player data:', error);
+        return false;
+      }
+
+      console.log('Got fresh player data:', data);
+
+      // Format the data to include current_borough as string
+      const playerWithBorough = {
+        ...data,
+        current_borough: data.boroughs?.name || 'Unknown Location',
+        current_borough_id: data.current_borough_id,
+      };
+
+      // Update player state
+      setPlayer(playerWithBorough);
+
+      return true;
+    } catch (error) {
+      console.error('Error in refreshPlayerData:', error);
+      return false;
+    }
+  };
+
+  // Modify travelToNeighborhood to use the travelToBorough function
+  const travelToNeighborhood = async (neighborhoodId, transportationId) => {
     if (!player || !currentGame) return { success: false };
 
     try {
       setLoading(true);
 
-      // Update player location
-      const { data: updatedPlayer, error } = await supabase
-        .from('players')
-        .update({ location: neighborhoodId })
-        .eq('id', player.id)
-        .select()
+      console.log('Attempting travel to neighborhood:', neighborhoodId);
+
+      // Call the travel function from gameActions
+      const result = await travelToBorough(
+        player.id,
+        currentGame.id,
+        neighborhoodId,
+        transportationId
+      );
+
+      // Check if hour was advanced (can be detected by comparing game hour before and after)
+      const { data: currentGameData } = await supabase
+        .from('games')
+        .select('current_hour')
+        .eq('id', currentGame.id)
         .single();
 
-      if (error) throw error;
+      const hourAdvanced =
+        currentGameData &&
+        currentGameData.current_hour !== currentGame.current_hour;
 
-      setPlayer(updatedPlayer);
-      toast.success('Traveled to new location');
-      return { success: true };
+      // Always refresh player data regardless of reported success/failure
+      // since the constraint error might not have prevented travel
+      const refreshSuccess = await refreshPlayerData();
+
+      // Also refresh game data to get updated hour
+      await fetchGameData();
+
+      // After refreshing, check if we're now in the destination borough
+      // This handles the case where travel succeeded despite unique constraint error
+      if (refreshSuccess && player.current_borough_id === neighborhoodId) {
+        console.log('Player location matches destination, travel succeeded');
+        return {
+          success: true,
+          hourAdvanced,
+          newHour: currentGameData?.current_hour,
+        };
+      }
+
+      if (!result.success) {
+        // Special handling for unique constraint errors
+        if (
+          result.error &&
+          result.error.code === '23505' &&
+          result.error.message &&
+          result.error.message.includes(
+            'player_transportation_player_id_transportation_id_key'
+          )
+        ) {
+          console.log(
+            'Got unique constraint error but travel may have completed'
+          );
+
+          // Refresh player data one more time with a slight delay
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          await refreshPlayerData();
+
+          // Check again if location updated
+          if (player.current_borough_id === neighborhoodId) {
+            console.log('After second refresh, travel appears successful');
+            return {
+              success: true,
+              hourAdvanced,
+              newHour: currentGameData?.current_hour,
+            };
+          }
+        }
+
+        console.error('Travel failed:', result.error);
+        throw result.error || new Error('Travel failed');
+      }
+
+      return {
+        success: true,
+        hourAdvanced,
+        newHour: currentGameData?.current_hour,
+      };
     } catch (error) {
       console.error('Error traveling:', error);
-      toast.error(`Error: ${error.message}`);
       return { success: false, error };
     } finally {
       setLoading(false);
@@ -637,6 +742,9 @@ export const GameProvider = ({ children }) => {
     if (!currentGame?.id || !player?.id) return;
 
     try {
+      // Store previous game hour to detect changes
+      const previousHour = currentGame.current_hour;
+
       // Fetch updated game data
       const { data: gameData, error: gameError } = await supabase
         .from('games')
@@ -649,10 +757,18 @@ export const GameProvider = ({ children }) => {
         return;
       }
 
+      // Check if the hour changed
+      const hourChanged = previousHour !== gameData.current_hour;
+
       // Fetch updated player data
       const { data: playerData, error: playerError } = await supabase
         .from('players')
-        .select('*')
+        .select(
+          `
+          *,
+          boroughs:current_borough_id (id, name)
+        `
+        )
         .eq('id', player.id)
         .single();
 
@@ -660,6 +776,12 @@ export const GameProvider = ({ children }) => {
         console.error('Error fetching player data:', playerError);
         return;
       }
+
+      // Format player data to include current_borough as a string
+      const playerWithBorough = {
+        ...playerData,
+        current_borough: playerData.boroughs?.name || 'Unknown Location',
+      };
 
       // Fetch updated inventory
       const { data: inventory, error: inventoryError } = await supabase
@@ -682,7 +804,7 @@ export const GameProvider = ({ children }) => {
 
       // Update all states with fresh data
       setCurrentGame(gameData);
-      setPlayer(playerData);
+      setPlayer(playerWithBorough);
       setPlayerInventory(inventory || []);
 
       return true;
@@ -800,6 +922,7 @@ export const GameProvider = ({ children }) => {
         endTurn,
         playerId,
         fetchGameData,
+        refreshPlayerData,
       }}
     >
       {children}

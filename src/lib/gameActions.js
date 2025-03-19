@@ -89,7 +89,7 @@ export const sellRecord = async (
  * @param {string} gameId - UUID of the game
  * @param {string} toBoroughId - UUID of the destination borough
  * @param {string} transportationId - UUID of the transportation method
- * @returns {Promise<boolean>} - True if successful
+ * @returns {Promise<{success: boolean, error: any}>} - Result object with success status and any error
  */
 export const travelToBorough = async (
   playerId,
@@ -97,19 +97,162 @@ export const travelToBorough = async (
   toBoroughId,
   transportationId
 ) => {
-  const { data, error } = await supabase.rpc('travel_to_borough', {
-    p_player_id: playerId,
-    p_game_id: gameId,
-    p_to_borough_id: toBoroughId,
-    p_transportation_id: transportationId,
-  });
+  try {
+    console.log('Calling travel_to_borough RPC with:', {
+      playerId,
+      gameId,
+      toBoroughId,
+      transportationId,
+    });
 
-  if (error) {
-    console.error('Error traveling to borough:', error);
-    return false;
+    // Check if the player has actions remaining
+    const { data: game } = await supabase
+      .from('games')
+      .select('current_hour')
+      .eq('id', gameId)
+      .single();
+
+    const currentHour = game?.current_hour || 24;
+
+    // Get player actions for current hour
+    const actionsData = await getPlayerActions(playerId, gameId, currentHour);
+    const actionsRemaining =
+      actionsData.actions_available - actionsData.actions_used;
+
+    // If no actions remaining, advance the game hour
+    if (actionsRemaining <= 0) {
+      console.log('Player has no actions remaining, advancing game hour');
+
+      // Advance to next hour
+      const nextHour = currentHour - 1;
+      if (nextHour <= 0) {
+        return {
+          success: false,
+          error: new Error('Game has ended, no more hours remaining'),
+        };
+      }
+
+      // Update the game's current hour
+      const { error: updateError } = await supabase
+        .from('games')
+        .update({ current_hour: nextHour })
+        .eq('id', gameId);
+
+      if (updateError) {
+        console.error('Error advancing game hour:', updateError);
+        return { success: false, error: updateError };
+      }
+
+      console.log(`Advanced game to hour ${nextHour}`);
+
+      // Create a new player_actions row for the next hour if needed
+      try {
+        const { data: newRow, error: insertError } = await supabase
+          .from('player_actions')
+          .insert({
+            player_id: playerId,
+            game_id: gameId,
+            hour: nextHour,
+            actions_used: 1, // Use 1 action for travel
+            actions_available: 4,
+          })
+          .select();
+
+        if (insertError) {
+          console.log('Error inserting new player_actions row:', insertError);
+
+          // If it's a unique constraint error, the row might already exist
+          if (insertError.code === '23505') {
+            console.log('Row already exists, updating instead');
+            const { error: updateError } = await supabase
+              .from('player_actions')
+              .update({ actions_used: 1 })
+              .eq('player_id', playerId)
+              .eq('game_id', gameId)
+              .eq('hour', nextHour);
+
+            if (updateError) {
+              console.error(
+                'Error updating existing actions row:',
+                updateError
+              );
+            }
+          }
+        } else {
+          console.log('Created new player_actions row for hour', nextHour);
+        }
+      } catch (err) {
+        console.error('Exception handling player_actions for next hour:', err);
+      }
+    } else {
+      // Use an action for travel
+      const { error: actionError } = await supabase
+        .from('player_actions')
+        .update({ actions_used: actionsData.actions_used + 1 })
+        .eq('player_id', playerId)
+        .eq('game_id', gameId)
+        .eq('hour', currentHour);
+
+      if (actionError) {
+        console.error('Error using action for travel:', actionError);
+      }
+    }
+
+    // First, delete any existing player_transportation record for this player and transportation
+    await supabase
+      .from('player_transportation')
+      .delete()
+      .match({ player_id: playerId, transportation_id: transportationId });
+
+    // Call the travel RPC
+    const { data, error } = await supabase.rpc('travel_to_borough', {
+      p_player_id: playerId,
+      p_game_id: gameId,
+      p_to_borough_id: toBoroughId,
+      p_transportation_id: transportationId,
+    });
+
+    // If error and it's the unique constraint error for player_transportation
+    if (
+      error &&
+      error.code === '23505' &&
+      error.message.includes(
+        'player_transportation_player_id_transportation_id_key'
+      )
+    ) {
+      console.log(
+        'Got transportation constraint error, checking if travel was still successful'
+      );
+
+      // Check if player location was updated despite the error
+      const { data: playerData, error: playerError } = await supabase
+        .from('players')
+        .select('current_borough_id')
+        .eq('id', playerId)
+        .single();
+
+      if (!playerError && playerData.current_borough_id === toBoroughId) {
+        console.log('Travel was successful despite constraint error');
+        return { success: true };
+      }
+
+      return { success: false, error };
+    } else if (error) {
+      console.error('Error traveling to borough:', error);
+      return { success: false, error };
+    }
+
+    console.log('Travel RPC response:', data);
+
+    // The RPC returns true if successful
+    return {
+      success: data === true,
+      error: data === false ? new Error('Travel failed') : null,
+    };
+  } catch (err) {
+    console.error('Exception in travelToBorough:', err);
+    return { success: false, error: err };
   }
-
-  return data;
 };
 
 /**
@@ -644,4 +787,73 @@ export const getBoroughDistances = async () => {
   }
 
   return data || [];
+};
+
+/**
+ * Get the player's actions for the current hour
+ * @param {string} playerId - UUID of the player
+ * @param {string} gameId - UUID of the game
+ * @param {number} currentHour - Current game hour
+ * @returns {Promise<Object>} - Player's actions data
+ */
+export const getPlayerActions = async (playerId, gameId, currentHour) => {
+  try {
+    console.log('Fetching player actions for:', {
+      playerId,
+      gameId,
+      currentHour,
+    });
+
+    // Use limit(1) instead of maybeSingle to avoid errors when multiple rows exist
+    const { data, error } = await supabase
+      .from('player_actions')
+      .select('*')
+      .eq('player_id', playerId)
+      .eq('game_id', gameId)
+      .eq('hour', currentHour)
+      .limit(1);
+
+    if (error) {
+      console.error('Error getting player actions:', error);
+      return { actions_used: 0, actions_available: 4 }; // Default values
+    }
+
+    // If no data found or empty array (no row for this hour), return default values
+    if (!data || data.length === 0) {
+      console.log(
+        'No player_actions row found for current hour, using defaults'
+      );
+
+      // Try to create the actions row for this hour
+      try {
+        const { data: newRow, error: insertError } = await supabase
+          .from('player_actions')
+          .insert({
+            player_id: playerId,
+            game_id: gameId,
+            hour: currentHour,
+            actions_used: 0,
+            actions_available: 4,
+          })
+          .select()
+          .single();
+
+        if (!insertError && newRow) {
+          console.log('Created new player_actions row:', newRow);
+          return newRow;
+        }
+      } catch (insertErr) {
+        console.error('Could not create player_actions row:', insertErr);
+      }
+
+      // Return default values if insert failed
+      return { actions_used: 0, actions_available: 4 };
+    }
+
+    // Return the first row when multiple exist
+    return data[0];
+  } catch (err) {
+    console.error('Error in getPlayerActions:', err);
+    return { actions_used: 0, actions_available: 4 }; // Default values
+  }
 };
