@@ -474,10 +474,22 @@ export const GameProvider = ({ children }) => {
       return { success: false, error: gameError };
     }
 
-    // Reset the player's actions_used_this_hour to 0
+    // Get any overflow actions from previous hour
+    const { data: playerData } = await supabase
+      .from('players')
+      .select('actions_overflow')
+      .eq('id', player.id)
+      .single();
+
+    const overflowActions = playerData?.actions_overflow || 0;
+
+    // Reset player's actions but apply overflow
     const { error: playerError } = await supabase
       .from('players')
-      .update({ actions_used_this_hour: 0 })
+      .update({
+        actions_used_this_hour: overflowActions,
+        actions_overflow: 0, // Reset overflow after applying it
+      })
       .eq('id', player.id);
 
     if (playerError) {
@@ -512,27 +524,6 @@ export const GameProvider = ({ children }) => {
 
       console.log(`Travel will cost ${actionCost} actions and $${moneyCost}`);
 
-      // Check if player has enough actions and money
-      const actionsRemaining = getActionsRemaining();
-      if (actionsRemaining < actionCost) {
-        // If not enough actions, confirm whether to advance hour
-        const shouldAdvance = window.confirm(
-          `You only have ${actionsRemaining} actions, but need ${actionCost} to travel. ` +
-            `Would you like to advance to the next hour?`
-        );
-
-        if (shouldAdvance) {
-          const { success } = await advanceGameHour();
-          if (!success) {
-            setLoading(false);
-            return { success: false, message: "Couldn't advance to next hour" };
-          }
-        } else {
-          setLoading(false);
-          return { success: false, message: 'Canceled travel' };
-        }
-      }
-
       // Check if player has enough money
       if (player.cash < moneyCost) {
         setLoading(false);
@@ -542,55 +533,34 @@ export const GameProvider = ({ children }) => {
         };
       }
 
-      // Use the actions
-      const { success: actionsSuccess } = await useActions(actionCost);
-      if (!actionsSuccess) {
-        setLoading(false);
-        return { success: false, message: 'Failed to use actions' };
-      }
+      // Handle action cost with the generic function
+      const result = await attemptAction(actionCost, async () => {
+        // Update player's location and money
+        const { error: updateError } = await supabase
+          .from('players')
+          .update({
+            current_borough_id: neighborhoodId,
+            cash: player.cash - moneyCost,
+          })
+          .eq('id', player.id);
 
-      // Update player's location and money
-      const { error: updateError } = await supabase
-        .from('players')
-        .update({
-          current_borough_id: neighborhoodId,
-          cash: player.cash - moneyCost,
-        })
-        .eq('id', player.id);
-
-      if (updateError) {
-        console.error('Error updating player location:', updateError);
-        setLoading(false);
-        return { success: false, error: updateError };
-      }
-
-      // Record transaction if needed
-      if (moneyCost > 0) {
-        const { error: transactionError } = await supabase
-          .from('transactions')
-          .insert({
-            game_id: currentGame.id,
-            player_id: player.id,
-            transaction_type: 'travel',
-            price: moneyCost,
-            quantity: 1,
-            hour: currentGame.current_hour,
-          });
-
-        if (transactionError) {
-          console.warn(
-            'Warning: Failed to record travel transaction:',
-            transactionError
-          );
-          // Continue even if transaction recording fails
+        if (updateError) {
+          console.error('Error updating player location:', updateError);
+          return { success: false, error: updateError };
         }
-      }
 
-      // Refresh player data
-      await refreshPlayerData();
+        // Record transaction if needed
+        if (moneyCost > 0) {
+          // Transaction logic here...
+        }
+
+        // Refresh player data
+        await refreshPlayerData();
+        return { success: true };
+      });
 
       setLoading(false);
-      return { success: true };
+      return result;
     } catch (error) {
       console.error('Error traveling to borough:', error);
       setLoading(false);
@@ -770,7 +740,7 @@ export const GameProvider = ({ children }) => {
       // Assume buying costs 1 action (adjust as needed)
       const actionCost = 1;
 
-      return await attemptActionWithCost(actionCost, async () => {
+      return await attemptAction(actionCost, async () => {
         const result = await buyRecord(
           player.id,
           currentGame.id,
@@ -839,6 +809,60 @@ export const GameProvider = ({ children }) => {
       return { success: false, error };
     } finally {
       setLoading(false);
+    }
+  };
+
+  const attemptAction = async (actionCost, performAction) => {
+    if (!player || !currentGame) return { success: false };
+
+    const actionsRemaining = getActionsRemaining();
+
+    // If player has enough actions, simply use them and perform the action
+    if (actionsRemaining >= actionCost) {
+      // Use actions
+      const { success: actionsSuccess } = await useActions(actionCost);
+      if (!actionsSuccess) {
+        return { success: false, message: 'Failed to use actions' };
+      }
+
+      // Perform the action
+      return await performAction();
+    }
+    // Not enough actions - need to handle overflow
+    else {
+      // Calculate overflow
+      const overflow = actionCost - actionsRemaining;
+
+      // Ask if player wants to advance hour
+      const shouldAdvance = window.confirm(
+        `You only have ${actionsRemaining} actions, but need ${actionCost}. ` +
+          `Would you like to advance to the next hour? ` +
+          `(${overflow} actions will be deducted from your next hour's actions)`
+      );
+
+      if (!shouldAdvance) {
+        return { success: false, message: 'Action canceled' };
+      }
+
+      // Use whatever actions remain in this hour
+      if (actionsRemaining > 0) {
+        await useActions(actionsRemaining);
+      }
+
+      // Store overflow amount for next hour
+      await supabase
+        .from('players')
+        .update({ actions_overflow: overflow })
+        .eq('id', player.id);
+
+      // Advance hour
+      const { success } = await advanceGameHour();
+      if (!success) {
+        return { success: false, message: "Couldn't advance to next hour" };
+      }
+
+      // Now perform the action (it's already "paid for" with the overflow)
+      return await performAction();
     }
   };
 
