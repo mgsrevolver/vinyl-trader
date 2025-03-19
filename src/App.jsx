@@ -17,6 +17,7 @@ import JoinGame from './pages/JoinGame';
 import Store from './pages/Store';
 import TravelScreen from './pages/TravelScreen';
 import NotFound from './pages/NotFound';
+import Inventory from './pages/Inventory';
 
 // Import the CSS file to ensure styles are applied
 import './index.css';
@@ -90,6 +91,7 @@ const App = () => {
             }
           />
           <Route path="/404" element={<NotFound />} />
+          <Route path="/game/:gameId/inventory" element={<Inventory />} />
           <Route path="*" element={<Navigate to="/404" replace />} />
         </Routes>
       </GameProvider>

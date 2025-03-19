@@ -857,6 +857,24 @@ export const GameProvider = ({ children }) => {
     }
   };
 
+  // Add this function to your GameContext if it doesn't exist already
+  const refreshPlayerInventory = async () => {
+    if (!player?.id || !currentGame?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('player_inventory_view')
+        .select('*')
+        .eq('player_id', player.id)
+        .eq('game_id', currentGame.id);
+
+      if (error) throw error;
+      setPlayerInventory(data || []);
+    } catch (error) {
+      console.error('Error refreshing player inventory:', error);
+    }
+  };
+
   return (
     <GameContext.Provider
       value={{
@@ -883,6 +901,7 @@ export const GameProvider = ({ children }) => {
         getActionsRemaining,
         useActions,
         advanceGameHour,
+        refreshPlayerInventory,
       }}
     >
       {children}

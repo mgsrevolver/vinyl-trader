@@ -87,12 +87,12 @@ const GameHeader = () => {
         </div>
 
         {/* Inventory - third item */}
-        <div className="status-stat">
+        <Link to={`/game/${currentGame.id}/inventory`} className="status-stat">
           <FaWarehouse />
           <span>
             {inventoryCount}/{player.inventory_capacity}
           </span>
-        </div>
+        </Link>
 
         {/* Actions Remaining - fourth item */}
         <div className="status-stat">
