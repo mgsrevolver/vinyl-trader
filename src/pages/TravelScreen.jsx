@@ -143,34 +143,11 @@ const TravelScreen = () => {
       }
 
       try {
-        // Special case for Uptown - use the correct ID
-        if (selectedNeighborhood.name === 'Uptown') {
-          // Use the known correct ID for Uptown
-          const uptownId = '5886f15f-e81d-4d83-8705-100a58adada1';
-
-          console.log('Using hardcoded Uptown ID:', uptownId);
-          console.log('Selected neighborhood ID was:', selectedNeighborhood.id);
-
-          // Get stores for the known Uptown ID
-          const stores = await getBoroughStores(uptownId);
-          console.log(`Found ${stores.length} stores for Uptown`);
-
-          setNeighborhoodStores(stores || []);
-        } else {
-          // Normal behavior for other neighborhoods
-          const stores = await getBoroughStores(selectedNeighborhood.id);
-          console.log(
-            'Stores found for borough:',
-            stores.length,
-            'borough id:',
-            selectedNeighborhood.id
-          );
-
-          setNeighborhoodStores(stores || []);
-        }
+        // Simplified - no special case handling
+        const stores = await getBoroughStores(selectedNeighborhood.id);
+        setNeighborhoodStores(stores || []);
       } catch (err) {
-        console.error('Error fetching stores for neighborhood:', err);
-        toast.error('Failed to load stores');
+        setNeighborhoodStores([]);
       }
     };
 
@@ -180,26 +157,9 @@ const TravelScreen = () => {
   const handleSelectNeighborhood = (neighborhood) => {
     // Don't select current location
     if (neighborhood.id === player.current_borough_id) {
-      toast.error("You're already in this neighborhood!");
+      toast.error("You're already here!");
       return;
     }
-
-    // Add logging to see which ID is being selected
-    console.log('Selected neighborhood:', neighborhood.name, neighborhood.id);
-
-    // Check if this is Uptown and log both Uptown IDs
-    if (neighborhood.name === 'Uptown') {
-      console.log(
-        'Uptown IDs in database:',
-        '5886f15f-e81d-4d83-8705-100a58adada1',
-        '27ea6aa4-e00d-43e1-93fd-78dccf329b98'
-      );
-      console.log(
-        'Stores linked to which Uptown ID?',
-        'Check your store records'
-      );
-    }
-
     setSelectedNeighborhood(neighborhood);
   };
 
@@ -209,44 +169,24 @@ const TravelScreen = () => {
 
   const handleTravel = async () => {
     if (!selectedNeighborhood || !selectedTransport) {
-      toast.error('Please select a destination and transport method');
+      toast.error('Select destination and transport');
       return;
     }
 
     try {
-      // Set UI to loading state
       setIsLoading(true);
+      await travelToNeighborhood(selectedNeighborhood.id, selectedTransport.id);
 
-      console.log('Starting travel to:', selectedNeighborhood.name);
-
-      // Call travel function with selected neighborhood and transport
-      const result = await travelToNeighborhood(
-        selectedNeighborhood.id,
-        selectedTransport.id
-      );
-
-      // Always wait a bit for backend operations to complete
-      await new Promise((resolve) => setTimeout(resolve, 800));
-
-      // Navigate back to game with refresh flag regardless of result
-      navigate(`/game/${gameId}`, {
-        state: {
-          refresh: true,
-          fromTravel: true,
-          destinationName: selectedNeighborhood.name,
-        },
-        replace: true, // Replace history to prevent back-button issues
-      });
-    } catch (err) {
-      console.error('Travel error:', err);
-
-      // Still navigate back to game
+      // Navigate back with minimal data
       navigate(`/game/${gameId}`, {
         state: { refresh: true },
         replace: true,
       });
-    } finally {
-      setIsLoading(false);
+    } catch (err) {
+      navigate(`/game/${gameId}`, {
+        state: { refresh: true },
+        replace: true,
+      });
     }
   };
 

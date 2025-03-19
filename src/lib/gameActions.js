@@ -97,10 +97,6 @@ export const sellRecord = async (
  */
 export const getPlayerActions = async (playerId, gameId, currentHour) => {
   try {
-    // Add console logging to help debug
-    console.log(`Getting player actions for hour ${currentHour}`);
-
-    // Use limit(1) instead of maybeSingle to avoid errors when multiple rows exist
     const { data, error } = await supabase
       .from('player_actions')
       .select('*')
@@ -109,42 +105,10 @@ export const getPlayerActions = async (playerId, gameId, currentHour) => {
       .eq('hour', currentHour)
       .limit(1);
 
-    if (error) {
-      console.error('Error getting player actions:', error);
-      return { actions_used: 0, actions_available: 4 }; // Default values
-    }
-
-    // If no data found or empty array (no row for this hour), create a new row
-    if (!data || data.length === 0) {
-      console.log(
-        `No player_actions found for hour ${currentHour}, creating one`
-      );
-
-      // First, check if there are any rows for this player/game to avoid duplicates
-      const { data: checkData, error: checkError } = await supabase
-        .from('player_actions')
-        .select('id')
-        .eq('player_id', playerId)
-        .eq('game_id', gameId)
-        .eq('hour', currentHour);
-
-      if (!checkError && checkData && checkData.length > 0) {
-        console.log(
-          `Found ${checkData.length} existing rows for hour ${currentHour}, using first one`
-        );
-
-        // Use an existing row instead of creating a new one
-        const { data: existingRow } = await supabase
-          .from('player_actions')
-          .select('*')
-          .eq('id', checkData[0].id)
-          .single();
-
-        return existingRow;
-      }
-
+    if (error || !data || data.length === 0) {
+      // Create a new player_actions row if needed
       try {
-        const { data: newRow, error: insertError } = await supabase
+        const { data: newRow } = await supabase
           .from('player_actions')
           .insert({
             player_id: playerId,
@@ -156,25 +120,15 @@ export const getPlayerActions = async (playerId, gameId, currentHour) => {
           .select()
           .single();
 
-        if (!insertError && newRow) {
-          console.log(`Created new player_actions row:`, newRow);
-          return newRow;
-        }
-      } catch (insertErr) {
-        console.error('Could not create player_actions row:', insertErr);
+        return newRow || { actions_used: 0, actions_available: 4 };
+      } catch {
+        return { actions_used: 0, actions_available: 4 };
       }
-
-      // Return default values if insert failed
-      console.log(`Using default values for hour ${currentHour}`);
-      return { actions_used: 0, actions_available: 4 };
     }
 
-    // Return the first row when multiple exist
-    console.log(`Found player_actions for hour ${currentHour}:`, data[0]);
     return data[0];
-  } catch (err) {
-    console.error('Error in getPlayerActions:', err);
-    return { actions_used: 0, actions_available: 4 }; // Default values
+  } catch {
+    return { actions_used: 0, actions_available: 4 };
   }
 };
 
@@ -221,7 +175,7 @@ export const advanceGameHour = async (gameId) => {
 };
 
 /**
- * Travel to another borough
+ * Travel to another borough - SIMPLIFIED VERSION
  * @param {string} playerId - UUID of the player
  * @param {string} gameId - UUID of the game
  * @param {string} toBoroughId - UUID of the destination borough
@@ -235,235 +189,20 @@ export const travelToBorough = async (
   transportationId
 ) => {
   try {
-    // Check if the player has actions remaining
-    const { data: game } = await supabase
-      .from('games')
-      .select('current_hour')
-      .eq('id', gameId)
-      .single();
-
-    const currentHour = game?.current_hour || 24;
-
-    // Get player actions for current hour
-    const actionsData = await getPlayerActions(playerId, gameId, currentHour);
-    const actionsRemaining =
-      actionsData.actions_available - actionsData.actions_used;
-
-    // Try to get action cost for the selected transportation method
-    // Use limit(1) instead of single() to avoid errors
-    const { data: transportData, error: transportError } = await supabase
-      .from('transportation_options')
-      .select('action_cost, monetary_cost')
-      .eq('player_id', playerId)
-      .eq('transportation_id', transportationId)
-      .eq('to_borough_id', toBoroughId)
-      .limit(1);
-
-    // Default to 1 action if no specific cost is found
-    let actionCost = 1;
-    let moneyCost = 0;
-
-    // If we successfully got data and there's at least one row, use that cost
-    if (!transportError && transportData && transportData.length > 0) {
-      actionCost = transportData[0].action_cost || 1;
-      moneyCost = transportData[0].monetary_cost || 0;
-    } else {
-      // If there was an error or no data, try to get the cost from the transportation_methods table
-      const { data: methodData } = await supabase
-        .from('transportation_methods')
-        .select('base_cost')
-        .eq('id', transportationId)
-        .limit(1);
-
-      if (methodData && methodData.length > 0) {
-        // Use an action cost based on the transportation method's base cost
-        // This is a fallback when the transportation_options record isn't found
-        moneyCost = methodData[0].base_cost || 0;
-        actionCost = Math.max(1, Math.ceil(moneyCost / 10)); // Example conversion
-      }
-    }
-
-    console.log(
-      `Travel from ${actionsData.hour} will cost ${actionCost} actions, ${actionsRemaining} available`
-    );
-
-    let nextHour = currentHour;
-    let consumeActionsInNextHour = false;
-
-    // If not enough actions remaining, advance the game hour
-    if (actionsRemaining < actionCost) {
-      console.log(
-        `Not enough actions (need ${actionCost}, have ${actionsRemaining}), advancing hour`
-      );
-
-      // Advance to next hour
-      nextHour = currentHour - 1;
-      if (nextHour <= 0) {
-        console.log('Game has ended, no more hours remaining');
-        return {
-          success: false,
-          error: new Error('Game has ended, no more hours remaining'),
-        };
-      }
-
-      // Update the game's current hour
-      const { error: updateError } = await supabase
-        .from('games')
-        .update({ current_hour: nextHour })
-        .eq('id', gameId);
-
-      if (updateError) {
-        console.error('Error advancing game hour:', updateError);
-        return { success: false, error: updateError };
-      }
-
-      // First, check if a player_actions row exists for the next hour
-      const { data: existingRow } = await supabase
-        .from('player_actions')
-        .select('*')
-        .eq('player_id', playerId)
-        .eq('game_id', gameId)
-        .eq('hour', nextHour)
-        .limit(1);
-
-      if (existingRow && existingRow.length > 0) {
-        // Update existing row with actions used
-        const { error: updateError } = await supabase
-          .from('player_actions')
-          .update({ actions_used: actionCost })
-          .eq('id', existingRow[0].id);
-
-        if (updateError) {
-          console.error('Error updating existing actions row:', updateError);
-        } else {
-          console.log(
-            `Updated existing hour ${nextHour} with ${actionCost} actions used`
-          );
-        }
-      } else {
-        // Create a new player_actions row for the next hour with actions_used already set
-        try {
-          const { data: nextActionsData, error: nextActionsError } =
-            await supabase
-              .from('player_actions')
-              .insert({
-                player_id: playerId,
-                game_id: gameId,
-                hour: nextHour,
-                actions_used: actionCost, // Set the actions as already used for travel
-                actions_available: 4,
-              })
-              .select()
-              .single();
-
-          if (nextActionsError) {
-            console.error(
-              'Error creating player actions for next hour:',
-              nextActionsError
-            );
-          } else {
-            console.log(
-              `Advanced to hour ${nextHour}, with ${actionCost} actions used for travel`
-            );
-          }
-        } catch (insertErr) {
-          console.error(
-            'Exception creating player actions for next hour:',
-            insertErr
-          );
-          // Fallback to getPlayerActions which will create a row if needed
-          const nextHourActions = await getPlayerActions(
-            playerId,
-            gameId,
-            nextHour
-          );
-
-          // Update the actions_used on the newly created row
-          if (nextHourActions && nextHourActions.id) {
-            await supabase
-              .from('player_actions')
-              .update({ actions_used: actionCost })
-              .eq('id', nextHourActions.id);
-          }
-        }
-      }
-
-      consumeActionsInNextHour = true;
-    } else {
-      // Update actions used if we have enough actions
-      const newActionsUsed = actionsData.actions_used + actionCost;
-      const { error: updateError } = await supabase
-        .from('player_actions')
-        .update({ actions_used: newActionsUsed })
-        .eq('id', actionsData.id);
-
-      if (updateError) {
-        console.error('Error updating player actions:', updateError);
-      } else {
-        console.log(`Updated actions used to ${newActionsUsed}`);
-      }
-    }
-
-    // Create a transaction record for the travel with proper formatting
-    try {
-      // Ensure we have all required fields for the transaction
-      const transaction = {
-        player_id: playerId,
-        game_id: gameId,
-        transaction_type: 'TRAVEL', // Ensure this string matches the enum value expected
-        price: moneyCost || 0,
-        hour: consumeActionsInNextHour ? nextHour : currentHour,
-        neighborhood_id: toBoroughId, // Using neighborhood_id to store the destination
-        created_at: new Date().toISOString(), // Add a timestamp
-        quantity: 1, // Add a default quantity
-      };
-
-      console.log('Creating transaction record:', transaction);
-
-      const { error: transactionError } = await supabase
-        .from('transactions')
-        .insert(transaction);
-
-      if (transactionError) {
-        console.error('Error creating transaction record:', transactionError);
-        // If transaction_type is the issue, try a different approach
-        if (
-          transactionError.message &&
-          transactionError.message.includes('transaction_type')
-        ) {
-          console.log('Trying alternative transaction insertion...');
-          // Use a direct SQL RPC call if available to bypass type checking
-          // This is a last resort
-        }
-      }
-    } catch (transactionError) {
-      console.error('Exception creating transaction record:', transactionError);
-      // Continue anyway, this is just for record-keeping
-    }
-
-    // Delete any existing player_transportation record for this player and transportation
-    await supabase
-      .from('player_transportation')
-      .delete()
-      .match({ player_id: playerId, transportation_id: transportationId });
-
-    // Update the player's location directly
+    // Skip all action cost calculations - GameContext already does this
+    // Simply update the player's location
     const { error: locationError } = await supabase
       .from('players')
-      .update({
-        current_borough_id: toBoroughId,
-      })
+      .update({ current_borough_id: toBoroughId })
       .eq('id', playerId);
 
     if (locationError) {
-      console.error('Error updating player location:', locationError);
       return { success: false, error: locationError };
     }
 
-    // If we got here, the travel was successful even if some operations failed
     return { success: true };
   } catch (err) {
-    console.error('Exception in travelToBorough:', err);
+    console.error('Travel error:', err);
     return { success: false, error: err };
   }
 };

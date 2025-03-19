@@ -418,7 +418,80 @@ export const GameProvider = ({ children }) => {
     }
   };
 
-  // Travel to neighborhood
+  // Replace the getPlayerActions function with this simpler version
+  const getActionsRemaining = () => {
+    if (!player) return 0;
+    const maxActionsPerHour = 4; // Could be moved to a game setting
+    return maxActionsPerHour - (player.actions_used_this_hour || 0);
+  };
+
+  // Replace your useAction function with this
+  const useActions = async (actionCount) => {
+    if (!player || !currentGame) return { success: false };
+
+    const actionsRemaining = getActionsRemaining();
+    if (actionsRemaining < actionCount) {
+      return {
+        success: false,
+        message: `Not enough actions (need ${actionCount}, have ${actionsRemaining})`,
+      };
+    }
+
+    // Update the player's actions used
+    const { data, error } = await supabase
+      .from('players')
+      .update({
+        actions_used_this_hour:
+          (player.actions_used_this_hour || 0) + actionCount,
+      })
+      .eq('id', player.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating actions used:', error);
+      return { success: false, error };
+    }
+
+    // Update local state
+    setPlayer(data);
+    return { success: true };
+  };
+
+  // Advance game hour function
+  const advanceGameHour = async () => {
+    if (!currentGame) return { success: false };
+
+    // First update the game's current hour (DECREASING it because we're counting down)
+    const newHour = currentGame.current_hour - 1;
+    const { error: gameError } = await supabase
+      .from('games')
+      .update({ current_hour: newHour })
+      .eq('id', currentGame.id);
+
+    if (gameError) {
+      console.error('Error advancing game hour:', gameError);
+      return { success: false, error: gameError };
+    }
+
+    // Reset the player's actions_used_this_hour to 0
+    const { error: playerError } = await supabase
+      .from('players')
+      .update({ actions_used_this_hour: 0 })
+      .eq('id', player.id);
+
+    if (playerError) {
+      console.error('Error resetting player actions:', playerError);
+      return { success: false, error: playerError };
+    }
+
+    // Refresh the game and player data
+    await refreshPlayerData();
+
+    return { success: true };
+  };
+
+  // Update your travelToNeighborhood function
   const travelToNeighborhood = async (neighborhoodId, transportationId) => {
     if (!player || !currentGame) return { success: false };
 
@@ -428,101 +501,100 @@ export const GameProvider = ({ children }) => {
       // Get the action cost for this travel option
       const { data: transportOptions } = await supabase
         .from('transportation_options')
-        .select('action_cost')
+        .select('action_cost, monetary_cost')
         .eq('player_id', player.id)
         .eq('transportation_id', transportationId)
         .eq('to_borough_id', neighborhoodId)
         .maybeSingle();
 
       const actionCost = transportOptions?.action_cost || 1;
-      console.log(`Travel will cost ${actionCost} actions`);
+      const moneyCost = transportOptions?.monetary_cost || 0;
 
-      // Get current hour's actions directly here
-      const currentHour = currentGame.current_hour;
-      let { data: actionsData } = await supabase
-        .from('player_actions')
-        .select('*')
-        .eq('player_id', player.id)
-        .eq('game_id', currentGame.id)
-        .eq('hour', currentHour)
-        .maybeSingle();
+      console.log(`Travel will cost ${actionCost} actions and $${moneyCost}`);
 
-      console.log('Initial actions data from DB:', actionsData);
-
-      // If no player_actions row exists, create one with default values
-      if (!actionsData) {
-        console.log(
-          `No player_actions found for hour ${currentHour}, creating one`
+      // Check if player has enough actions and money
+      const actionsRemaining = getActionsRemaining();
+      if (actionsRemaining < actionCost) {
+        // If not enough actions, confirm whether to advance hour
+        const shouldAdvance = window.confirm(
+          `You only have ${actionsRemaining} actions, but need ${actionCost} to travel. ` +
+            `Would you like to advance to the next hour?`
         );
-        const { data: newRow, error: insertError } = await supabase
-          .from('player_actions')
-          .insert({
-            player_id: player.id,
-            game_id: currentGame.id,
-            hour: currentHour,
-            actions_used: 0,
-            actions_available: 4, // Default to 4 available actions
-          })
-          .select()
-          .single();
 
-        if (insertError) {
-          console.error('Error creating player_actions row:', insertError);
-          // Continue anyway since we know the values
+        if (shouldAdvance) {
+          const { success } = await advanceGameHour();
+          if (!success) {
+            setLoading(false);
+            return { success: false, message: "Couldn't advance to next hour" };
+          }
         } else {
-          actionsData = newRow;
-          console.log('Created new player_actions row:', actionsData);
-        }
-      }
-
-      // Use UI-displayed values if DB data is still missing
-      const actionsAvailable = actionsData?.actions_available || 4;
-      const actionsUsed = actionsData?.actions_used || 0;
-      const actionsRemaining = actionsAvailable - actionsUsed;
-
-      console.log(
-        `Actions remaining: ${actionsRemaining}, Action cost: ${actionCost}`
-      );
-
-      // If not enough actions, confirm with the user
-      if (actionCost > actionsRemaining) {
-        console.log('Need to confirm action across hours');
-
-        const confirmed = window.confirm(
-          `This action requires ${actionCost} actions, but you only have ${actionsRemaining} remaining.\n\n` +
-            `Do you want to advance to the next hour?`
-        );
-
-        if (!confirmed) {
-          console.log('User cancelled travel');
           setLoading(false);
-          return { success: false, canceled: true };
+          return { success: false, message: 'Canceled travel' };
         }
-
-        console.log('User confirmed travel');
-      } else {
-        console.log('User has enough actions, proceeding without confirmation');
       }
 
-      // Execute the travel action
-      const result = await travelToBorough(
-        player.id,
-        currentGame.id,
-        neighborhoodId,
-        transportationId
-      );
+      // Check if player has enough money
+      if (player.cash < moneyCost) {
+        setLoading(false);
+        return {
+          success: false,
+          message: `Not enough money. Travel costs $${moneyCost} but you only have $${player.cash}.`,
+        };
+      }
 
-      // Refresh player data and game data
+      // Use the actions
+      const { success: actionsSuccess } = await useActions(actionCost);
+      if (!actionsSuccess) {
+        setLoading(false);
+        return { success: false, message: 'Failed to use actions' };
+      }
+
+      // Update player's location and money
+      const { error: updateError } = await supabase
+        .from('players')
+        .update({
+          current_borough_id: neighborhoodId,
+          cash: player.cash - moneyCost,
+        })
+        .eq('id', player.id);
+
+      if (updateError) {
+        console.error('Error updating player location:', updateError);
+        setLoading(false);
+        return { success: false, error: updateError };
+      }
+
+      // Record transaction if needed
+      if (moneyCost > 0) {
+        const { error: transactionError } = await supabase
+          .from('transactions')
+          .insert({
+            game_id: currentGame.id,
+            player_id: player.id,
+            transaction_type: 'travel',
+            price: moneyCost,
+            quantity: 1,
+            hour: currentGame.current_hour,
+          });
+
+        if (transactionError) {
+          console.warn(
+            'Warning: Failed to record travel transaction:',
+            transactionError
+          );
+          // Continue even if transaction recording fails
+        }
+      }
+
+      // Refresh player data
       await refreshPlayerData();
-      await fetchGameData();
 
-      return { success: result.success, error: result.error };
-    } catch (error) {
-      console.error('Error traveling:', error);
-      toast.error(`Travel failed: ${error.message}`);
-      return { success: false, error };
-    } finally {
       setLoading(false);
+      return { success: true };
+    } catch (error) {
+      console.error('Error traveling to borough:', error);
+      setLoading(false);
+      return { success: false, error };
     }
   };
 
@@ -793,6 +865,9 @@ export const GameProvider = ({ children }) => {
         confirmationOpen,
         confirmationProps,
         pendingAction,
+        getActionsRemaining,
+        useActions,
+        advanceGameHour,
       }}
     >
       {children}

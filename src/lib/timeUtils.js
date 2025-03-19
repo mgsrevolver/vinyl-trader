@@ -8,35 +8,19 @@
  * @param {boolean} use12Hour - Whether to use 12-hour format (default: true)
  * @returns {string} Formatted time string (e.g., "11:00 PM")
  */
-export const gameHourToTimeString = (
-  currentHour,
-  maxHours = 24,
-  use12Hour = true
-) => {
-  // In this model, currentHour starts at maxHours (24) which is 11:00 PM
-  // and counts down to 0 (12:00 AM)
+export const gameHourToTimeString = (gameHour) => {
+  // Game starts at hour 24 (midnight) and counts down to 0 (midnight the next day)
+  // Convert this to a standard 12-hour AM/PM format
 
-  // Map hours: 24->11PM, 23->10PM, ..., 13->12PM, 12->11AM, ..., 1->12AM, 0->11PM
-  let hourOfDay;
+  // Map game hour 24->0 to real-world hour 0->24
+  const realWorldHour = 24 - gameHour;
 
-  if (currentHour === 0) {
-    // Special case: hour 0 represents 12:00 AM at the end of the game
-    hourOfDay = 0; // 12:00 AM
-  } else {
-    // For other hours, we map from hours remaining to clock time
-    // 24->11PM, 23->10PM, ..., 13->12PM, 12->11AM, ..., 1->12AM
-    hourOfDay = (23 - (currentHour - 1)) % 24;
-  }
+  // Convert to 12-hour format with AM/PM
+  let hour = realWorldHour % 12;
+  if (hour === 0) hour = 12; // 0 should be 12 in 12-hour format
+  const ampm = realWorldHour < 12 ? 'AM' : 'PM';
 
-  if (use12Hour) {
-    // Convert to 12-hour format
-    const period = hourOfDay >= 12 ? 'PM' : 'AM';
-    const hour12 = hourOfDay % 12;
-    return `${hour12 === 0 ? 12 : hour12}:00 ${period}`;
-  } else {
-    // 24-hour format
-    return `${hourOfDay.toString().padStart(2, '0')}:00`;
-  }
+  return `${hour} ${ampm}`;
 };
 
 /**
@@ -72,6 +56,8 @@ export const formatGameTimestamp = (currentHour, maxHours = 24) => {
  * @param {number} maxHours - Maximum hours in the game
  * @returns {number} - Hours remaining
  */
-export const getHoursRemaining = (currentHour, maxHours = 24) => {
-  return currentHour; // Since the current hour is counting down, it represents hours remaining
+export const getHoursRemaining = (gameHour) => {
+  // Game starts at hour 24 and goes to 0
+  // So hours remaining is simply the current game hour
+  return gameHour;
 };
