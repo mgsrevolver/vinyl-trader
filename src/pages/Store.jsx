@@ -34,6 +34,7 @@ const Store = () => {
   const [swipedCards, setSwipedCards] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [showNextCard, setShowNextCard] = useState(false);
+  const [key, setKey] = useState(0);
 
   useEffect(() => {
     if (gameId && boroughId && storeId) {
@@ -176,38 +177,28 @@ const Store = () => {
     navigate(`/game/${gameId}`);
   };
 
-  const handleSkip = (productId) => {
-    const productIndex = storeInventory.findIndex(
-      (item) => (item.products?.id || item.product_id) === productId
-    );
-
-    if (productIndex === currentIndex) {
-      setDirection('left');
-      setTimeout(() => {
-        setCurrentIndex((prev) => (prev + 1) % storeInventory.length);
-        setDirection(null);
-      }, 300);
-    }
-
-    toast.info('Skipped record');
+  const handleSkip = (id) => {
+    setDirection('left');
+    setTimeout(() => {
+      setCurrentIndex((prev) => getNextCardIndex(prev));
+      setKey((prev) => prev + 1);
+      setDirection(null);
+    }, 300);
   };
 
-  const handleLike = (productId) => {
-    const product = storeInventory.find(
-      (item) => (item.products?.id || item.product_id) === productId
-    );
+  const handleLike = (id) => {
+    const productId =
+      storeInventory[currentIndex]?.products?.id ||
+      storeInventory[currentIndex]?.product_id;
 
-    if (product) {
-      handleBuy(productId, 1);
-    }
+    handleBuy(productId, 1);
 
     setDirection('right');
     setTimeout(() => {
-      setCurrentIndex((prev) => (prev + 1) % storeInventory.length);
+      setCurrentIndex((prev) => getNextCardIndex(prev));
+      setKey((prev) => prev + 1);
       setDirection(null);
     }, 300);
-
-    toast.success('You liked this record!');
   };
 
   const toggleViewMode = () => {
@@ -359,55 +350,58 @@ const Store = () => {
                       </div>
                     )}
 
-                    {/* Current card */}
-                    <motion.div
-                      key={`card-${currentIndex}`}
-                      className="current-card"
-                      initial={{ scale: 0.95, opacity: 0.9 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{
-                        x:
-                          direction === 'left'
-                            ? -300
-                            : direction === 'right'
-                            ? 300
-                            : 0,
-                        opacity: 0,
-                      }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <ProductCard
-                        product={{
-                          id:
-                            storeInventory[currentIndex]?.products?.id ||
-                            storeInventory[currentIndex]?.product_id,
-                          name:
-                            storeInventory[currentIndex]?.products?.name ||
-                            'Unknown Record',
-                          artist:
-                            storeInventory[currentIndex]?.products?.artist ||
-                            'Unknown Artist',
-                          genre:
-                            storeInventory[currentIndex]?.products?.genre ||
-                            'Various',
-                          year:
-                            storeInventory[currentIndex]?.products?.year ||
-                            'N/A',
-                          condition:
-                            storeInventory[currentIndex]?.products?.condition ||
-                            'Unknown',
-                          rarity:
-                            storeInventory[currentIndex]?.products?.rarity ||
-                            0.5,
+                    {/* Current card - with key to force re-mount */}
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={`card-${currentIndex}-${key}`}
+                        className="current-card"
+                        initial={{ scale: 0.95, opacity: 0.9 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{
+                          x:
+                            direction === 'left'
+                              ? -300
+                              : direction === 'right'
+                              ? 300
+                              : 0,
+                          opacity: 0,
                         }}
-                        price={storeInventory[currentIndex]?.current_price}
-                        quantity={storeInventory[currentIndex]?.quantity}
-                        onSkip={handleSkip}
-                        onLike={handleLike}
-                        setShowNextCard={setShowNextCard}
-                        showAction={false}
-                      />
-                    </motion.div>
+                        transition={{ duration: 0.3 }}
+                      >
+                        <ProductCard
+                          key={`product-${currentIndex}-${key}`}
+                          product={{
+                            id:
+                              storeInventory[currentIndex]?.products?.id ||
+                              storeInventory[currentIndex]?.product_id,
+                            name:
+                              storeInventory[currentIndex]?.products?.name ||
+                              'Unknown Record',
+                            artist:
+                              storeInventory[currentIndex]?.products?.artist ||
+                              'Unknown Artist',
+                            genre:
+                              storeInventory[currentIndex]?.products?.genre ||
+                              'Various',
+                            year:
+                              storeInventory[currentIndex]?.products?.year ||
+                              'N/A',
+                            condition:
+                              storeInventory[currentIndex]?.products
+                                ?.condition || 'Unknown',
+                            rarity:
+                              storeInventory[currentIndex]?.products?.rarity ||
+                              0.5,
+                          }}
+                          price={storeInventory[currentIndex]?.current_price}
+                          quantity={storeInventory[currentIndex]?.quantity}
+                          onSkip={handleSkip}
+                          onLike={handleLike}
+                          setShowNextCard={setShowNextCard}
+                          showAction={false}
+                        />
+                      </motion.div>
+                    </AnimatePresence>
                   </div>
                 )}
               </div>

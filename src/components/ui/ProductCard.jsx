@@ -46,6 +46,7 @@ const ProductCard = ({
             rotate,
             zIndex: 10,
           }}
+          key={`motion-${id}`}
           drag="x"
           dragConstraints={{ left: 0, right: 0 }}
           dragElastic={0.7}
@@ -55,9 +56,9 @@ const ProductCard = ({
             const swipe =
               offset.x > 100 ? 'right' : offset.x < -100 ? 'left' : '';
             if (swipe === 'right') {
-              onLike(id);
+              onLike && onLike(id);
             } else if (swipe === 'left') {
-              onSkip(id);
+              onSkip && onSkip(id);
             }
           }}
         >
