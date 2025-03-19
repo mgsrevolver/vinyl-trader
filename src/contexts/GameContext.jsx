@@ -1,4 +1,10 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -169,18 +175,14 @@ export const GameProvider = ({ children }) => {
 
       // Get default starting borough
       let defaultBoroughId = null;
-      try {
-        const { data: borough } = await supabase
-          .from('boroughs')
-          .select('id')
-          .limit(1)
-          .single();
+      const { data: borough } = await supabase
+        .from('boroughs')
+        .select('id')
+        .limit(1)
+        .single();
 
-        if (borough) {
-          defaultBoroughId = borough.id;
-        }
-      } catch (boroughErr) {
-        console.error('Could not fetch a default borough:', boroughErr);
+      if (borough) {
+        defaultBoroughId = borough.id;
       }
 
       // Check if game exists
@@ -283,55 +285,53 @@ export const GameProvider = ({ children }) => {
         return { success: false, needsJoin: true };
       }
 
-      // Load game data
-      const { data: game, error: gameError } = await supabase
-        .from('games')
-        .select('*')
-        .eq('id', gameId)
-        .single();
+      // Load data in parallel for better performance
+      const [gameResult, playerResult, allPlayersResult, inventoryResult] =
+        await Promise.all([
+          // Game data
+          supabase.from('games').select('*').eq('id', gameId).single(),
 
-      if (gameError) throw gameError;
+          // Player data with borough information
+          supabase
+            .from('players')
+            .select('*, boroughs:current_borough_id (id, name)')
+            .eq('id', playerIdToUse)
+            .single(),
 
-      // Load player data using playerIdToUse
-      const { data: playerData, error: playerError } = await supabase
-        .from('players')
-        .select('*')
-        .eq('id', playerIdToUse)
-        .single();
+          // All players in game
+          supabase.from('players').select('*').eq('game_id', gameId),
 
-      if (playerError) {
+          // Player inventory
+          supabase
+            .from('player_inventory')
+            .select(`*, products:product_id (name, description)`)
+            .eq('player_id', playerIdToUse),
+        ]);
+
+      if (playerResult.error) {
         console.error('Player not found with ID:', playerIdToUse);
-        return { success: false, needsJoin: true, game };
+        return { success: false, needsJoin: true, game: gameResult.data };
       }
 
-      // Load all players in game
-      const { data: allPlayers } = await supabase
-        .from('players')
-        .select('*')
-        .eq('game_id', gameId);
+      // Format player data
+      const playerWithBorough = {
+        ...playerResult.data,
+        current_borough: playerResult.data.boroughs?.name || 'Unknown Location',
+      };
 
-      // Load player inventory
-      const { data: inventory } = await supabase
-        .from('player_inventory')
-        .select(
-          `
-          *,
-          products:product_id (
-            name,
-            description
-          )
-        `
-        )
-        .eq('player_id', playerData.id);
+      // Update state
+      setCurrentGame(gameResult.data);
+      setPlayer(playerWithBorough);
+      setPlayers(allPlayersResult.data || []);
+      setPlayerInventory(inventoryResult.data || []);
 
-      setCurrentGame(game);
-      setPlayer(playerData);
-      setPlayers(allPlayers || []);
-      setPlayerInventory(inventory || []);
+      localStorage.setItem('deliWarsCurrentGame', gameId);
 
-      localStorage.setItem('deliWarsCurrentGame', game.id);
-
-      return { success: true, game, player: playerData };
+      return {
+        success: true,
+        game: gameResult.data,
+        player: playerWithBorough,
+      };
     } catch (error) {
       console.error('Error loading game:', error);
       toast.error(`Error: ${error.message}`);
@@ -380,7 +380,7 @@ export const GameProvider = ({ children }) => {
   };
 
   // Refresh player data
-  const refreshPlayerData = async () => {
+  const refreshPlayerData = useCallback(async () => {
     if (!player?.id) return false;
 
     try {
@@ -416,14 +416,14 @@ export const GameProvider = ({ children }) => {
       console.error('Error in refreshPlayerData:', error);
       return false;
     }
-  };
+  }, [player?.id]);
 
   // Replace the getPlayerActions function with this simpler version
-  const getActionsRemaining = () => {
+  const getActionsRemaining = useCallback(() => {
     if (!player) return 0;
     const maxActionsPerHour = 4; // Could be moved to a game setting
     return maxActionsPerHour - (player.actions_used_this_hour || 0);
-  };
+  }, [player]);
 
   // Replace your useAction function with this
   const useActions = async (actionCount) => {
@@ -500,6 +500,12 @@ export const GameProvider = ({ children }) => {
     // Refresh the game and player data
     await refreshPlayerData();
 
+    // Update local game state
+    setCurrentGame({
+      ...currentGame,
+      current_hour: newHour,
+    });
+
     return { success: true };
   };
 
@@ -521,8 +527,6 @@ export const GameProvider = ({ children }) => {
 
       const actionCost = transportOptions?.action_cost || 1;
       const moneyCost = transportOptions?.monetary_cost || 0;
-
-      console.log(`Travel will cost ${actionCost} actions and $${moneyCost}`);
 
       // Check if player has enough money
       if (player.cash < moneyCost) {
@@ -569,75 +573,54 @@ export const GameProvider = ({ children }) => {
   };
 
   // Fetch game data
-  const fetchGameData = async () => {
-    if (!currentGame?.id || !player?.id) return;
+  const fetchGameData = useCallback(async () => {
+    if (!currentGame?.id || !player?.id) return false;
 
     try {
-      // Fetch updated game data
-      const { data: gameData, error: gameError } = await supabase
-        .from('games')
-        .select('*')
-        .eq('id', currentGame.id)
-        .single();
+      // Load data in parallel
+      const [gameData, playerData, inventoryData] = await Promise.all([
+        // Game data
+        supabase.from('games').select('*').eq('id', currentGame.id).single(),
 
-      if (gameError) {
-        console.error('Error fetching game data:', gameError);
-        return;
-      }
+        // Player data with borough
+        supabase
+          .from('players')
+          .select('*, boroughs:current_borough_id (id, name)')
+          .eq('id', player.id)
+          .single(),
 
-      // Fetch updated player data
-      const { data: playerData, error: playerError } = await supabase
-        .from('players')
-        .select(
-          `
-          *,
-          boroughs:current_borough_id (id, name)
-        `
-        )
-        .eq('id', player.id)
-        .single();
+        // Inventory data
+        supabase
+          .from('player_inventory')
+          .select('*, products:product_id (name, description)')
+          .eq('player_id', player.id),
+      ]);
 
-      if (playerError) {
-        console.error('Error fetching player data:', playerError);
-        return;
+      if (gameData.error || playerData.error) {
+        console.error(
+          'Error fetching data:',
+          gameData.error || playerData.error
+        );
+        return false;
       }
 
       // Format player data
       const playerWithBorough = {
-        ...playerData,
-        current_borough: playerData.boroughs?.name || 'Unknown Location',
+        ...playerData.data,
+        current_borough: playerData.data.boroughs?.name || 'Unknown Location',
       };
 
-      // Fetch updated inventory
-      const { data: inventory, error: inventoryError } = await supabase
-        .from('player_inventory')
-        .select(
-          `
-          *,
-          products:product_id (
-            name,
-            description
-          )
-        `
-        )
-        .eq('player_id', player.id);
-
-      if (inventoryError) {
-        console.error('Error fetching inventory data:', inventoryError);
-        return;
-      }
-
-      // Update all states with fresh data
-      setCurrentGame(gameData);
+      // Update state
+      setCurrentGame(gameData.data);
       setPlayer(playerWithBorough);
-      setPlayerInventory(inventory || []);
+      setPlayerInventory(inventoryData.data || []);
 
       return true;
     } catch (error) {
       console.error('Error in fetchGameData:', error);
       return false;
     }
-  };
+  }, [currentGame?.id, player?.id]);
 
   // End turn
   const endTurn = async () => {
@@ -777,32 +760,39 @@ export const GameProvider = ({ children }) => {
       }
 
       // First get the product ID from the inventory item
-      const { data: inventoryItem } = await supabase
-        .from('player_inventory')
-        .select('product_id')
-        .eq('id', inventoryItemId)
-        .single();
+      const inventoryItem =
+        playerInventory.find((item) => item.id === inventoryItemId) ||
+        (
+          await supabase
+            .from('player_inventory')
+            .select('product_id')
+            .eq('id', inventoryItemId)
+            .single()
+        ).data;
 
       if (!inventoryItem) {
         return { success: false, error: new Error('Inventory item not found') };
       }
 
-      const result = await sellRecord(
-        player.id,
-        currentGame.id,
-        storeId,
-        inventoryItem.product_id,
-        quantity
-      );
+      // Use action economy system
+      return await attemptAction(1, async () => {
+        const result = await sellRecord(
+          player.id,
+          currentGame.id,
+          storeId,
+          inventoryItem.product_id,
+          quantity
+        );
 
-      if (result) {
-        await fetchGameData(); // Refresh data if successful
-        toast.success('Sale successful!');
-        return { success: true };
-      } else {
-        toast.error('Sale failed');
-        return { success: false };
-      }
+        if (result) {
+          await fetchGameData(); // Refresh data if successful
+          toast.success('Sale successful!');
+          return { success: true };
+        } else {
+          toast.error('Sale failed');
+          return { success: false };
+        }
+      });
     } catch (error) {
       console.error('Error in sellProduct:', error);
       toast.error(`Error: ${error.message}`);
@@ -812,6 +802,7 @@ export const GameProvider = ({ children }) => {
     }
   };
 
+  // THE CORE ACTION ECONOMY SYSTEM - KEEP THIS INTACT
   const attemptAction = async (actionCost, performAction) => {
     if (!player || !currentGame) return { success: false };
 
@@ -895,27 +886,12 @@ export const GameProvider = ({ children }) => {
       }}
     >
       {children}
-      {confirmationOpen && (
-        <div className="fixed inset-0 bg-red-500 bg-opacity-50 z-50">
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="bg-white p-4 rounded shadow-lg">
-              <p>Debug confirmation modal</p>
-              <p>This should be visible if modal state is working</p>
-              <button onClick={() => setConfirmationOpen(false)}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
       <ConfirmationModal
         isOpen={confirmationOpen}
-        onClose={() => {
-          console.log('Closing modal from onClose prop');
-          setConfirmationOpen(false);
-        }}
+        onClose={() => setConfirmationOpen(false)}
         title={confirmationProps.title}
         message={confirmationProps.message}
         onConfirm={() => {
-          console.log('Confirm clicked in modal');
           if (confirmationProps.onConfirm) confirmationProps.onConfirm();
         }}
         confirmText={confirmationProps.confirmText}
