@@ -1,120 +1,65 @@
 // src/pages/Game.jsx
-import { useState, useEffect, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   FaStore,
   FaMapMarkedAlt,
   FaWarehouse,
-  FaCoins,
   FaMoneyBillWave,
   FaSpinner,
-  FaUsers,
+  FaClock,
+  FaArrowRight,
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
-import { supabase } from '../lib/supabase';
 import { useGame } from '../contexts/GameContext';
 import {
   getGameState,
-  getPlayerInventory,
-  getTransportationOptions,
   getBoroughStores,
   advanceGameHour,
-  usePlayerAction,
-  upgradeCarrier,
 } from '../lib/gameActions';
+import { supabase } from '../lib/supabase';
 
 const Game = () => {
   const { gameId } = useParams();
   const navigate = useNavigate();
-  const {
-    currentGame,
-    player,
-    players,
-    loading,
-    gameLoading,
-    loadGame,
-    playerInventory,
-    endTurn,
-    playerId,
-  } = useGame();
+  const { player, playerId } = useGame();
 
   // State management
   const [gameState, setGameState] = useState(null);
   const [playerState, setPlayerState] = useState(null);
-  const [inventory, setInventory] = useState([]);
-  const [transportOptions, setTransportOptions] = useState([]);
   const [boroughStores, setBoroughStores] = useState([]);
   const [loadingGameState, setLoadingGameState] = useState(true);
-  const [neighborhoods, setNeighborhoods] = useState([]);
-  const [neighborhoodsLoading, setNeighborhoodsLoading] = useState(false);
-  const [showPlayersModal, setShowPlayersModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (playerId) {
       // Load game data using gameActions
       loadGameData();
-
-      // Load neighborhoods
-      loadNeighborhoods();
-
-      // Set up subscription for realtime updates
-      const gameSubscription = supabase
-        .channel(`game-${gameId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'games',
-            filter: `id=eq.${gameId}`,
-          },
-          (payload) => {
-            // Reload game data when game changes
-            loadGameData();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        gameSubscription.unsubscribe();
-      };
     }
   }, [gameId, playerId]);
 
   const loadGameData = async () => {
-    if (!playerId) {
-      console.error('No player ID available');
-      toast.error('Unable to load game data - missing player information');
-      return;
-    }
-
     try {
       setLoadingGameState(true);
 
-      // First get the player ID for the current user
-      const { data: playerData, error: playerError } = await supabase
-        .from('players')
-        .select('id')
-        .eq('game_id', gameId)
-        .eq('user_id', playerId)
-        .single();
+      // Get playerId from localStorage using gameId
+      const storedPlayerId = localStorage.getItem(`player_${gameId}`);
 
-      if (playerError) {
-        console.error('Error getting player:', playerError);
+      if (!storedPlayerId) {
+        console.error('No player ID found in localStorage');
         toast.error('Could not find your player in this game');
         navigate('/');
         return;
       }
 
+      console.log('Using player ID from localStorage:', storedPlayerId);
+
       // Now use our gameActions functions to get all the data we need
-      const gameStateData = await getGameState(playerData.id, gameId);
+      const gameStateData = await getGameState(storedPlayerId, gameId);
 
       if (gameStateData && !gameStateData.error) {
-        setGameState(gameStateData);
+        setGameState(gameStateData.game);
         setPlayerState(gameStateData.playerState);
-        setInventory(gameStateData.inventory);
-        setTransportOptions(gameStateData.transportOptions);
         setBoroughStores(gameStateData.boroughStores);
       } else {
         console.error('Error loading game state:', gameStateData?.error);
@@ -128,24 +73,12 @@ const Game = () => {
     }
   };
 
-  const loadNeighborhoods = async () => {
-    setNeighborhoodsLoading(true);
-    const { data, error } = await supabase.from('neighborhoods').select('*');
-
-    if (error) {
-      console.error('Error loading neighborhoods:', error);
-    } else {
-      setNeighborhoods(data || []);
-    }
-    setNeighborhoodsLoading(false);
-  };
-
   const handleEndTurn = async () => {
     try {
       setSubmitting(true);
 
       // Attempt to advance the game hour
-      const advanced = await advanceGameHour(currentGame.id);
+      const advanced = await advanceGameHour(gameId);
 
       if (!advanced) {
         toast.error('Unable to advance game. The game may have ended.');
@@ -170,264 +103,150 @@ const Game = () => {
       return;
     }
 
-    // Make sure we have the current borough
     if (!playerState.current_borough_id) {
-      console.log('No current borough set for player');
-
-      // Find a borough to use as default
-      if (neighborhoods && neighborhoods.length > 0) {
-        const firstBorough = neighborhoods[0].id;
-        console.log('Using fallback borough:', firstBorough);
-
-        // Update the player record with this borough ID
-        updatePlayerBorough(firstBorough);
-
-        // Find a store in this borough
-        const storeInBorough = boroughStores.find(
-          (store) => store.borough_id === firstBorough
-        ) || { id: 'default-store' };
-
-        // Navigate to the store route
-        navigate(`/store/${gameId}/${firstBorough}/${storeInBorough.id}`);
-        return;
-      } else {
-        toast.error('Cannot find any valid locations');
-        return;
-      }
+      toast.error('Unable to determine your current location');
+      return;
     }
 
-    // If we have a current borough but no specific store,
-    // find an available store in the current borough
-    if (!storeId && boroughStores.length > 0) {
-      const availableStore = boroughStores[0];
-      storeId = availableStore.id;
-    }
-
-    // If we still don't have a store, create a default ID
-    if (!storeId) {
-      storeId = 'default-store';
-    }
-
-    console.log(
-      'Navigating to store:',
-      storeId,
-      'in borough:',
-      playerState.current_borough_id
-    );
     navigate(`/store/${gameId}/${playerState.current_borough_id}/${storeId}`);
-  };
-
-  // Add this new function to update the player's borough
-  const updatePlayerBorough = async (boroughId) => {
-    try {
-      if (!player || !boroughId) return;
-
-      console.log('Updating player borough to:', boroughId);
-
-      // Update the player record in the database
-      const { error } = await supabase
-        .from('players')
-        .update({ current_borough_id: boroughId })
-        .eq('id', player.id);
-
-      if (error) {
-        console.error('Error updating player borough:', error);
-        return;
-      }
-
-      // Also update the local state
-      setPlayerState({
-        ...playerState,
-        current_borough_id: boroughId,
-      });
-
-      console.log('Player borough updated successfully');
-    } catch (err) {
-      console.error('Failed to update player borough:', err);
-    }
   };
 
   const goToTravel = () => {
     navigate(`/travel/${gameId}`);
   };
 
-  const formatMoney = (amount) => {
-    return `$${parseFloat(amount).toFixed(2)}`;
+  // Format time to 12-hour format
+  const formatTime = (hour) => {
+    if (hour === null || hour === undefined) return 'N/A';
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}${period}`;
   };
-
-  const isSinglePlayerMode = players && players.length <= 1;
 
   if (loadingGameState || !gameState || !playerState) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-blue-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
-          <p className="mt-3 text-blue-700">Loading game...</p>
+          <FaSpinner className="animate-spin text-4xl mx-auto text-blue-600 mb-3" />
+          <p className="text-blue-900 font-semibold">Loading game data...</p>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-blue-100 pb-16">
-      {/* Main content */}
-      <main className="max-w-6xl mx-auto p-4 mt-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Player Stats */}
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <div className="bg-blue-600 text-white p-3">
-              <h2 className="font-bold">Your Status</h2>
-            </div>
-            <div className="p-4">
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Cash:</span>
-                  <span className="font-medium text-green-700">
-                    {formatMoney(playerState.cash)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Loan:</span>
-                  <span className="font-medium text-red-600">
-                    {formatMoney(playerState.loan_amount)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Interest Rate:</span>
-                  <span className="font-medium">
-                    {playerState.loan_interest_rate}%
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Inventory:</span>
-                  <span className="font-medium">
-                    {inventory.reduce((acc, item) => acc + item.quantity, 0)}/
-                    {playerState.inventory_capacity}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Net Worth:</span>
-                  <span className="font-medium text-blue-700">
-                    {formatMoney(
-                      playerState.cash -
-                        playerState.loan_amount +
-                        inventory.reduce(
-                          (acc, item) =>
-                            acc + item.purchase_price * item.quantity,
-                          0
-                        )
-                    )}
-                  </span>
-                </div>
-              </div>
+  // Get current borough name
+  const currentBoroughName = playerState.current_borough || 'Unknown Location';
 
-              {/* Inventory Preview */}
-              <div className="mt-4">
-                <h3 className="font-medium mb-2 text-gray-700">
-                  Inventory ({inventory.length} items)
-                </h3>
-                <div className="bg-gray-50 p-2 rounded-md max-h-32 overflow-y-auto">
-                  {inventory.length === 0 ? (
-                    <p className="text-sm text-gray-500 italic">
-                      Your inventory is empty
-                    </p>
-                  ) : (
-                    <ul className="text-sm space-y-1">
-                      {inventory.map((item) => (
-                        <li key={item.id} className="flex justify-between">
-                          <span>{item.product_name || 'Unknown Product'}</span>
-                          <span>{item.quantity}x</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+  return (
+    <div className="min-h-screen bg-gray-50 pb-24">
+      {/* Borough Header */}
+      <div className="bg-blue-600 text-white p-6 shadow-md">
+        <h1 className="text-2xl font-bold text-center">{currentBoroughName}</h1>
+        <div className="text-sm text-center opacity-80 mt-1">
+          Game Hour: {gameState.current_hour} / {gameState.max_hours}
+        </div>
+      </div>
+
+      {/* Stores in Borough */}
+      <div className="max-w-xl mx-auto p-4 mt-4">
+        <h2 className="text-xl font-semibold mb-4 text-gray-800">
+          Record Stores in {currentBoroughName}
+        </h2>
+
+        {boroughStores.length === 0 ? (
+          <div className="text-center p-6 bg-white rounded-lg shadow-sm">
+            <p className="text-gray-500">No record stores in this borough.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {boroughStores.map((store) => (
+              <div
+                key={store.id}
+                className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition"
+                onClick={() => goToStore(store.id)}
+              >
+                <div className="flex justify-between items-center">
+                  <h3 className="font-medium text-lg">{store.name}</h3>
+                  <FaArrowRight className="text-blue-600" />
+                </div>
+
+                <div className="mt-2 text-sm text-gray-600 grid grid-cols-2 gap-2">
+                  <div className="flex items-center">
+                    <FaClock className="mr-2 text-gray-400" />
+                    {formatTime(store.open_hour)} -{' '}
+                    {formatTime(store.close_hour)}
+                  </div>
+                  <div>Specialty: {store.specialty_genre || 'Various'}</div>
                 </div>
               </div>
-            </div>
+            ))}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="mt-8">
+          <h2 className="text-xl font-semibold mb-4 text-gray-800">Actions</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              onClick={goToTravel}
+              className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 p-6 rounded-lg transition-colors shadow-sm"
+            >
+              <FaMapMarkedAlt className="text-3xl text-blue-600 mb-2" />
+              <span className="font-medium">Travel</span>
+              <span className="text-xs text-gray-600 mt-1">
+                Visit other neighborhoods
+              </span>
+            </button>
+
+            <button
+              onClick={() =>
+                goToStore(boroughStores.length > 0 ? boroughStores[0].id : null)
+              }
+              className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 p-6 rounded-lg transition-colors shadow-sm"
+              disabled={boroughStores.length === 0}
+            >
+              <FaStore className="text-3xl text-blue-600 mb-2" />
+              <span className="font-medium">Store</span>
+              <span className="text-xs text-gray-600 mt-1">
+                Buy and sell records
+              </span>
+            </button>
+
+            <button className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 p-6 rounded-lg transition-colors shadow-sm">
+              <FaWarehouse className="text-3xl text-blue-600 mb-2" />
+              <span className="font-medium">Inventory</span>
+              <span className="text-xs text-gray-600 mt-1">
+                Manage your products
+              </span>
+            </button>
+
+            <button className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 p-6 rounded-lg transition-colors shadow-sm">
+              <FaMoneyBillWave className="text-3xl text-blue-600 mb-2" />
+              <span className="font-medium">Bank</span>
+              <span className="text-xs text-gray-600 mt-1">
+                Manage loans and cash
+              </span>
+            </button>
           </div>
 
-          {/* Actions */}
-          <div className="bg-white rounded-lg shadow-md overflow-hidden md:col-span-2">
-            <div className="bg-blue-600 text-white p-3">
-              <h2 className="font-bold">Actions</h2>
-            </div>
-            <div className="p-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <button
-                  onClick={goToTravel}
-                  className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 p-6 rounded-lg transition-colors"
-                >
-                  <FaMapMarkedAlt className="text-3xl text-blue-600 mb-2" />
-                  <span className="font-medium">Travel</span>
-                  <span className="text-sm text-gray-600 mt-1">
-                    Visit other neighborhoods
-                  </span>
-                </button>
-
-                <button
-                  onClick={() =>
-                    goToStore(
-                      boroughStores.length > 0 ? boroughStores[0].id : null
-                    )
-                  }
-                  className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 p-6 rounded-lg transition-colors"
-                >
-                  <FaStore className="text-3xl text-blue-600 mb-2" />
-                  <span className="font-medium">Store</span>
-                  <span className="text-sm text-gray-600 mt-1">
-                    Buy and sell records
-                  </span>
-                </button>
-
-                <button className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 p-6 rounded-lg transition-colors">
-                  <FaWarehouse className="text-3xl text-blue-600 mb-2" />
-                  <span className="font-medium">Inventory</span>
-                  <span className="text-sm text-gray-600 mt-1">
-                    Manage your products
-                  </span>
-                </button>
-
-                <button className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 p-6 rounded-lg transition-colors">
-                  <FaMoneyBillWave className="text-3xl text-blue-600 mb-2" />
-                  <span className="font-medium">Bank</span>
-                  <span className="text-sm text-gray-600 mt-1">
-                    Manage loans and cash
-                  </span>
-                </button>
-              </div>
-
-              <div className="mt-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-                <div className="flex flex-col sm:flex-row items-center justify-between">
-                  <div className="mb-3 sm:mb-0">
-                    <h3 className="font-medium text-gray-800">Current Turn</h3>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Take your actions and end your turn to advance the game.
-                      <br />
-                      <span className="font-semibold">
-                        {gameState.game.current_hour} hours remaining
-                      </span>
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleEndTurn}
-                    disabled={submitting}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {submitting ? (
-                      <span className="flex items-center">
-                        <FaSpinner className="animate-spin mr-2" />{' '}
-                        Processing...
-                      </span>
-                    ) : (
-                      'End Turn'
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
+          {/* End Turn Button */}
+          <div className="mt-8 text-center">
+            <button
+              onClick={handleEndTurn}
+              disabled={submitting}
+              className="px-8 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm"
+            >
+              {submitting ? (
+                <span className="flex items-center justify-center">
+                  <FaSpinner className="animate-spin mr-2" /> Processing...
+                </span>
+              ) : (
+                'End Turn'
+              )}
+            </button>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 };

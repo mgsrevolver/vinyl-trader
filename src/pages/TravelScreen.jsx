@@ -360,16 +360,19 @@ const TravelScreen = () => {
               ref={drawerRef}
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
+              style={{ maxHeight: '80vh', overflow: 'auto' }}
             >
               <div className="drawer-handle"></div>
 
-              <div className="drawer-header">
+              <div
+                className="drawer-header"
+                style={{ marginBottom: '4px', paddingBottom: '4px' }}
+              >
                 <h2 className="text-xl font-bold">
                   Travel to {selectedNeighborhood.name}
                 </h2>
-
                 <button
-                  className="close-button bg-white rounded-full w-10 h-10 flex items-center justify-center shadow-md"
+                  className="close-button bg-white rounded-full w-8 h-8 flex items-center justify-center shadow-md"
                   onClick={handleCloseDrawer}
                 >
                   <FaTimes />
@@ -378,9 +381,9 @@ const TravelScreen = () => {
 
               {/* Stores in this neighborhood - Super compact single line format */}
               {neighborhoodStores.length > 0 && (
-                <div className="mb-3">
+                <div className="mb-1 px-2">
                   {neighborhoodStores.map((store) => (
-                    <div key={store.id} className="text-sm text-center mb-0">
+                    <div key={store.id} className="text-xs text-center">
                       {store.name} • {store.specialty_genre || 'Various'} •{' '}
                       {formatTime(store.open_hour)}-
                       {formatTime(store.close_hour)}
@@ -389,12 +392,21 @@ const TravelScreen = () => {
                 </div>
               )}
 
-              <p className="text-sm mb-2 text-center">
+              <p className="text-xs mb-1 text-center">
                 How do you want to get there?
               </p>
 
-              {/* Make transport grid more compact */}
-              <div className="transport-grid" style={{ maxHeight: '220px' }}>
+              {/* Make transport grid more compact but not overly cramped */}
+              <div
+                className="transport-grid"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, 1fr)',
+                  gap: '10px',
+                  padding: '0 10px',
+                  maxHeight: '180px', // Slightly taller to allow more breathing room
+                }}
+              >
                 {transportOptions.map((transport) => {
                   // Get travel details for this transport option
                   const { time, cost } = getTravelDetails(
@@ -410,22 +422,67 @@ const TravelScreen = () => {
                       className={`transport-option ${
                         selectedTransport?.id === transport.id ? 'selected' : ''
                       }`}
-                      style={{ padding: '8px' }}
+                      style={{
+                        padding: '8px', // More padding
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '3px', // Slightly more gap between rows
+                      }}
                     >
-                      <div className="transport-icon">{transport.icon}</div>
-                      <div className="transport-name">{transport.name}</div>
-                      <div className="transport-price text-xs">
-                        <FaCoins className="text-gray-500" size={10} />
+                      {/* Row 1: Icon and Name */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          marginBottom: '2px',
+                        }}
+                      >
+                        <span>{transport.icon}</span>
+                        <span style={{ fontSize: '16px' }}>
+                          {transport.name}
+                        </span>
+                      </div>
+
+                      {/* Row 2: Cost */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '14px',
+                        }}
+                      >
+                        <FaCoins style={{ marginRight: '4px' }} />
                         <span>{formatMoney(cost)}</span>
                       </div>
-                      <div className="transport-time text-xs">
-                        <FaClock className="text-gray-500" size={10} />
+
+                      {/* Row 3: Time */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '14px',
+                        }}
+                      >
+                        <FaClock style={{ marginRight: '4px' }} />
                         <span>{time} hours</span>
                       </div>
-                      <div className="transport-price text-xs">
-                        <FaWarehouse className="text-gray-500" size={10} />
+
+                      {/* Row 4: Capacity */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '14px',
+                        }}
+                      >
+                        <FaWarehouse style={{ marginRight: '4px' }} />
                         <span>
-                          Capacity: {transport.capacity_modifier > 0 ? '+' : ''}
+                          Cap: {transport.capacity_modifier > 0 ? '+' : ''}
                           {transport.capacity_modifier}
                         </span>
                       </div>
@@ -434,12 +491,12 @@ const TravelScreen = () => {
                 })}
               </div>
 
-              {/* Add style to ensure button fits within the available space */}
-              <div className="px-4 pb-3 pt-1">
+              {/* Travel button with reasonable padding */}
+              <div style={{ padding: '12px 10px 6px 10px' }}>
                 <Button
                   onClick={handleTravel}
                   disabled={loading || !selectedTransport}
-                  size="lg"
+                  size="md" // Back to medium size
                   fullWidth
                 >
                   {loading ? (

@@ -5,7 +5,11 @@ import { generatePlayerName, generateGameName } from '../lib/nameGenerator';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
-import { initializePlayer } from '../lib/gameActions';
+import {
+  initializePlayer,
+  createNewGame,
+  initializeGameMarket,
+} from '../lib/gameActions';
 
 const GameContext = createContext();
 
@@ -54,96 +58,82 @@ export const GameProvider = ({ children }) => {
   }, []);
 
   // Create a new game
-  const createGame = async (playerName = null) => {
-    if (!playerId) return { success: false, error: new Error('No player ID') };
-
+  const createGame = async (playerName) => {
     try {
       setLoading(true);
 
-      // First get a default starting borough
-      let defaultBoroughId = null;
-      try {
-        const { data: borough } = await supabase
-          .from('boroughs')
-          .select('id')
-          .limit(1)
-          .single();
+      // Get user ID
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData?.user?.id;
 
-        if (borough) {
-          defaultBoroughId = borough.id;
-          console.log('Using default borough:', defaultBoroughId);
-        }
-      } catch (boroughErr) {
-        console.error('Could not fetch a default borough:', boroughErr);
+      if (!userId) {
+        return { success: false, error: 'Authentication required' };
       }
 
-      // Use provided player name or generate one
-      const username = playerName || generatePlayerName();
-      const gameName = generateGameName();
-
-      console.log('Creating game with player ID:', playerId);
-
-      // Create game - using proper UUID for created_by
+      // STEP 1: Create the game directly
       const { data: game, error: gameError } = await supabase
         .from('games')
         .insert({
-          created_by: playerId,
-          status: 'waiting',
+          name: `${playerName}'s Game`,
+          created_by: userId,
+          status: 'active', // Set as active immediately
           current_hour: 24,
           max_hours: 24,
-          name: gameName,
         })
         .select()
         .single();
 
-      if (gameError) throw gameError;
-
-      console.log('Game created successfully:', game.id);
-
-      // Use the initializePlayer function to create the player with correct values
-      const newPlayerId = await initializePlayer(
-        game.id,
-        playerId,
-        defaultBoroughId
-      );
-
-      if (!newPlayerId) {
-        throw new Error('Failed to initialize player');
+      if (gameError) {
+        console.error('Error creating game:', gameError);
+        return { success: false, error: gameError };
       }
 
-      // Now fetch the created player data
-      const { data: playerData, error: playerFetchError } = await supabase
-        .from('players')
-        .select('*')
-        .eq('id', newPlayerId)
+      // STEP 2: Get Downtown borough
+      const { data: downtown, error: boroughError } = await supabase
+        .from('boroughs')
+        .select('id')
+        .eq('name', 'Downtown')
         .single();
 
-      if (playerFetchError) throw playerFetchError;
+      if (boroughError) {
+        console.error('Error finding Downtown:', boroughError);
+        return { success: false, error: boroughError };
+      }
 
-      // Update the username separately since initializePlayer doesn't set it
-      const { error: usernameError } = await supabase
+      // STEP 3: Create the player
+      const { data: player, error: playerError } = await supabase
         .from('players')
-        .update({ username: username })
-        .eq('id', newPlayerId);
+        .insert({
+          user_id: userId,
+          game_id: game.id,
+          username: playerName,
+          current_borough_id: downtown.id,
+          cash: 1000,
+          loan_amount: 100,
+          inventory_capacity: 100,
+        })
+        .select()
+        .single();
 
-      if (usernameError) console.warn('Failed to set username:', usernameError);
+      if (playerError) {
+        console.error('Error creating player:', playerError);
+        // Clean up the game
+        await supabase.from('games').delete().eq('id', game.id);
+        return { success: false, error: playerError };
+      }
 
-      setCurrentGame(game);
-      setPlayer(playerData);
+      // STEP 4: Call stored procedures - but don't wait for them
+      supabase
+        .rpc('initialize_game_data', { game_id: game.id })
+        .then(() => console.log('Game data initialized'))
+        .catch((err) => console.error('Error initializing game data:', err));
 
-      // Store in local storage for persistence
-      localStorage.setItem('deliWarsCurrentGame', game.id);
-      localStorage.setItem('deliWarsPlayerName', username);
+      // IMPORTANT: Store the player ID in localStorage so Game.jsx can find it
+      localStorage.setItem(`player_${game.id}`, player.id);
 
-      return {
-        success: true,
-        gameId: game.id,
-        game: game,
-        player: playerData,
-      };
+      return { success: true, gameId: game.id };
     } catch (error) {
-      console.error('Error creating game:', error);
-      toast.error('Failed to create game');
+      console.error('Error in createGame:', error);
       return { success: false, error };
     } finally {
       setLoading(false);
