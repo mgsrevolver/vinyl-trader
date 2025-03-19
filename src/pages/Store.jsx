@@ -193,74 +193,58 @@ const Store = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-blue-100 p-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-4">
-          <div className="flex justify-between items-center">
-            <button
-              onClick={goBack}
-              className="flex items-center text-blue-600 hover:text-blue-800"
-            >
-              <FaArrowLeft className="mr-1" /> Back to Game
+    <div className="min-h-screen bg-gray-50 pb-24">
+      <div className="max-w-xl mx-auto p-4 mt-4">
+        {/* Header Row with back button, store name and cash display */}
+        <div className="header-row">
+          <div className="flex items-center">
+            <button onClick={goBack} className="travel-button">
+              <FaArrowLeft className="mr-2" /> Back
             </button>
-            <div className="text-right">
-              <div className="flex items-center justify-end">
-                <FaCoins className="text-yellow-500 mr-1" />
-                <span className="font-medium">
-                  ${player ? parseFloat(player.cash).toFixed(2) : '0.00'}
-                </span>
-              </div>
-            </div>
           </div>
+
+          <h1 className="text-2xl font-bold font-records">
+            {store?.name || 'Record Store'}
+          </h1>
         </div>
 
-        {/* Store Info - Removed background image */}
-        <div className="store-header-card rounded-lg shadow-md p-6 mb-4 bg-white">
-          <div className="relative z-10">
-            <h1 className="text-2xl font-bold text-gray-800 font-records">
-              {store?.name || 'Record Store'}
-            </h1>
-            <p className="text-gray-600 mt-1">
-              Located in {borough?.name || 'Unknown Borough'}
-            </p>
-            <div className="mt-4 flex space-x-4">
-              <button
-                onClick={() => setBuyMode(true)}
-                className={`px-4 py-2 rounded-md ${
-                  buyMode
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-800'
-                }`}
-              >
-                <FaCartPlus className="inline mr-2" /> Buy Records
-              </button>
-              <button
-                onClick={() => setBuyMode(false)}
-                className={`px-4 py-2 rounded-md ${
-                  !buyMode
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-800'
-                }`}
-              >
-                <FaShoppingBag className="inline mr-2" /> Sell Records
-              </button>
-            </div>
-          </div>
+        {/* Buy/Sell toggle buttons */}
+        <div className="flex space-x-2 mb-4 mt-4">
+          <button
+            onClick={() => setBuyMode(true)}
+            className={`flex-1 px-4 py-2 rounded-md ${
+              buyMode ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'
+            }`}
+          >
+            <FaCartPlus className="inline mr-2" /> Buy Records
+          </button>
+          <button
+            onClick={() => setBuyMode(false)}
+            className={`flex-1 px-4 py-2 rounded-md ${
+              !buyMode ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'
+            }`}
+          >
+            <FaShoppingBag className="inline mr-2" /> Sell Records
+          </button>
         </div>
 
         {/* Inventory Display */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="bg-blue-600 text-white p-3">
-            <h2 className="font-bold font-records">
+        <div className="bg-white shadow-md mb-4 rounded-lg">
+          <div className="bg-blue-600 text-white p-3 rounded-t-lg flex justify-between items-center">
+            <h2 className="font-bold">
               {buyMode ? 'Store Inventory' : 'Your Inventory'}
             </h2>
+            {!buyMode && (
+              <div className="text-sm">
+                <span>{playerInventory.length} items</span>
+              </div>
+            )}
           </div>
           <div className="p-4">
             {buyMode ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-4">
                 {storeInventory.length === 0 ? (
-                  <p className="col-span-full text-gray-500 italic text-center py-4">
+                  <p className="text-gray-500 italic text-center py-4">
                     No records available in this store
                   </p>
                 ) : (
@@ -273,7 +257,7 @@ const Store = () => {
                         {item.products?.name || 'Unknown Record'}
                       </h3>
                       <p className="text-sm text-gray-600">
-                        {item.products?.artist || 'Unknown Artist'}(
+                        {item.products?.artist || 'Unknown Artist'} (
                         {item.products?.year || 'N/A'})
                       </p>
                       <p className="text-sm text-gray-500 mt-1">
@@ -299,9 +283,9 @@ const Store = () => {
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-4">
                 {playerInventory.length === 0 ? (
-                  <p className="col-span-full text-gray-500 italic text-center py-4">
+                  <p className="text-gray-500 italic text-center py-4">
                     Your inventory is empty
                   </p>
                 ) : (
@@ -314,7 +298,7 @@ const Store = () => {
                         {item.products?.name || 'Unknown Record'}
                       </h3>
                       <p className="text-sm text-gray-600">
-                        {item.products?.artist || 'Unknown Artist'}(
+                        {item.products?.artist || 'Unknown Artist'} (
                         {item.products?.year || 'N/A'})
                       </p>
                       <div className="mt-2 flex justify-between items-center">
