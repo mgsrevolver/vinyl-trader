@@ -40,12 +40,7 @@ const GameHeader = () => {
       currentGame?.current_hour &&
       previousHourRef.current !== currentGame.current_hour
     ) {
-      // Show toast and trigger animation
-      toast.success(
-        `Hour advanced! ${getHoursRemaining(
-          currentGame.current_hour
-        )} hours remaining`
-      );
+      // Just trigger animation, remove toast
       setIsHourAnimating(true);
       setTimeout(() => setIsHourAnimating(false), 1000);
     }

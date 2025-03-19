@@ -31,23 +31,37 @@ export const buyRecord = async (
       p_quantity: quantity,
     });
 
+    console.log('Buy record response:', { data, error }); // For debugging
+
     if (error) {
       console.error('Error buying record:', error);
       return {
         success: false,
-        message: 'Unable to buy record. Please try again.',
+        message: error.message || 'Unable to buy record. Please try again.',
       };
     }
 
+    // Handle the new response format
+    if (data && typeof data === 'object') {
+      return {
+        success: data.success,
+        message: data.message,
+      };
+    }
+
+    // Fallback for boolean response (until DB is updated)
     return {
-      success: data,
+      success: !!data,
       message: data
         ? 'Record purchased successfully!'
-        : 'Unable to complete purchase.',
+        : 'Unable to complete purchase. Check your funds and inventory space.',
     };
   } catch (e) {
     console.error('Exception buying record:', e);
-    return { success: false, message: 'An unexpected error occurred.' };
+    return {
+      success: false,
+      message: 'An unexpected error occurred. Please try again.',
+    };
   }
 };
 

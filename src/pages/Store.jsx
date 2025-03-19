@@ -135,16 +135,31 @@ const Store = () => {
         quantity
       );
 
+      // Log the result to see what we're getting
+      console.log('Buy result:', result);
+
       if (result.success) {
-        toast.success(result.message);
-        // Refresh inventory
+        toast.success(result.message || 'Purchase successful!');
         loadStoreData();
       } else {
-        toast.error(result.message);
+        // Check different possible error message locations
+        const errorMessage =
+          result.message ||
+          (result.error && result.error.message) ||
+          result.error ||
+          'Unable to complete purchase';
+
+        toast.error(errorMessage);
       }
     } catch (error) {
       console.error('Error buying record:', error);
-      toast.error('Failed to complete purchase');
+      // Handle thrown errors
+      const errorMessage =
+        error.message ||
+        (error.response && error.response.message) ||
+        'An unexpected error occurred';
+
+      toast.error(errorMessage);
     }
   };
 
