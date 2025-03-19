@@ -1,9 +1,8 @@
 #root {
-  max-width: 430px; /* Set max width to largest phone resolution */
+  max-width: 430px; /* Keep max width for phone resolution */
   margin: 0 auto;
   padding: 2rem 1rem 5rem;
-  text-align: center;
-  padding-top: 3.5rem; /* Add padding to account for the fixed header */
+  padding-top: 3.5rem; /* Keep padding for fixed header */
   height: 100%;
   min-height: 100vh;
 }
@@ -37,7 +36,18 @@
 }
 
 .card {
-  padding: 2em;
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  transition: all 0.2s ease;
+  border: 1px solid #eaeaea;
+  cursor: pointer;
+}
+
+.card:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border-color: #d0d0d0;
 }
 
 .read-the-docs {
@@ -381,4 +391,173 @@
   align-items: center;
   justify-content: center;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+/* Record-themed button styles */
+.btn {
+  font-weight: 500;
+  transition: all 0.2s;
+  border-radius: 9999px; /* Full rounded for vinyl look */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary {
+  background-image: linear-gradient(to bottom, #e5e5e5, #a0a0a0);
+  color: #000;
+  border: 2px solid #000;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.btn-primary:hover {
+  background-image: linear-gradient(to bottom, #f0f0f0, #b0b0b0);
+}
+
+.btn-play {
+  background-image: linear-gradient(to bottom, #e5e5e5, #a0a0a0);
+  color: #000;
+  border: 2px solid #000;
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.btn-play:hover {
+  background-image: linear-gradient(to bottom, #f0f0f0, #b0b0b0);
+}
+
+.btn-vinyl {
+  background-image: linear-gradient(to right, #6366f1, #a855f7, #ec4899);
+  color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.btn-vinyl:hover {
+  opacity: 0.9;
+}
+
+.btn-sm {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.btn-md {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+}
+
+.btn-lg {
+  padding: 0.75rem 1.5rem;
+  font-size: 1.125rem;
+}
+
+.btn-full {
+  width: 100%;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Add a record center dot for vinyl buttons */
+.btn-vinyl::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background-color: white;
+  border-radius: 50%;
+  opacity: 0.8;
+}
+
+/* Font styles that look good for records */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
+
+.font-serif {
+  font-family: 'Bebas Neue', cursive, serif;
+}
+
+/* Record card transition */
+.transition-transform {
+  transition: transform 0.2s ease;
+}
+
+/* Record store card styling */
+.card-record-store {
+  transition: all 0.3s ease;
+}
+
+.card-record-store:hover {
+  transform: translateY(-3px);
+}
+
+.card-record-store:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Vinyl spinning animation for record icons */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.card-record-store:hover .vinyl-icon {
+  animation: spin-slow 4s linear infinite;
+}
+
+/* Make the genre badge more attractive */
+.genre-badge {
+  background: linear-gradient(to right, #3490dc, #6574cd);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* SIMPLIFIED store card styles */
+.store-card {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  padding: 1rem;
+}
+
+.store-card h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  text-align: left;
+}
+
+.store-card .store-info {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  text-align: left;
+}
+
+.store-card .store-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+}
+
+.arrow-button {
+  background-color: #333;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

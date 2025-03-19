@@ -2,13 +2,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
-  FaStore,
   FaMapMarkedAlt,
-  FaWarehouse,
-  FaMoneyBillWave,
   FaSpinner,
   FaClock,
   FaArrowRight,
+  FaRecordVinyl,
+  FaStore,
+  FaHome,
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { useGame } from '../contexts/GameContext';
@@ -19,6 +19,8 @@ import {
   getPlayerActions,
 } from '../lib/gameActions';
 import { supabase } from '../lib/supabase';
+import Button from '../components/ui/Button';
+import Card from '../components/ui/Card';
 
 const Game = () => {
   const { gameId } = useParams();
@@ -238,107 +240,100 @@ const Game = () => {
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       {/* Borough Header */}
-      <div className="bg-blue-600 text-white p-6 shadow-md">
-        <h1 className="text-2xl font-bold text-center">{currentBoroughName}</h1>
+      <div className="bg-gradient-to-r from-purple-800 to-black text-white p-6 shadow-md">
+        <h1 className="text-2xl font-bold text-center flex items-center justify-center">
+          <FaRecordVinyl className="mr-2" /> {currentBoroughName}
+        </h1>
       </div>
 
       {/* Stores in Borough */}
       <div className="max-w-xl mx-auto p-4 mt-4">
-        <h2 className="text-xl font-semibold mb-4 text-gray-800">
-          Record Stores in {currentBoroughName}
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-800">Record Stores</h2>
+          <Button
+            onClick={goToTravel}
+            variant="play"
+            size="md"
+            icon={<FaMapMarkedAlt />}
+          >
+            Travel
+          </Button>
+        </div>
 
         {boroughStores.length === 0 ? (
-          <div className="text-center p-6 bg-white rounded-lg shadow-sm">
+          <div className="text-center p-6 bg-white rounded-lg shadow-md">
+            <FaStore className="mx-auto text-gray-400 text-4xl mb-2" />
             <p className="text-gray-500">No record stores in this borough.</p>
+            <p className="text-sm text-gray-400 mt-2">
+              Try traveling to another borough
+            </p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {boroughStores.map((store) => (
               <div
                 key={store.id}
-                className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition"
+                className="card"
                 onClick={() => goToStore(store.id)}
               >
-                <div className="flex justify-between items-center">
-                  <h3 className="font-medium text-lg">{store.name}</h3>
-                  <FaArrowRight className="text-blue-600" />
-                </div>
+                <div className="store-card">
+                  <h3>{store.name}</h3>
 
-                <div className="mt-2 text-sm text-gray-600 grid grid-cols-2 gap-2">
-                  <div className="flex items-center">
-                    <FaClock className="mr-2 text-gray-400" />
-                    {formatTime(store.open_hour)} -{' '}
-                    {formatTime(store.close_hour)}
+                  <div className="store-info">
+                    <FaClock className="mr-2 text-gray-600" />
+                    <span>
+                      {formatTime(store.open_hour)} -{' '}
+                      {formatTime(store.close_hour)}
+                    </span>
                   </div>
-                  <div>Specialty: {store.specialty_genre || 'Various'}</div>
+
+                  <div className="store-footer">
+                    <div>
+                      Genre:{' '}
+                      <span className="font-semibold">
+                        {store.specialty_genre || 'Various'}
+                      </span>
+                    </div>
+                    <div className="arrow-button">
+                      <FaArrowRight />
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* Actions */}
-        <div className="mt-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-800">Actions</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              onClick={goToTravel}
-              className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 p-6 rounded-lg transition-colors shadow-sm"
-            >
-              <FaMapMarkedAlt className="text-3xl text-blue-600 mb-2" />
-              <span className="font-medium">Travel</span>
-              <span className="text-xs text-gray-600 mt-1">
-                Visit other neighborhoods
-              </span>
-            </button>
-
-            <button
-              onClick={() =>
-                goToStore(boroughStores.length > 0 ? boroughStores[0].id : null)
-              }
-              className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 p-6 rounded-lg transition-colors shadow-sm"
-              disabled={boroughStores.length === 0}
-            >
-              <FaStore className="text-3xl text-blue-600 mb-2" />
-              <span className="font-medium">Store</span>
-              <span className="text-xs text-gray-600 mt-1">
-                Buy and sell records
-              </span>
-            </button>
-
-            <button className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 p-6 rounded-lg transition-colors shadow-sm">
-              <FaWarehouse className="text-3xl text-blue-600 mb-2" />
-              <span className="font-medium">Inventory</span>
-              <span className="text-xs text-gray-600 mt-1">
-                Manage your products
-              </span>
-            </button>
-
-            <button className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 p-6 rounded-lg transition-colors shadow-sm">
-              <FaMoneyBillWave className="text-3xl text-blue-600 mb-2" />
-              <span className="font-medium">Bank</span>
-              <span className="text-xs text-gray-600 mt-1">
-                Manage loans and cash
-              </span>
-            </button>
+        {/* End Turn Section */}
+        <div className="mt-12 flex flex-col items-center">
+          <div className="text-center mb-6">
+            <h3 className="text-lg font-medium mb-1">
+              Ready to end your turn?
+            </h3>
+            <p className="text-sm text-gray-600">
+              Current hour: {formatTime(gameState.current_hour)}
+            </p>
           </div>
 
-          {/* End Turn Button */}
-          <div className="mt-8 text-center">
-            <button
-              onClick={handleEndTurn}
-              disabled={submitting}
-              className="px-8 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm"
-            >
-              {submitting ? (
-                <span className="flex items-center justify-center">
-                  <FaSpinner className="animate-spin mr-2" /> Processing...
-                </span>
-              ) : (
-                'End Turn'
-              )}
-            </button>
+          <Button
+            onClick={handleEndTurn}
+            disabled={submitting}
+            variant="primary"
+            size="lg"
+            fullWidth
+          >
+            {submitting ? (
+              <>
+                <FaSpinner className="animate-spin mr-2" /> Processing...
+              </>
+            ) : (
+              'End Turn'
+            )}
+          </Button>
+
+          <div className="mt-4 text-xs text-gray-500 text-center">
+            {playerActions.actions_available - playerActions.actions_used}{' '}
+            actions remaining this hour
           </div>
         </div>
       </div>

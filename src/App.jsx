@@ -19,6 +19,7 @@ import TravelScreen from './pages/TravelScreen';
 import NotFound from './pages/NotFound';
 
 // Import the CSS file to ensure styles are applied
+import './index.css';
 import './App.css';
 
 const App = () => {
