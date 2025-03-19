@@ -222,6 +222,19 @@ const Game = () => {
     return `${displayHour}${period}`;
   };
 
+  const handleLeaveGame = () => {
+    // Show confirmation dialog
+    if (
+      window.confirm(
+        'Are you sure you want to leave? You will lose your progress.'
+      )
+    ) {
+      // Navigate back to home
+      navigate('/');
+      toast.info('You have left the game');
+    }
+  };
+
   if (loadingGameState || !gameState || !playerState) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -239,7 +252,7 @@ const Game = () => {
         {/* Header Row with Borough name and Travel */}
         <div className="header-row">
           <div className="flex items-center">
-            <h1 className="text-2xl font-bold">
+            <h1 className="text-2xl font-bold font-records">
               {currentBoroughName || 'Unknown Location'}
             </h1>
           </div>
@@ -271,7 +284,10 @@ const Game = () => {
               return (
                 <StoreCard
                   key={store.id}
-                  store={store}
+                  store={{
+                    ...store,
+                    nameClass: 'font-records text-opacity-80',
+                  }}
                   isOpen={isOpen}
                   formatTime={formatTime}
                   onClick={() => goToStore(store.id)}
@@ -281,25 +297,38 @@ const Game = () => {
           </div>
         )}
 
-        {/* End Turn Section */}
-        <div className="mt-12 flex flex-col items-center">
-          <div className="text-center mb-6"></div>
+        {/* End Turn Section - Fixed at bottom with horizontal flex layout */}
+        <div className="fixed bottom-6 left-0 right-0 max-w-xl mx-auto px-6">
+          <div className="flex flex-row justify-center space-x-4">
+            <button
+              onClick={handleEndTurn}
+              disabled={submitting}
+              className="travel-button flex justify-center"
+            >
+              {submitting ? (
+                <>
+                  <FaSpinner className="animate-spin mr-2" /> Processing...
+                </>
+              ) : (
+                'End Turn'
+              )}
+            </button>
 
-          <Button
-            onClick={handleEndTurn}
-            disabled={submitting}
-            variant="primary"
-            size="lg"
-            fullWidth
-          >
-            {submitting ? (
-              <>
-                <FaSpinner className="animate-spin mr-2" /> Processing...
-              </>
-            ) : (
-              'End Turn'
-            )}
-          </Button>
+            <button
+              onClick={handleLeaveGame}
+              disabled={submitting}
+              className="travel-button flex justify-center"
+            >
+              Leave Game
+            </button>
+
+            {/* Space for additional buttons in the future */}
+            {/* 
+            <button className="travel-button flex justify-center">
+              Future Button
+            </button>
+            */}
+          </div>
         </div>
       </div>
     </div>

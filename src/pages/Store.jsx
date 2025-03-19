@@ -12,7 +12,7 @@ import { useGame } from '../contexts/GameContext';
 import { getStoreInventory, buyRecord, sellRecord } from '../lib/gameActions';
 
 const Store = () => {
-  const { gameId, boroughId, storeId } = useParams(); // Changed storeName to storeId
+  const { gameId, boroughId, storeId } = useParams();
   const navigate = useNavigate();
   const { player, playerInventory, loading: gameLoading } = useGame();
 
@@ -215,40 +215,44 @@ const Store = () => {
           </div>
         </div>
 
-        {/* Store Info */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-4">
-          <h1 className="text-2xl font-bold text-gray-800">
-            {store?.name || 'Record Store'}
-          </h1>
-          <p className="text-gray-600 mt-1">
-            Located in {borough?.name || 'Unknown Borough'}
-          </p>
-          <div className="mt-4 flex space-x-4">
-            <button
-              onClick={() => setBuyMode(true)}
-              className={`px-4 py-2 rounded-md ${
-                buyMode ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'
-              }`}
-            >
-              <FaCartPlus className="inline mr-2" /> Buy Records
-            </button>
-            <button
-              onClick={() => setBuyMode(false)}
-              className={`px-4 py-2 rounded-md ${
-                !buyMode
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 text-gray-800'
-              }`}
-            >
-              <FaShoppingBag className="inline mr-2" /> Sell Records
-            </button>
+        {/* Store Info - Removed background image */}
+        <div className="store-header-card rounded-lg shadow-md p-6 mb-4 bg-white">
+          <div className="relative z-10">
+            <h1 className="text-2xl font-bold text-gray-800 font-records">
+              {store?.name || 'Record Store'}
+            </h1>
+            <p className="text-gray-600 mt-1">
+              Located in {borough?.name || 'Unknown Borough'}
+            </p>
+            <div className="mt-4 flex space-x-4">
+              <button
+                onClick={() => setBuyMode(true)}
+                className={`px-4 py-2 rounded-md ${
+                  buyMode
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-800'
+                }`}
+              >
+                <FaCartPlus className="inline mr-2" /> Buy Records
+              </button>
+              <button
+                onClick={() => setBuyMode(false)}
+                className={`px-4 py-2 rounded-md ${
+                  !buyMode
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-800'
+                }`}
+              >
+                <FaShoppingBag className="inline mr-2" /> Sell Records
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Inventory Display */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="bg-blue-600 text-white p-3">
-            <h2 className="font-bold">
+            <h2 className="font-bold font-records">
               {buyMode ? 'Store Inventory' : 'Your Inventory'}
             </h2>
           </div>

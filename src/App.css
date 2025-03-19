@@ -1,3 +1,6 @@
+/* Add these font imports at the top of App.css */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Permanent+Marker&family=Playfair+Display:wght@400;600;700&family=Rubik+Mono+One&display=swap');
+
 /* Core container */
 #root {
   max-width: 430px;
@@ -42,6 +45,11 @@
   cursor: pointer;
   transition: all 0.2s ease-out;
   transform: translateZ(0); /* Hardware acceleration */
+  padding-top: 12px;
+  padding-bottom: 12px;
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
 }
 
 .store-card-wrapper:hover {
@@ -53,6 +61,10 @@
 .store-card-wrapper:active {
   transform: translateY(0);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.store-card-wrapper.has-store-bg {
+  background-color: rgba(255, 255, 255, 0.9);
 }
 
 .store-card-title {
@@ -522,8 +534,6 @@
 }
 
 /* Font styles that look good for records */
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
-
 .font-serif {
   font-family: 'Bebas Neue', cursive, serif;
 }
@@ -675,4 +685,133 @@ h3 {
 .travel-drawer > div:last-child {
   padding-top: 0.75rem !important;
   padding-bottom: 0.75rem !important;
+}
+
+/* And add some utility classes for quick styling */
+.font-records {
+  font-family: 'Permanent Marker', 'Bebas Neue', cursive;
+}
+
+.font-vintage {
+  font-family: 'Playfair Display', serif;
+}
+
+.font-vinyl {
+  font-family: 'Rubik Mono One', Impact, monospace;
+  letter-spacing: -0.03em;
+}
+
+/* Apply record-style typography to headings in the drawer */
+.travel-drawer h2 {
+  font-family: 'Permanent Marker', 'Bebas Neue', cursive;
+  letter-spacing: 0.5px;
+}
+
+/* Make store names in the drawer look like record labels */
+.travel-drawer .text-xs.text-center {
+  font-family: 'Playfair Display', serif;
+  font-weight: 600;
+}
+
+/* Style the travel heading for more record store vibes */
+.travel-drawer .drawer-header h2 {
+  background: linear-gradient(90deg, #333, #111);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Make the main borough heading prominent */
+.header-row h1.font-records {
+  font-family: 'Permanent Marker', cursive;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.1);
+  letter-spacing: 0.5px;
+}
+
+/* Make store names use the same font but lighter */
+.store-card-title .font-records {
+  font-family: 'Permanent Marker', cursive;
+  font-size: 1.4rem;
+  opacity: 0.9;
+  font-weight: normal;
+  letter-spacing: 0.5px;
+}
+
+/* Store background image styling */
+.store-header-card {
+  position: relative;
+  z-index: 1;
+  background-color: white;
+}
+
+.store-header-card.has-background {
+  background-color: rgba(255, 255, 255, 0.85);
+}
+
+.store-bg-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.25;
+  filter: blur(1px);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Enhance styling for store pages */
+.store-header-card h1.font-records {
+  font-family: 'Permanent Marker', cursive;
+  font-size: 2rem;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+  margin-bottom: 0.25rem;
+}
+
+/* Style inventory headers */
+.bg-blue-600 h2.font-records {
+  font-family: 'Permanent Marker', cursive;
+  font-size: 1.3rem;
+  letter-spacing: 0.5px;
+}
+
+/* Style record names in inventory */
+.inventory-grid h3.font-records {
+  font-family: 'Permanent Marker', cursive;
+  font-size: 1.1rem;
+  opacity: 0.9;
+}
+
+/* Store card background image styling */
+.store-card-bg-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.18;
+  z-index: -1;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+/* On hover, make the background image slightly more visible */
+.store-card-wrapper:hover .store-card-bg-image {
+  opacity: 0.25;
+}
+
+/* Ensure content remains on top */
+.store-card-content {
+  position: relative;
+  z-index: 2;
+}
+
+/* Improve the title on these background images */
+.store-card-title .font-records {
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
 }

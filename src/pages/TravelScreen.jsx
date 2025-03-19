@@ -502,7 +502,10 @@ const TravelScreen = () => {
               {neighborhoodStores.length > 0 && (
                 <div className="mb-1 px-2">
                   {neighborhoodStores.map((store) => (
-                    <div key={store.id} className="text-xs text-center">
+                    <div
+                      key={store.id}
+                      className="text-xs text-center font-sans"
+                    >
                       {store.name} • {store.specialty_genre || 'Various'} •{' '}
                       {formatTime(store.open_hour)}-
                       {formatTime(store.close_hour)}

@@ -24,6 +24,10 @@ export default {
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
         display: ['Montserrat', 'sans-serif'],
+        // Add record-collector inspired fonts
+        records: ['Permanent Marker', 'Bebas Neue', 'cursive'],
+        vintage: ['Playfair Display', 'serif'],
+        vinyl: ['Rubik Mono One', 'Impact', 'monospace'],
       },
     },
   },
