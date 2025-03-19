@@ -43,11 +43,11 @@ const TravelScreen = () => {
 
   // NYC borough coordinates based on the screenshot
   const boroughCoordinates = {
-    downtown: { x: 42, y: 60 },
-    uptown: { x: 42, y: 45 },
-    brooklyn: { x: 52, y: 75 },
-    queens: { x: 65, y: 55 },
-    bronx: { x: 45, y: 40 },
+    downtown: { x: 20, y: 62 },
+    uptown: { x: 65, y: 25 },
+    brooklyn: { x: 56, y: 85 },
+    queens: { x: 78, y: 43 },
+    bronx: { x: 85, y: 15 },
     staten_island: { x: 25, y: 85 },
   };
 
