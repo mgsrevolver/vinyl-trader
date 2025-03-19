@@ -1,15 +1,14 @@
 // src/contexts/GameContext.jsx
 import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { generatePlayerName, generateGameName } from '../lib/nameGenerator';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import {
   initializePlayer,
-  createNewGame,
-  initializeGameMarket,
   travelToBorough,
+  buyRecord,
+  sellRecord,
 } from '../lib/gameActions';
 
 const GameContext = createContext();
@@ -26,18 +25,6 @@ export const GameProvider = ({ children }) => {
   const [players, setPlayers] = useState([]);
   const [playerId, setPlayerId] = useState(null);
 
-  function generateUUID() {
-    // This is RFC4122 version 4 compliant
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(
-      /[xy]/g,
-      function (c) {
-        const r = (Math.random() * 16) | 0;
-        const v = c === 'x' ? r : (r & 0x3) | 0x8;
-        return v.toString(16);
-      }
-    );
-  }
-
   // Generate or retrieve player ID
   useEffect(() => {
     // First check for game-specific player ID
@@ -53,7 +40,6 @@ export const GameProvider = ({ children }) => {
         gameSpecificPlayerId
       )
     ) {
-      console.log('Using game-specific playerId:', gameSpecificPlayerId);
       setPlayerId(gameSpecificPlayerId);
       return;
     }
@@ -67,11 +53,9 @@ export const GameProvider = ({ children }) => {
         storedPlayerId
       )
     ) {
-      console.log('Using stored playerId:', storedPlayerId);
       setPlayerId(storedPlayerId);
     } else {
       const newPlayerId = uuidv4();
-      console.log('Creating new playerId:', newPlayerId);
       localStorage.setItem('deliWarsPlayerId', newPlayerId);
       setPlayerId(newPlayerId);
     }
@@ -90,13 +74,13 @@ export const GameProvider = ({ children }) => {
         return { success: false, error: 'Authentication required' };
       }
 
-      // STEP 1: Create the game directly
+      // STEP 1: Create the game
       const { data: game, error: gameError } = await supabase
         .from('games')
         .insert({
           name: `${playerName}'s Game`,
           created_by: userId,
-          status: 'active', // Set as active immediately
+          status: 'active',
           current_hour: 24,
           max_hours: 24,
         })
@@ -137,25 +121,22 @@ export const GameProvider = ({ children }) => {
 
       if (playerError) {
         console.error('Error creating player:', playerError);
-        // Clean up the game
         await supabase.from('games').delete().eq('id', game.id);
         return { success: false, error: playerError };
       }
 
-      // STEP 4: Call stored procedures - but don't wait for them
+      // STEP 4: Initialize game data in background
       supabase
         .rpc('initialize_game_data', { game_id: game.id })
         .then(() => console.log('Game data initialized'))
         .catch((err) => console.error('Error initializing game data:', err));
 
-      // IMPORTANT: Store the player ID in localStorage so Game.jsx can find it
+      // Store player ID in localStorage
       localStorage.setItem(`player_${game.id}`, player.id);
       localStorage.setItem('deliWarsCurrentGame', game.id);
-
-      // Set player ID in state to match what we stored
       setPlayerId(player.id);
 
-      // Immediately set current game and player to avoid UI loading issues
+      // Set state
       setCurrentGame(game);
       setPlayer(player);
 
@@ -177,7 +158,7 @@ export const GameProvider = ({ children }) => {
     try {
       setLoading(true);
 
-      // First get a default starting borough
+      // Get default starting borough
       let defaultBoroughId = null;
       try {
         const { data: borough } = await supabase
@@ -188,7 +169,6 @@ export const GameProvider = ({ children }) => {
 
         if (borough) {
           defaultBoroughId = borough.id;
-          console.log('Using default borough for joining:', defaultBoroughId);
         }
       } catch (boroughErr) {
         console.error('Could not fetch a default borough:', boroughErr);
@@ -227,9 +207,9 @@ export const GameProvider = ({ children }) => {
       }
 
       // Use provided player name or generate one
-      const username = playerName || generatePlayerName();
+      const username = playerName || 'Player';
 
-      // Use the initializePlayer function to create the player with correct values
+      // Initialize player
       const newPlayerId = await initializePlayer(
         gameId,
         playerId,
@@ -240,7 +220,7 @@ export const GameProvider = ({ children }) => {
         throw new Error('Failed to initialize player');
       }
 
-      // Now fetch the created player data
+      // Fetch the created player data
       const { data: playerData, error: playerFetchError } = await supabase
         .from('players')
         .select('*')
@@ -249,7 +229,7 @@ export const GameProvider = ({ children }) => {
 
       if (playerFetchError) throw playerFetchError;
 
-      // Update the username separately since initializePlayer doesn't set it
+      // Update username separately
       const { error: usernameError } = await supabase
         .from('players')
         .update({ username: username })
@@ -286,10 +266,6 @@ export const GameProvider = ({ children }) => {
 
       // If we found a game-specific ID that's different, update state
       if (gameSpecificPlayerId && gameSpecificPlayerId !== playerId) {
-        console.log(
-          'Updating playerId to game-specific ID:',
-          gameSpecificPlayerId
-        );
         setPlayerId(gameSpecificPlayerId);
       }
 
@@ -307,7 +283,7 @@ export const GameProvider = ({ children }) => {
 
       if (gameError) throw gameError;
 
-      // Load player data using playerIdToUse directly instead of user_id
+      // Load player data using playerIdToUse
       const { data: playerData, error: playerError } = await supabase
         .from('players')
         .select('*')
@@ -394,261 +370,7 @@ export const GameProvider = ({ children }) => {
     }
   };
 
-  // Transaction functions (buy, sell)
-  const buyProduct = async (productId, quantity, storeId, neighborhoodId) => {
-    if (!player || !currentGame) return { success: false };
-
-    try {
-      setLoading(true);
-
-      // Get product from market inventory
-      const { data: marketItem, error: marketError } = await supabase
-        .from('market_inventory')
-        .select('*')
-        .eq('game_id', currentGame.id)
-        .eq('neighborhood_id', neighborhoodId)
-        .eq('product_id', productId)
-        .eq('store_id', storeId)
-        .single();
-
-      if (marketError) throw marketError;
-
-      if (!marketItem || marketItem.quantity < quantity) {
-        throw new Error('Not enough inventory available');
-      }
-
-      const totalCost = marketItem.current_price * quantity;
-
-      if (player.cash < totalCost) {
-        throw new Error('Not enough cash');
-      }
-
-      // Check if player already has this product in inventory
-      const { data: existingItem } = await supabase
-        .from('player_inventory')
-        .select('*')
-        .eq('player_id', player.id)
-        .eq('product_id', productId)
-        .maybeSingle();
-
-      // Start a transaction
-      // 1. Update player cash
-      const { data: updatedPlayer, error: playerError } = await supabase
-        .from('players')
-        .update({ cash: player.cash - totalCost })
-        .eq('id', player.id)
-        .select()
-        .single();
-
-      if (playerError) throw playerError;
-
-      // 2. Update market inventory
-      const { error: marketUpdateError } = await supabase
-        .from('market_inventory')
-        .update({ quantity: marketItem.quantity - quantity })
-        .eq('id', marketItem.id);
-
-      if (marketUpdateError) throw marketUpdateError;
-
-      // 3. Update or insert player inventory
-      if (existingItem) {
-        // Update existing inventory item
-        const { error: inventoryError } = await supabase
-          .from('player_inventory')
-          .update({
-            quantity: existingItem.quantity + quantity,
-            // Weighted average for purchase price
-            purchase_price:
-              (existingItem.purchase_price * existingItem.quantity +
-                totalCost) /
-              (existingItem.quantity + quantity),
-          })
-          .eq('id', existingItem.id);
-
-        if (inventoryError) throw inventoryError;
-      } else {
-        // Create new inventory item
-        const { error: inventoryError } = await supabase
-          .from('player_inventory')
-          .insert({
-            player_id: player.id,
-            product_id: productId,
-            quantity: quantity,
-            purchase_price: marketItem.current_price,
-          });
-
-        if (inventoryError) throw inventoryError;
-      }
-
-      // 4. Record transaction
-      const { error: transactionError } = await supabase
-        .from('transactions')
-        .insert({
-          game_id: currentGame.id,
-          player_id: player.id,
-          product_id: productId,
-          neighborhood_id: neighborhoodId,
-          transaction_type: 'buy',
-          quantity: quantity,
-          price: marketItem.current_price,
-          hour: currentGame.current_hour,
-        });
-
-      if (transactionError) throw transactionError;
-
-      // Update local state
-      setPlayer(updatedPlayer);
-
-      // Reload inventory
-      const { data: inventory } = await supabase
-        .from('player_inventory')
-        .select(
-          `
-          *,
-          products:product_id (
-            name,
-            description
-          )
-        `
-        )
-        .eq('player_id', player.id);
-
-      setPlayerInventory(inventory || []);
-
-      toast.success(`Bought ${quantity} items for $${totalCost.toFixed(2)}`);
-      return { success: true };
-    } catch (error) {
-      console.error('Error buying product:', error);
-      toast.error(`Error: ${error.message}`);
-      return { success: false, error };
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const sellProduct = async (inventoryItemId, quantity, neighborhoodId) => {
-    if (!player || !currentGame) return { success: false };
-
-    try {
-      setLoading(true);
-
-      // Get inventory item
-      const { data: inventoryItem, error: inventoryError } = await supabase
-        .from('player_inventory')
-        .select(
-          `
-          *,
-          products:product_id (*)
-        `
-        )
-        .eq('id', inventoryItemId)
-        .single();
-
-      if (inventoryError) throw inventoryError;
-
-      if (!inventoryItem || inventoryItem.quantity < quantity) {
-        throw new Error('Not enough items in inventory');
-      }
-
-      // Get current price in neighborhood
-      const { data: marketItem, error: marketError } = await supabase
-        .from('market_inventory')
-        .select('*')
-        .eq('game_id', currentGame.id)
-        .eq('neighborhood_id', neighborhoodId)
-        .eq('product_id', inventoryItem.product_id)
-        .single();
-
-      if (marketError) throw marketError;
-
-      const salePrice = marketItem.current_price;
-      const totalValue = salePrice * quantity;
-
-      // Start a transaction
-      // 1. Update player cash
-      const { data: updatedPlayer, error: playerError } = await supabase
-        .from('players')
-        .update({ cash: player.cash + totalValue })
-        .eq('id', player.id)
-        .select()
-        .single();
-
-      if (playerError) throw playerError;
-
-      // 2. Update market inventory
-      const { error: marketUpdateError } = await supabase
-        .from('market_inventory')
-        .update({ quantity: marketItem.quantity + quantity })
-        .eq('id', marketItem.id);
-
-      if (marketUpdateError) throw marketUpdateError;
-
-      // 3. Update player inventory
-      if (inventoryItem.quantity === quantity) {
-        // Remove item entirely
-        const { error: removeError } = await supabase
-          .from('player_inventory')
-          .delete()
-          .eq('id', inventoryItemId);
-
-        if (removeError) throw removeError;
-      } else {
-        // Decrease quantity
-        const { error: updateError } = await supabase
-          .from('player_inventory')
-          .update({ quantity: inventoryItem.quantity - quantity })
-          .eq('id', inventoryItemId);
-
-        if (updateError) throw updateError;
-      }
-
-      // 4. Record transaction
-      const { error: transactionError } = await supabase
-        .from('transactions')
-        .insert({
-          game_id: currentGame.id,
-          player_id: player.id,
-          product_id: inventoryItem.product_id,
-          neighborhood_id: neighborhoodId,
-          transaction_type: 'sell',
-          quantity: quantity,
-          price: salePrice,
-          hour: currentGame.current_hour,
-        });
-
-      if (transactionError) throw transactionError;
-
-      // Update local state
-      setPlayer(updatedPlayer);
-
-      // Reload inventory
-      const { data: inventory } = await supabase
-        .from('player_inventory')
-        .select(
-          `
-          *,
-          products:product_id (
-            name,
-            description
-          )
-        `
-        )
-        .eq('player_id', player.id);
-
-      setPlayerInventory(inventory || []);
-
-      toast.success(`Sold ${quantity} items for $${totalValue.toFixed(2)}`);
-      return { success: true };
-    } catch (error) {
-      console.error('Error selling product:', error);
-      toast.error(`Error: ${error.message}`);
-      return { success: false, error };
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Add this function to refresh player data
+  // Refresh player data
   const refreshPlayerData = async () => {
     if (!player?.id) return false;
 
@@ -670,8 +392,6 @@ export const GameProvider = ({ children }) => {
         return false;
       }
 
-      console.log('Got fresh player data:', data);
-
       // Format the data to include current_borough as string
       const playerWithBorough = {
         ...data,
@@ -689,299 +409,14 @@ export const GameProvider = ({ children }) => {
     }
   };
 
-  // Modify travelToNeighborhood to use the travelToBorough function
+  // Travel to neighborhood
   const travelToNeighborhood = async (neighborhoodId, transportationId) => {
     if (!player || !currentGame) return { success: false };
 
     try {
       setLoading(true);
 
-      console.log('Attempting travel to neighborhood:', neighborhoodId);
-
-      // FIRST: Check the action cost for this travel
-      // Get the current borough and transportation method
-      const fromBoroughId = player.current_borough_id;
-
-      // Get the borough distance record to determine action cost
-      const { data: distanceData, error: distanceError } = await supabase
-        .from('borough_distances')
-        .select('*')
-        .eq('from_borough_id', fromBoroughId)
-        .eq('to_borough_id', neighborhoodId)
-        .single();
-
-      if (distanceError) {
-        console.error('Error getting borough distance:', distanceError);
-        throw new Error('Could not determine travel distance');
-      }
-
-      // Get the transportation method details
-      const { data: transportData, error: transportError } = await supabase
-        .from('transportation_methods')
-        .select('*')
-        .eq('id', transportationId)
-        .single();
-
-      if (transportError) {
-        console.error('Error getting transportation details:', transportError);
-        throw new Error('Could not determine transportation details');
-      }
-
-      // Get player's current actions
-      const { data: actionsData, error: actionsError } = await supabase
-        .from('player_actions')
-        .select('*')
-        .eq('player_id', player.id)
-        .eq('game_id', currentGame.id)
-        .eq('hour', currentGame.current_hour)
-        .single();
-
-      // If no actions data is found, create a new record or use default values
-      let remainingActions = 0;
-      let actionCost = 0;
-
-      // Determine action cost first based on transportation type
-      if (transportData.name.toLowerCase().includes('walk')) {
-        actionCost = distanceData.walking_time;
-      } else if (transportData.name.toLowerCase().includes('subway')) {
-        actionCost = distanceData.subway_time;
-      } else if (transportData.name.toLowerCase().includes('taxi')) {
-        actionCost = distanceData.taxi_time;
-      } else if (transportData.name.toLowerCase().includes('bike')) {
-        actionCost = distanceData.bike_time;
-      } else {
-        // Default to walking time if can't determine
-        actionCost = distanceData.walking_time;
-      }
-
-      // If we couldn't fetch player actions, try to create a new record
-      if (actionsError || !actionsData) {
-        console.log(
-          'No player actions found, creating new record or using defaults'
-        );
-
-        try {
-          // Try to create a new player_actions record
-          const { data: newActionRecord, error: createError } = await supabase
-            .from('player_actions')
-            .insert({
-              player_id: player.id,
-              game_id: currentGame.id,
-              hour: currentGame.current_hour,
-              actions_used: 0,
-              actions_available: 4,
-            })
-            .select()
-            .single();
-
-          if (createError) {
-            console.error('Error creating player actions record:', createError);
-            // Use default values
-            remainingActions = 4;
-          } else if (newActionRecord) {
-            remainingActions =
-              newActionRecord.actions_available - newActionRecord.actions_used;
-          } else {
-            remainingActions = 4; // Fallback to default
-          }
-        } catch (err) {
-          console.error('Error handling player actions:', err);
-          remainingActions = 4; // Fallback to default
-        }
-      } else {
-        // Calculate remaining actions from fetched data
-        remainingActions =
-          actionsData.actions_available - actionsData.actions_used;
-      }
-
-      // Check if enough actions are available
-      if (remainingActions < actionCost) {
-        // Ask user for confirmation that this will advance their turn
-        if (
-          window.confirm(
-            `This trip requires ${actionCost} actions, but you only have ${remainingActions} remaining. Continue and advance to the next turn?`
-          )
-        ) {
-          console.log('User confirmed to advance turn and continue travel');
-
-          // Call endTurn first
-          const endTurnResult = await endTurn();
-
-          if (!endTurnResult.success) {
-            console.error('Failed to end turn:', endTurnResult.error);
-            throw new Error('Failed to advance to next turn');
-          }
-
-          console.log('Turn advanced successfully');
-
-          // Brief delay to allow turn to advance
-          await new Promise((resolve) => setTimeout(resolve, 500));
-
-          // Refresh game data to get new hour
-          await fetchGameData();
-
-          // Get the new hour
-          const { data: updatedGame } = await supabase
-            .from('games')
-            .select('current_hour')
-            .eq('id', currentGame.id)
-            .single();
-
-          if (updatedGame) {
-            console.log('New game hour:', updatedGame.current_hour);
-
-            // Ensure player_actions record exists for this new hour
-            const { data: newHourActions, error: newActionsError } =
-              await supabase
-                .from('player_actions')
-                .select('*')
-                .eq('player_id', player.id)
-                .eq('game_id', currentGame.id)
-                .eq('hour', updatedGame.current_hour)
-                .single();
-
-            if (newActionsError || !newHourActions) {
-              console.log('Creating fresh player_actions for new hour');
-
-              // Create new player_actions for the new hour
-              await supabase.from('player_actions').insert({
-                player_id: player.id,
-                game_id: currentGame.id,
-                hour: updatedGame.current_hour,
-                actions_used: 0,
-                actions_available: 4,
-              });
-            }
-
-            // Directly update player location on client-side instead of using the RPC
-            console.log('Implementing client-side travel as fallback');
-
-            try {
-              // Get transportation cost from stored data
-              let transportCost = 0;
-              if (transportData.name.toLowerCase().includes('taxi')) {
-                transportCost = distanceData.taxi_cost;
-              } else if (
-                !transportData.name.toLowerCase().includes('walk') &&
-                !transportData.name.toLowerCase().includes('bike')
-              ) {
-                transportCost = transportData.base_cost;
-              }
-
-              // 1. Update player cash and location
-              const { data: updatedPlayer, error: playerUpdateError } =
-                await supabase
-                  .from('players')
-                  .update({
-                    cash: player.cash - transportCost,
-                    current_borough_id: neighborhoodId,
-                  })
-                  .eq('id', player.id)
-                  .select()
-                  .single();
-
-              if (playerUpdateError) {
-                throw playerUpdateError;
-              }
-
-              // 2. Record transportation (ignore if it fails with unique violation)
-              try {
-                await supabase.from('player_transportation').insert({
-                  player_id: player.id,
-                  transportation_id: transportationId,
-                  unlocked_at: new Date().toISOString(),
-                  active: true,
-                });
-              } catch (err) {
-                console.log('Transportation record already exists, continuing');
-              }
-
-              // 3. Record transaction if needed
-              if (transportCost > 0) {
-                await supabase.from('transactions').insert({
-                  game_id: currentGame.id,
-                  player_id: player.id,
-                  quantity: 1,
-                  price: transportCost,
-                  hour: updatedGame.current_hour,
-                  transaction_type: 'transport',
-                  neighborhood_id: neighborhoodId,
-                });
-              }
-
-              // 4. Consume actions
-              const { data: actionsData } = await supabase
-                .from('player_actions')
-                .select('*')
-                .eq('player_id', player.id)
-                .eq('game_id', currentGame.id)
-                .eq('hour', updatedGame.current_hour)
-                .single();
-
-              if (actionsData) {
-                await supabase
-                  .from('player_actions')
-                  .update({
-                    actions_used: actionsData.actions_used + actionCost,
-                  })
-                  .eq('id', actionsData.id);
-              }
-
-              // Refresh player data
-              await refreshPlayerData();
-              await fetchGameData();
-
-              return {
-                success: true,
-                hourAdvanced: true,
-                newHour: updatedGame.current_hour,
-                clientSide: true,
-              };
-            } catch (clientErr) {
-              console.error(
-                'Client-side travel implementation failed:',
-                clientErr
-              );
-              throw new Error(
-                'Client-side travel failed: ' + clientErr.message
-              );
-            }
-          }
-        } else {
-          setLoading(false);
-          return { success: false, error: new Error('Travel cancelled') };
-        }
-      }
-
       // Call the travel function from gameActions
-      console.log('Calling travelToBorough with:', {
-        playerId: player.id,
-        gameId: currentGame.id,
-        toBorough: neighborhoodId,
-        transportId: transportationId,
-      });
-
-      // First ensure we have up-to-date player actions for the current hour
-      const { data: currentActionsData, error: currentActionsError } =
-        await supabase
-          .from('player_actions')
-          .select('*')
-          .eq('player_id', player.id)
-          .eq('game_id', currentGame.id)
-          .eq('hour', currentGame.current_hour)
-          .single();
-
-      if (!currentActionsError && currentActionsData) {
-        // Update actions_used directly in the database
-        console.log('Manually updating action points before travel');
-        const newActionsUsed = currentActionsData.actions_used + actionCost;
-
-        await supabase
-          .from('player_actions')
-          .update({ actions_used: newActionsUsed })
-          .eq('id', currentActionsData.id);
-      }
-
       const result = await travelToBorough(
         player.id,
         currentGame.id,
@@ -989,114 +424,25 @@ export const GameProvider = ({ children }) => {
         transportationId
       );
 
-      console.log('travelToBorough result:', result);
-
-      // Check if hour was advanced (can be detected by comparing game hour before and after)
-      const { data: currentGameData } = await supabase
-        .from('games')
-        .select('current_hour')
-        .eq('id', currentGame.id)
-        .single();
-
-      const hourAdvanced =
-        currentGameData &&
-        currentGameData.current_hour !== currentGame.current_hour;
-
-      // Always refresh player data regardless of reported success/failure
-      // since the constraint error might not have prevented travel
-      const refreshSuccess = await refreshPlayerData();
-
-      // Also refresh game data to get updated hour
+      // Refresh player data and game data
+      await refreshPlayerData();
       await fetchGameData();
 
-      // After refreshing, check if we're now in the destination borough
-      // This handles the case where travel succeeded despite unique constraint error
-      if (refreshSuccess && player.current_borough_id === neighborhoodId) {
-        console.log('Player location matches destination, travel succeeded');
-        return {
-          success: true,
-          hourAdvanced,
-          newHour: currentGameData?.current_hour,
-        };
-      }
-
-      if (!result.success) {
-        // Special handling for unique constraint errors
-        if (
-          result.error &&
-          result.error.code === '23505' &&
-          result.error.message &&
-          result.error.message.includes(
-            'player_transportation_player_id_transportation_id_key'
-          )
-        ) {
-          console.log(
-            'Got unique constraint error but travel may have completed'
-          );
-
-          // Refresh player data one more time with a slight delay
-          await new Promise((resolve) => setTimeout(resolve, 300));
-          await refreshPlayerData();
-
-          // Check again if location updated
-          if (player.current_borough_id === neighborhoodId) {
-            console.log('After second refresh, travel appears successful');
-            return {
-              success: true,
-              hourAdvanced,
-              newHour: currentGameData?.current_hour,
-            };
-          }
-        }
-
-        console.error('Travel failed:', result.error);
-        throw result.error || new Error('Travel failed');
-      }
-
-      return {
-        success: true,
-        hourAdvanced,
-        newHour: currentGameData?.current_hour,
-      };
+      return { success: result.success, error: result.error };
     } catch (error) {
       console.error('Error traveling:', error);
-
-      // Analyze and log details about the error
-      console.log('Full error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name,
-        code: error.code,
-        details: error.details,
-      });
-
-      // Provide more specific error message based on error type
-      let errorMessage = 'Travel failed';
-      if (error.message.includes('distance')) {
-        errorMessage = 'Could not calculate travel distance';
-      } else if (error.message.includes('actions')) {
-        errorMessage = 'Not enough action points remaining';
-      } else if (error.message.includes('transaction')) {
-        errorMessage = 'Database error during travel';
-      } else if (error.message.includes('turn')) {
-        errorMessage = 'Failed to advance turn';
-      }
-
-      toast.error(errorMessage);
-      return { success: false, error, errorMessage };
+      toast.error(`Travel failed: ${error.message}`);
+      return { success: false, error };
     } finally {
       setLoading(false);
     }
   };
 
-  // Add this function to fetch game data
+  // Fetch game data
   const fetchGameData = async () => {
     if (!currentGame?.id || !player?.id) return;
 
     try {
-      // Store previous game hour to detect changes
-      const previousHour = currentGame.current_hour;
-
       // Fetch updated game data
       const { data: gameData, error: gameError } = await supabase
         .from('games')
@@ -1108,9 +454,6 @@ export const GameProvider = ({ children }) => {
         console.error('Error fetching game data:', gameError);
         return;
       }
-
-      // Check if the hour changed
-      const hourChanged = previousHour !== gameData.current_hour;
 
       // Fetch updated player data
       const { data: playerData, error: playerError } = await supabase
@@ -1129,7 +472,7 @@ export const GameProvider = ({ children }) => {
         return;
       }
 
-      // Format player data to include current_borough as a string
+      // Format player data
       const playerWithBorough = {
         ...playerData,
         current_borough: playerData.boroughs?.name || 'Unknown Location',
@@ -1166,7 +509,7 @@ export const GameProvider = ({ children }) => {
     }
   };
 
-  // Modify endTurn function to update UI immediately
+  // End turn
   const endTurn = async () => {
     if (!player || !currentGame) return { success: false };
 
@@ -1254,6 +597,85 @@ export const GameProvider = ({ children }) => {
       loadGame(storedGameId);
     }
   }, [playerId]);
+
+  // Buy product (proxy to gameActions)
+  const buyProduct = async (productId, quantity, storeId, neighborhoodId) => {
+    try {
+      setLoading(true);
+
+      if (!player || !currentGame) {
+        return { success: false, error: new Error('Game or player not found') };
+      }
+
+      const result = await buyRecord(
+        player.id,
+        currentGame.id,
+        storeId,
+        productId,
+        quantity
+      );
+
+      if (result.success) {
+        await fetchGameData(); // Refresh data if successful
+        toast.success('Purchase successful!');
+      } else {
+        toast.error(result.message || 'Purchase failed');
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error in buyProduct:', error);
+      toast.error(`Error: ${error.message}`);
+      return { success: false, error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Sell product (proxy to gameActions)
+  const sellProduct = async (inventoryItemId, quantity, storeId) => {
+    try {
+      setLoading(true);
+
+      if (!player || !currentGame) {
+        return { success: false, error: new Error('Game or player not found') };
+      }
+
+      // First get the product ID from the inventory item
+      const { data: inventoryItem } = await supabase
+        .from('player_inventory')
+        .select('product_id')
+        .eq('id', inventoryItemId)
+        .single();
+
+      if (!inventoryItem) {
+        return { success: false, error: new Error('Inventory item not found') };
+      }
+
+      const result = await sellRecord(
+        player.id,
+        currentGame.id,
+        storeId,
+        inventoryItem.product_id,
+        quantity
+      );
+
+      if (result) {
+        await fetchGameData(); // Refresh data if successful
+        toast.success('Sale successful!');
+        return { success: true };
+      } else {
+        toast.error('Sale failed');
+        return { success: false };
+      }
+    } catch (error) {
+      console.error('Error in sellProduct:', error);
+      toast.error(`Error: ${error.message}`);
+      return { success: false, error };
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <GameContext.Provider
