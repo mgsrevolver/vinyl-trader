@@ -305,14 +305,14 @@
 .transport-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  gap: 8px;
   padding: 0 16px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 /* More compact transport options */
 .transport-option {
-  padding: 12px;
+  padding: 10px;
   border-radius: 8px;
   background-color: white;
   border: 1px solid #eee;
@@ -329,20 +329,9 @@
   border: 1px solid #2196f3;
 }
 
-.transport-icon {
-  font-size: 20px;
-  margin-bottom: 4px;
-  color: #555;
-}
-
-.transport-option.selected .transport-icon {
-  color: #2196f3;
-}
-
 .transport-name {
   font-weight: 600;
   margin-bottom: 4px;
-  font-size: 15px;
 }
 
 .transport-price,

@@ -12,11 +12,17 @@ import {
   FaTaxi,
   FaDollarSign,
   FaClock,
+  FaCoins,
+  FaWarehouse,
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useGame } from '../contexts/GameContext';
 import Button from '../components/ui/Button';
+import {
+  getTransportationMethods,
+  getBoroughDistances,
+} from '../lib/gameActions';
 
 // You'll need to add an NYC map image to your public/assets folder
 // This image should be a simplified map of NYC showing the boroughs
@@ -32,47 +38,18 @@ const TravelScreen = () => {
   const [selectedTransport, setSelectedTransport] = useState(null);
   const [dataLoading, setDataLoading] = useState(true);
   const [startY, setStartY] = useState(0);
+  const [transportOptions, setTransportOptions] = useState([]);
+  const [boroughDistances, setBoroughDistances] = useState([]);
 
   // NYC borough coordinates based on the screenshot
   const boroughCoordinates = {
-    manhattan: { x: 42, y: 55 },
+    downtown: { x: 42, y: 60 },
+    uptown: { x: 42, y: 45 },
     brooklyn: { x: 52, y: 75 },
     queens: { x: 65, y: 55 },
     bronx: { x: 45, y: 40 },
     staten_island: { x: 25, y: 85 },
   };
-
-  // Fixed transportation options in the correct order
-  const transportOptions = [
-    {
-      id: 'walking',
-      name: 'Walking',
-      base_cost: 0.0,
-      speed_factor: 1,
-      icon: <FaWalking />,
-    },
-    {
-      id: 'bike',
-      name: 'Bike',
-      base_cost: 0.0,
-      speed_factor: 1.5,
-      icon: <FaBicycle />,
-    },
-    {
-      id: 'subway',
-      name: 'Subway',
-      base_cost: 1.0,
-      speed_factor: 2,
-      icon: <FaSubway />,
-    },
-    {
-      id: 'taxi',
-      name: 'Taxi',
-      base_cost: 10.0,
-      speed_factor: 3,
-      icon: <FaTaxi />,
-    },
-  ];
 
   useEffect(() => {
     const loadTravelData = async () => {
@@ -87,8 +64,8 @@ const TravelScreen = () => {
 
         // Add coordinates from our mapping
         const neighborhoodsWithCoords = neighborhoodData.map((hood) => {
-          // Using a simplified mapping for demo purposes
-          const boroughKey = hood.name.toLowerCase().replace(/\s+/g, '_');
+          // Convert borough name to lowercase for matching with our coordinates
+          const boroughKey = hood.name.toLowerCase();
           const coords = boroughCoordinates[boroughKey] || { x: 50, y: 50 };
 
           return {
@@ -100,8 +77,48 @@ const TravelScreen = () => {
 
         setNeighborhoods(neighborhoodsWithCoords || []);
 
-        // Pre-select walking by default
-        setSelectedTransport(transportOptions[0]);
+        // Fetch transportation methods from database
+        const transportationMethods = await getTransportationMethods();
+
+        // Ensure we have unique transport methods (no duplicates)
+        // Group by transport type and take the first of each type
+        const transportTypes = {};
+        transportationMethods.forEach((method) => {
+          const type = method.name.toLowerCase();
+          if (!transportTypes[type]) {
+            transportTypes[type] = method;
+          }
+        });
+
+        // Map transportation methods to include icons
+        const transportWithIcons = Object.values(transportTypes).map(
+          (method) => {
+            // Add icons based on name/type
+            let icon = <FaWalking />;
+            const type = method.name.toLowerCase();
+
+            if (type.includes('bike')) icon = <FaBicycle />;
+            else if (type.includes('subway')) icon = <FaSubway />;
+            else if (type.includes('taxi')) icon = <FaTaxi />;
+
+            return {
+              ...method,
+              icon,
+            };
+          }
+        );
+
+        // Limit to 4 transport methods for 2x2 grid
+        setTransportOptions(transportWithIcons.slice(0, 4));
+
+        // Fetch borough distances
+        const distances = await getBoroughDistances();
+        setBoroughDistances(distances);
+
+        // Pre-select walking by default (or first available transport)
+        if (transportWithIcons.length > 0) {
+          setSelectedTransport(transportWithIcons[0]);
+        }
       } catch (err) {
         console.error('Error loading travel data:', err);
         toast.error('Failed to load travel data');
@@ -172,6 +189,46 @@ const TravelScreen = () => {
     (n) => n.id === player?.current_borough_id
   );
 
+  // Function to get travel time and cost for selected destination
+  const getTravelDetails = (fromBoroughId, toBoroughId, transportId) => {
+    // Find the distance record between the boroughs
+    const distanceRecord = boroughDistances.find(
+      (d) =>
+        (d.from_borough_id === fromBoroughId &&
+          d.to_borough_id === toBoroughId) ||
+        (d.from_borough_id === toBoroughId && d.to_borough_id === fromBoroughId)
+    );
+
+    // Find the selected transport method
+    const transport = transportOptions.find((t) => t.id === transportId);
+
+    if (!distanceRecord || !transport) return { time: 1, cost: 0 };
+
+    // Get time and cost based on transport type
+    let time = 1;
+    let cost = transport.base_cost || 0; // Default to the base_cost from the transportation method
+
+    const transportType = transport.name.toLowerCase();
+    if (transportType.includes('walk')) {
+      time = distanceRecord.walking_time || 3;
+      // Walking usually has no cost, but we'll use base_cost if it exists
+    } else if (transportType.includes('bike')) {
+      time = distanceRecord.bike_time || 2;
+      // Biking usually has no cost, but we'll use base_cost if it exists
+    } else if (transportType.includes('subway')) {
+      time = distanceRecord.subway_time || 2;
+      // Subway uses base_cost, which we've already set
+    } else if (transportType.includes('taxi')) {
+      time = distanceRecord.taxi_time || 1;
+      // For taxi, we'll use the taxi_cost from the distance record if available
+      if (distanceRecord.taxi_cost) {
+        cost = distanceRecord.taxi_cost;
+      }
+    }
+
+    return { time, cost };
+  };
+
   if (dataLoading || !player) {
     return (
       <div className="nyc-map-bg flex items-center justify-center">
@@ -193,9 +250,15 @@ const TravelScreen = () => {
       <div className="map-overlay"></div>
 
       <div className="travel-container">
-        {/* Back Button */}
+        {/* Back Button - Using inline styles for more precise positioning */}
         <button
-          className="back-button"
+          className="back-button bg-white rounded-full w-10 h-10 flex items-center justify-center shadow-md"
+          style={{
+            position: 'absolute',
+            top: '56px', // Use explicit pixels instead of Tailwind classes
+            left: '16px',
+            zIndex: 50, // Higher z-index to ensure it's above other elements
+          }}
           onClick={(e) => {
             e.stopPropagation();
             navigate(`/game/${gameId}`);
@@ -250,43 +313,63 @@ const TravelScreen = () => {
                 <h2 className="text-xl font-bold">
                   Travel to {selectedNeighborhood.name}
                 </h2>
-                <button className="close-button" onClick={handleCloseDrawer}>
+
+                {/* Close Button - Keeping the original class but adding the white circular style */}
+                <button
+                  className="close-button bg-white rounded-full w-10 h-10 flex items-center justify-center shadow-md"
+                  onClick={handleCloseDrawer}
+                >
                   <FaTimes />
                 </button>
               </div>
 
-              <p className="text-sm mb-2 px-4">
-                Choose your transportation method:
-              </p>
+              <p className="text-sm mb-2 px-4">How do you want to get there?</p>
 
               <div className="transport-grid">
-                {transportOptions.map((transport) => (
-                  <div
-                    key={transport.id}
-                    onClick={() => setSelectedTransport(transport)}
-                    className={`transport-option ${
-                      selectedTransport?.id === transport.id ? 'selected' : ''
-                    }`}
-                  >
-                    <div className="transport-icon">{transport.icon}</div>
-                    <div className="transport-name">{transport.name}</div>
-                    <div className="transport-price">
-                      <FaDollarSign className="text-gray-500" size={10} />
-                      <span>{formatMoney(transport.base_cost)}</span>
+                {transportOptions.map((transport) => {
+                  // Get travel details for this transport option
+                  const { time, cost } = getTravelDetails(
+                    player.current_borough_id,
+                    selectedNeighborhood?.id,
+                    transport.id
+                  );
+
+                  return (
+                    <div
+                      key={transport.id}
+                      onClick={() => setSelectedTransport(transport)}
+                      className={`transport-option ${
+                        selectedTransport?.id === transport.id ? 'selected' : ''
+                      }`}
+                    >
+                      <div className="transport-icon">{transport.icon}</div>
+                      <div className="transport-name">{transport.name}</div>
+                      <div className="transport-price">
+                        <FaCoins className="text-gray-500" size={10} />
+                        <span>{formatMoney(cost)}</span>
+                      </div>
+                      <div className="transport-time">
+                        <FaClock className="text-gray-500" size={10} />
+                        <span>{time} hours</span>
+                      </div>
+                      <div className="transport-price">
+                        <FaWarehouse className="text-gray-500" size={10} />
+                        <span>
+                          Capacity: {transport.capacity_modifier > 0 ? '+' : ''}
+                          {transport.capacity_modifier}
+                        </span>
+                      </div>
                     </div>
-                    <div className="transport-time">
-                      <FaClock className="text-gray-500" size={10} />
-                      <span>{transport.speed_factor} hours</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="px-4 pb-4 pt-2">
                 <Button
                   onClick={handleTravel}
                   disabled={loading || !selectedTransport}
-                  className="w-full py-3"
+                  size="lg"
+                  fullWidth
                 >
                   {loading ? (
                     <span className="flex items-center justify-center">

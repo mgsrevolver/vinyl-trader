@@ -612,3 +612,36 @@ export const initializeGameMarket = async (gameId) => {
     return false;
   }
 };
+
+/**
+ * Get all transportation methods
+ * @returns {Promise<Array>} - Available transportation methods
+ */
+export const getTransportationMethods = async () => {
+  const { data, error } = await supabase
+    .from('transportation_methods')
+    .select('*')
+    .order('speed_factor', { ascending: true });
+
+  if (error) {
+    console.error('Error getting transportation methods:', error);
+    return [];
+  }
+
+  return data || [];
+};
+
+/**
+ * Get all borough distances
+ * @returns {Promise<Array>} - Borough distances
+ */
+export const getBoroughDistances = async () => {
+  const { data, error } = await supabase.from('borough_distances').select('*');
+
+  if (error) {
+    console.error('Error getting borough distances:', error);
+    return [];
+  }
+
+  return data || [];
+};
