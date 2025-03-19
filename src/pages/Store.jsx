@@ -6,6 +6,8 @@ import {
   FaShoppingCart,
   FaShoppingBag,
   FaBolt,
+  FaStar,
+  FaCompactDisc,
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -275,27 +277,37 @@ const Store = () => {
                     No records available in this store
                   </p>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {storeInventory.map((item) => (
-                      <ProductCard
-                        key={item.id}
-                        product={{
-                          id: item.product_id,
-                          name: item.products?.name || 'Unknown Record',
-                          artist: item.products?.artist || 'Unknown Artist',
-                          genre: item.products?.genre || 'Various',
-                          year: item.products?.year || 'N/A',
-                          condition: item.products?.condition || 'Unknown',
-                          rarity: item.products?.rarity || 0.5,
-                          description: item.products?.description || '',
-                        }}
-                        price={item.current_price}
-                        quantity={item.quantity}
-                        onBuy={handleBuy}
-                        actionLabel="Buy"
-                        showAction={true}
-                      />
-                    ))}
+                  <div
+                    className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(1, 1fr)',
+                      gap: '16px',
+                    }}
+                  >
+                    {storeInventory.map((item) => {
+                      console.log('Rendering item:', item); // Debug log
+                      return (
+                        <ProductCard
+                          key={item.id}
+                          product={{
+                            id: item.products?.id || item.product_id,
+                            name: item.products?.name || 'Unknown Record',
+                            artist: item.products?.artist || 'Unknown Artist',
+                            genre: item.products?.genre || 'Various',
+                            year: item.products?.year || 'N/A',
+                            condition: item.products?.condition || 'Unknown',
+                            rarity: item.products?.rarity || 0.5,
+                            description: item.products?.description || '',
+                          }}
+                          price={item.current_price}
+                          quantity={item.quantity}
+                          onBuy={handleBuy}
+                          actionLabel="Buy"
+                          showAction={true}
+                        />
+                      );
+                    })}
                   </div>
                 )}
               </div>

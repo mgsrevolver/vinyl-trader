@@ -1,63 +1,5 @@
 import React from 'react';
-import { FaStar, FaCompactDisc } from 'react-icons/fa';
-
-const getRarityColor = (rarity) => {
-  if (!rarity) return '#9ca3af'; // gray-400
-
-  // Convert rarity to a number if it's a string
-  const rarityValue = typeof rarity === 'string' ? parseFloat(rarity) : rarity;
-
-  if (rarityValue >= 0.9) return '#fbbf24'; // Yellow/gold for very rare
-  if (rarityValue >= 0.8) return '#7c3aed'; // Purple for rare
-  if (rarityValue >= 0.7) return '#3b82f6'; // Blue for uncommon
-  if (rarityValue >= 0.5) return '#22c55e'; // Green for common
-  return '#9ca3af'; // Gray for default
-};
-
-const getConditionColor = (condition) => {
-  switch (condition?.toLowerCase()) {
-    case 'near mint':
-    case 'mint':
-      return '#16a34a'; // Green
-    case 'excellent':
-    case 'very good':
-      return '#3b82f6'; // Blue
-    case 'good':
-      return '#f59e0b'; // Amber
-    case 'fair':
-      return '#f97316'; // Orange
-    case 'poor':
-      return '#ef4444'; // Red
-    default:
-      return '#9ca3af'; // Gray
-  }
-};
-
-// Generate a vinyl album background pattern
-const getVinylBackground = (genre) => {
-  // You could add more complex patterns based on genre
-  const baseColor = getGenreBaseColor(genre);
-  return `linear-gradient(45deg, ${baseColor}40 25%, transparent 25%, transparent 75%, ${baseColor}40 75%, ${baseColor}40), 
-          linear-gradient(45deg, ${baseColor}40 25%, transparent 25%, transparent 75%, ${baseColor}40 75%, ${baseColor}40)`;
-};
-
-const getGenreBaseColor = (genre) => {
-  if (!genre) return '#000000';
-
-  const genreLower = genre.toLowerCase();
-
-  if (genreLower.includes('rock')) return '#e11d48'; // Red for Rock
-  if (genreLower.includes('pop')) return '#06b6d4'; // Cyan for Pop
-  if (genreLower.includes('hip-hop')) return '#8b5cf6'; // Purple for Hip-Hop
-  if (genreLower.includes('jazz')) return '#eab308'; // Yellow for Jazz
-  if (genreLower.includes('punk')) return '#f97316'; // Orange for Punk
-  if (genreLower.includes('indie')) return '#14b8a6'; // Teal for Indie
-  if (genreLower.includes('experimental')) return '#9333ea'; // Purple for Experimental
-  if (genreLower.includes('new wave')) return '#06b6d4'; // Cyan for New Wave
-
-  // Default color
-  return '#6b7280'; // Gray
-};
+import { FaStar } from 'react-icons/fa';
 
 const ProductCard = ({
   product,
@@ -72,132 +14,134 @@ const ProductCard = ({
 }) => {
   if (!product) return null;
 
-  const { id, name, artist, genre, year, condition, rarity, description } =
+  const { id, name, artist, genre, year, condition, rarity, image_url } =
     product;
-
-  // Use current price if provided, otherwise use base price
   const displayPrice = price || product.base_price || 0;
-  const rarityColor = getRarityColor(rarity);
-  const genreColor = getGenreBaseColor(genre);
-  const conditionColor = getConditionColor(condition);
 
+  // Calculate rarity stars (1-5 based on rarity value)
+  const rarityStars = Math.max(1, Math.min(5, Math.round(rarity * 5))) || 3;
+
+  // Use the CSS classes already defined in App.css
   return (
-    <div className="relative w-full max-w-xs mx-auto transform transition-all duration-300 hover:scale-105">
-      <div
-        className="record-card rounded-lg overflow-hidden shadow-lg"
-        style={{
-          background: '#0f172a', // Dark background
-          border: `2px solid ${rarityColor}`,
-        }}
-      >
-        {/* Vinyl texture background with genre color */}
-        <div
-          className="h-24 flex items-center justify-center px-4"
-          style={{
-            background: getVinylBackground(genre),
-            backgroundSize: '30px 30px',
-            backgroundPosition: '0 0, 15px 15px',
-            backgroundColor: genreColor + '20', // Translucent genre color
-            borderBottom: `2px solid ${rarityColor}`,
-          }}
-        >
-          <h2 className="text-white text-xl font-bold text-center leading-tight truncate">
-            {name}
-          </h2>
+    <div className="product-card">
+      {/* Main image area */}
+      <div className="h-[60%]">
+        {image_url ? (
+          <img
+            src={image_url}
+            alt={name}
+            className="max-w-full max-h-full object-contain"
+          />
+        ) : (
+          <div className="w-[80%] h-[80%] bg-white rounded-lg"></div>
+        )}
+      </div>
+
+      {/* Card info section */}
+      <div className="p-4 bg-gray-100">
+        {/* Name - Artist */}
+        <div className="mb-2 border-b border-gray-300 pb-2">
+          <h3 className="font-bold text-lg leading-tight truncate">{name}</h3>
+          <p className="text-sm text-gray-600 truncate">{artist}</p>
         </div>
 
-        {/* Record image/placeholder */}
-        <div className="w-full flex justify-center bg-gradient-to-b from-slate-800 to-black py-4">
-          <div
-            className="w-24 h-24 rounded-full bg-black flex items-center justify-center border-4"
-            style={{ borderColor: genreColor }}
+        {/* Genre and Year */}
+        <div className="flex justify-between mb-2 text-sm">
+          <span className="px-2 py-1 bg-gray-200 rounded-full text-xs">
+            {genre}
+          </span>
+          <span className="text-gray-700">({year})</span>
+        </div>
+
+        {/* Condition */}
+        <div className="mb-2">
+          <span
+            className={`px-2 py-1 text-white text-xs rounded-full ${
+              condition?.toLowerCase().includes('mint')
+                ? 'bg-green-600'
+                : condition?.toLowerCase().includes('excellent')
+                ? 'bg-blue-600'
+                : condition?.toLowerCase().includes('good')
+                ? 'bg-amber-500'
+                : condition?.toLowerCase().includes('fair')
+                ? 'bg-orange-500'
+                : 'bg-red-500'
+            }`}
           >
-            <div className="w-4 h-4 rounded-full bg-slate-300"></div>
-          </div>
+            Condition: {condition}
+          </span>
         </div>
 
-        {/* Record details */}
-        <div className="p-4 text-white">
-          <div className="flex justify-between mb-2">
-            <div className="text-lg font-semibold truncate">{artist}</div>
-            <div className="text-slate-300">{year}</div>
-          </div>
-
-          <div className="flex justify-between text-sm mb-3">
-            <div
-              className="px-2 py-1 rounded-full text-xs"
-              style={{ backgroundColor: genreColor + '30' }}
-            >
-              {genre}
-            </div>
-            <div
-              className="px-2 py-1 rounded-full text-xs"
-              style={{ backgroundColor: conditionColor, color: 'white' }}
-            >
-              {condition}
-            </div>
-          </div>
-
+        {/* Rarity and Price at bottom */}
+        <div className="flex justify-between items-end mt-2">
           {/* Rarity stars */}
-          <div className="flex justify-center mb-2">
+          <div className="flex">
             {[...Array(5)].map((_, i) => (
               <FaStar
                 key={i}
-                size={14}
-                className="mx-0.5"
-                color={i < Math.round(rarity * 5) ? rarityColor : '#1e293b'}
+                size={16}
+                className={i < rarityStars ? 'text-amber-400' : 'text-gray-300'}
               />
             ))}
           </div>
 
-          {/* Purchase info */}
-          <div className="flex justify-between items-center mb-3">
-            <div className="text-xl font-bold">
-              ${parseFloat(displayPrice).toFixed(2)}
-            </div>
-            {quantity !== undefined && (
-              <div className="text-sm text-slate-300">In stock: {quantity}</div>
+          {/* Price */}
+          <div className="font-bold text-lg">
+            ${parseFloat(displayPrice).toFixed(2)}
+          </div>
+        </div>
+
+        {/* Purchase info for selling view */}
+        {purchasePrice && (
+          <div className="text-xs text-gray-600 mt-1">
+            You paid: ${parseFloat(purchasePrice).toFixed(2)}
+            {estimatedValue && (
+              <span className="ml-1">
+                {estimatedValue > purchasePrice ? (
+                  <span className="text-green-600">
+                    ↑ ${(estimatedValue - purchasePrice).toFixed(2)}
+                  </span>
+                ) : (
+                  <span className="text-red-600">
+                    ↓ ${(purchasePrice - estimatedValue).toFixed(2)}
+                  </span>
+                )}
+              </span>
             )}
           </div>
+        )}
 
-          {purchasePrice && (
-            <div className="text-sm text-slate-300 mb-2">
-              You paid: ${parseFloat(purchasePrice).toFixed(2)}
-              {estimatedValue && (
-                <span className="ml-2">
-                  {estimatedValue > purchasePrice ? (
-                    <span className="text-green-500">↑</span>
-                  ) : (
-                    <span className="text-red-500">↓</span>
-                  )}
-                </span>
-              )}
-            </div>
-          )}
+        {/* Quantity indicator */}
+        {quantity !== undefined && (
+          <div className="text-xs text-gray-600 mt-1">
+            {quantity > 0 ? `In stock: ${quantity}` : 'Out of stock'}
+          </div>
+        )}
+      </div>
 
-          {/* Action button */}
-          {showAction && onBuy && (
+      {/* Action buttons positioned absolutely at bottom */}
+      {showAction && (onBuy || onSell) && (
+        <div className="absolute bottom-0 left-0 right-0 p-2 bg-black bg-opacity-50">
+          {onBuy && (
             <button
               onClick={() => onBuy(id, 1)}
               disabled={quantity < 1}
-              className="w-full py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              className="w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <FaCompactDisc className="mr-2" />
               {actionLabel || 'Buy Now'}
             </button>
           )}
 
-          {showAction && onSell && (
+          {onSell && (
             <button
               onClick={() => onSell(id, 1)}
-              className="w-full py-2 bg-teal-500 text-white rounded-md hover:bg-teal-600 flex items-center justify-center"
+              className="w-full py-2 bg-green-600 text-white rounded hover:bg-green-700"
             >
-              <FaCompactDisc className="mr-2" />
               {actionLabel || 'Sell Now'}
             </button>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 };
