@@ -236,20 +236,18 @@ const Game = () => {
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       <div className="max-w-xl mx-auto p-4 mt-4">
-        {/* Header Row with Downtown and Travel */}
+        {/* Header Row with Borough name and Travel */}
         <div className="header-row">
           <div className="flex items-center">
-            <h1 className="text-2xl font-bold">Downtown</h1>
+            <h1 className="text-2xl font-bold">
+              {currentBoroughName || 'Unknown Location'}
+            </h1>
           </div>
 
           <button onClick={goToTravel} className="travel-button">
             <FaMapMarkedAlt className="mr-2" /> Travel
           </button>
         </div>
-
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">
-          Record Stores
-        </h2>
 
         {boroughStores.length === 0 ? (
           <div className="text-center p-6 bg-white rounded-lg shadow-md">
