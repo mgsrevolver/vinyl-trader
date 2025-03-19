@@ -1019,3 +1019,137 @@
 .product-card .flex svg {
   display: inline;
 }
+
+/* Swipe indicators */
+.swipe-indicator {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  z-index: 30;
+  transition: opacity 0.2s ease;
+}
+
+.like-indicator {
+  right: -20px;
+  background-color: rgba(52, 211, 153, 0.2);
+  border: 2px solid #10b981;
+  color: #10b981;
+}
+
+.skip-indicator {
+  left: -20px;
+  background-color: rgba(239, 68, 68, 0.2);
+  border: 2px solid #ef4444;
+  color: #ef4444;
+}
+
+/* Make indicators appear when dragging */
+.product-card:active .swipe-indicator {
+  opacity: 0.9;
+}
+
+/* Add rotation to card when dragging */
+.product-card {
+  transition: transform 0.3s ease;
+}
+
+.product-card:active {
+  cursor: grabbing;
+}
+
+/* Add CSS for the drag mechanism */
+.swipe-card-container {
+  perspective: 1000px;
+  position: relative;
+}
+
+/* Card stack container */
+.card-stack-container {
+  position: relative;
+  min-height: 480px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0;
+}
+
+.swipe-counter {
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+/* Current card positioning */
+.current-card {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+  z-index: 10;
+}
+
+/* Next card styling */
+.next-card {
+  position: absolute;
+  top: 40px; /* Same height as current card, after counter */
+  left: 50%;
+  transform: translateX(-50%) scale(0.95);
+  width: 100%;
+  max-width: 300px;
+  opacity: 0.7;
+  filter: blur(1px);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Product card wrapper */
+.product-card-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+/* Swipeable card styles */
+.swipeable-card {
+  cursor: grab;
+  touch-action: pan-x;
+}
+
+.swipeable-card:active {
+  cursor: grabbing;
+}
+
+/* Swipe indicators */
+.swipe-indicator {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: white;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  z-index: 20;
+  pointer-events: none;
+}
+
+.skip-indicator {
+  left: 16px;
+  color: #ef4444;
+  border: 2px solid #ef4444;
+}
+
+.like-indicator {
+  right: 16px;
+  color: #10b981;
+  border: 2px solid #10b981;
+}
