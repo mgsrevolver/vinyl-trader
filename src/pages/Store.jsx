@@ -15,6 +15,7 @@ import { useGame } from '../contexts/GameContext';
 import { getStoreInventory, buyRecord, sellRecord } from '../lib/gameActions';
 import ActionButton from '../components/ui/ActionButton';
 import ProductCard from '../components/ui/ProductCard';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Store = () => {
   const { gameId, boroughId, storeId } = useParams();
@@ -27,6 +28,9 @@ const Store = () => {
   const [storeInventory, setStoreInventory] = useState([]);
   const [error, setError] = useState(null);
   const [buyMode, setBuyMode] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [direction, setDirection] = useState(null);
+  const [swipeMode, setSwipeMode] = useState(false);
 
   useEffect(() => {
     if (gameId && boroughId && storeId) {
@@ -169,6 +173,47 @@ const Store = () => {
     navigate(`/game/${gameId}`);
   };
 
+  const handleSkip = (productId) => {
+    const productIndex = storeInventory.findIndex(
+      (item) => (item.products?.id || item.product_id) === productId
+    );
+
+    if (productIndex === currentIndex) {
+      setDirection('left');
+      setTimeout(() => {
+        setCurrentIndex((prev) => (prev + 1) % storeInventory.length);
+        setDirection(null);
+      }, 300);
+    }
+
+    toast.info('Skipped record');
+  };
+
+  const handleLike = (productId) => {
+    const product = storeInventory.find(
+      (item) => (item.products?.id || item.product_id) === productId
+    );
+
+    if (product) {
+      handleBuy(productId, 1);
+    }
+
+    setDirection('right');
+    setTimeout(() => {
+      setCurrentIndex((prev) => (prev + 1) % storeInventory.length);
+      setDirection(null);
+    }, 300);
+
+    toast.success('You liked this record!');
+  };
+
+  const toggleViewMode = () => {
+    setSwipeMode(!swipeMode);
+    if (!swipeMode) {
+      setCurrentIndex(0);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-blue-100 flex items-center justify-center">
@@ -214,61 +259,26 @@ const Store = () => {
         </div>
 
         {/* Horizontal tab toggle - properly styled */}
-        <div
-          style={{
-            display: 'flex',
-            width: '100%',
-            marginBottom: '16px',
-            marginTop: '16px',
-            borderRadius: '8px',
-            overflow: 'hidden',
-            border: '1px solid #d1d5db',
-          }}
-        >
+        <div className="mode-toggle">
           <button
             onClick={() => setBuyMode(true)}
-            style={{
-              flex: 1,
-              backgroundColor: buyMode ? '#f59e0b' : '#e5e7eb',
-              color: buyMode ? 'black' : '#6b7280',
-              padding: '12px 16px',
-              fontWeight: buyMode ? 600 : 500,
-              fontSize: '16px',
-              border: 'none',
-              borderRight: '1px solid #d1d5db',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
+            className={`mode-toggle-button ${buyMode ? 'active' : ''}`}
           >
-            <FaShoppingCart style={{ marginRight: '8px' }} />
+            <FaShoppingCart className="mode-toggle-icon" />
             Buy
           </button>
 
           <button
             onClick={() => setBuyMode(false)}
-            style={{
-              flex: 1,
-              backgroundColor: !buyMode ? '#f59e0b' : '#e5e7eb',
-              color: !buyMode ? 'black' : '#6b7280',
-              padding: '12px 16px',
-              fontWeight: !buyMode ? 600 : 500,
-              fontSize: '16px',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
+            className={`mode-toggle-button ${!buyMode ? 'active' : ''}`}
           >
-            <FaShoppingBag style={{ marginRight: '8px' }} />
+            <FaShoppingBag className="mode-toggle-icon" />
             Sell
           </button>
         </div>
 
         {/* Inventory Display */}
-        <div className="bg-white shadow-md mb-4 rounded-lg">
+        <div className="bg-white shadow-md mb-4 rounded-lg overflow-hidden">
           <div className="p-4">
             {buyMode ? (
               <div className="space-y-4">
@@ -277,37 +287,76 @@ const Store = () => {
                     No records available in this store
                   </p>
                 ) : (
-                  <div
-                    className="grid grid-cols-1 sm:grid-cols-2 gap-4"
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(1, 1fr)',
-                      gap: '16px',
-                    }}
-                  >
-                    {storeInventory.map((item) => {
-                      console.log('Rendering item:', item); // Debug log
-                      return (
-                        <ProductCard
-                          key={item.id}
-                          product={{
-                            id: item.products?.id || item.product_id,
-                            name: item.products?.name || 'Unknown Record',
-                            artist: item.products?.artist || 'Unknown Artist',
-                            genre: item.products?.genre || 'Various',
-                            year: item.products?.year || 'N/A',
-                            condition: item.products?.condition || 'Unknown',
-                            rarity: item.products?.rarity || 0.5,
-                            description: item.products?.description || '',
-                          }}
-                          price={item.current_price}
-                          quantity={item.quantity}
-                          onBuy={handleBuy}
-                          actionLabel="Buy"
-                          showAction={true}
-                        />
-                      );
-                    })}
+                  <div className="swipe-container">
+                    {storeInventory.length > 0 && (
+                      <>
+                        <div className="swipe-counter">
+                          {currentIndex + 1} of {storeInventory.length}
+                        </div>
+                        <AnimatePresence>
+                          <motion.div
+                            key={storeInventory[currentIndex]?.id}
+                            initial={{
+                              x:
+                                direction === 'left'
+                                  ? -300
+                                  : direction === 'right'
+                                  ? 300
+                                  : 0,
+                              opacity: 0,
+                            }}
+                            animate={{ x: 0, opacity: 1 }}
+                            exit={{
+                              x:
+                                direction === 'left'
+                                  ? 300
+                                  : direction === 'right'
+                                  ? -300
+                                  : 0,
+                              opacity: 0,
+                            }}
+                            transition={{ duration: 0.3 }}
+                            className="swipe-card-container"
+                          >
+                            <ProductCard
+                              product={{
+                                id:
+                                  storeInventory[currentIndex].products?.id ||
+                                  storeInventory[currentIndex].product_id,
+                                name:
+                                  storeInventory[currentIndex].products?.name ||
+                                  'Unknown Record',
+                                artist:
+                                  storeInventory[currentIndex].products
+                                    ?.artist || 'Unknown Artist',
+                                genre:
+                                  storeInventory[currentIndex].products
+                                    ?.genre || 'Various',
+                                year:
+                                  storeInventory[currentIndex].products?.year ||
+                                  'N/A',
+                                condition:
+                                  storeInventory[currentIndex].products
+                                    ?.condition || 'Unknown',
+                                rarity:
+                                  storeInventory[currentIndex].products
+                                    ?.rarity || 0.5,
+                                description:
+                                  storeInventory[currentIndex].products
+                                    ?.description || '',
+                              }}
+                              price={storeInventory[currentIndex].current_price}
+                              quantity={storeInventory[currentIndex].quantity}
+                              onBuy={handleBuy}
+                              onSkip={handleSkip}
+                              onLike={handleLike}
+                              actionLabel="Buy"
+                              showAction={true}
+                            />
+                          </motion.div>
+                        </AnimatePresence>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

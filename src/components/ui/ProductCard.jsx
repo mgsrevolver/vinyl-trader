@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaStar } from 'react-icons/fa';
+import { FaStar, FaTimes, FaCheck } from 'react-icons/fa';
 
 const ProductCard = ({
   product,
@@ -11,6 +11,8 @@ const ProductCard = ({
   showAction = true,
   purchasePrice,
   estimatedValue,
+  onSkip,
+  onLike,
 }) => {
   if (!product) return null;
 
@@ -23,7 +25,7 @@ const ProductCard = ({
 
   return (
     <div className="product-card">
-      {/* Image area (60% of height) */}
+      {/* Image area - slightly reduced height */}
       <div className="product-card-image">
         {image_url ? (
           <img src={image_url} alt={name} className="product-image" />
@@ -32,9 +34,9 @@ const ProductCard = ({
         )}
       </div>
 
-      {/* Card info section */}
+      {/* Card info section - more compact */}
       <div className="product-card-info">
-        {/* Name - Artist and genre(year) on same line */}
+        {/* Title and artist - truncated if needed */}
         <div className="product-title-row">
           <div className="product-title">
             {name} - {artist}
@@ -44,36 +46,55 @@ const ProductCard = ({
           </div>
         </div>
 
-        {/* Condition on its own line */}
+        {/* Condition */}
         <div className="product-condition">Condition: {condition}</div>
 
-        {/* Rarity and Price at bottom */}
+        {/* Rarity and Price */}
         <div className="product-footer">
-          {/* Rarity stars */}
           <div className="product-rarity">
             {[...Array(5)].map((_, i) => (
               <FaStar
                 key={i}
-                size={16}
+                size={14} // Smaller stars
                 className={i < rarityStars ? 'star-active' : 'star-inactive'}
               />
             ))}
           </div>
 
-          {/* Price */}
           <div className="product-price">
             ${parseFloat(displayPrice).toFixed(2)}
           </div>
         </div>
 
-        {/* Quantity indicator */}
+        {/* In stock count */}
         {quantity !== undefined && (
           <div className="product-quantity">In stock: {quantity}</div>
         )}
       </div>
 
-      {/* Buy/Sell Button */}
-      {showAction && (onBuy || onSell) && (
+      {/* Swipe buttons */}
+      {(onSkip || onLike) && (
+        <div className="swipe-buttons">
+          <button
+            className="swipe-button skip-button"
+            onClick={() => onSkip && onSkip(id)}
+            aria-label="Skip"
+          >
+            <FaTimes size={24} />
+          </button>
+
+          <button
+            className="swipe-button like-button"
+            onClick={() => onLike && onLike(id)}
+            aria-label="Like"
+          >
+            <FaCheck size={24} />
+          </button>
+        </div>
+      )}
+
+      {/* Buy/Sell button if needed */}
+      {showAction && (onBuy || onSell) && !onLike && !onSkip && (
         <div className="product-action">
           {onBuy && (
             <button
