@@ -14,6 +14,7 @@ import {
   FaClock,
   FaCoins,
   FaWarehouse,
+  FaBolt,
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -100,7 +101,7 @@ const TransportOption = memo(
         <span>${parseFloat(travelDetails.cost).toFixed(2)}</span>
       </div>
 
-      {/* Row 3: Time */}
+      {/* Row 3: Actions - Replace clock with lightning bolt */}
       <div
         style={{
           display: 'flex',
@@ -109,8 +110,8 @@ const TransportOption = memo(
           fontSize: '14px',
         }}
       >
-        <FaClock style={{ marginRight: '4px' }} />
-        <span>{travelDetails.time} hours</span>
+        <FaBolt style={{ marginRight: '4px' }} />
+        <span>{travelDetails.time} actions</span>
       </div>
 
       {/* Row 4: Capacity */}
@@ -467,13 +468,17 @@ const TravelScreen = () => {
         {selectedNeighborhood && (
           <div
             className="travel-drawer-backdrop"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCloseDrawer();
+            }}
           >
             <div
               className="travel-drawer"
               ref={drawerRef}
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
+              onClick={(e) => e.stopPropagation()}
               style={{ maxHeight: '80vh', overflow: 'auto' }}
             >
               <div className="drawer-handle"></div>
@@ -505,10 +510,6 @@ const TravelScreen = () => {
                   ))}
                 </div>
               )}
-
-              <p className="text-xs mb-1 text-center">
-                How do you want to get there?
-              </p>
 
               {/* Transport grid with memoized components */}
               <div

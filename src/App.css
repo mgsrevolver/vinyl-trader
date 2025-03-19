@@ -655,3 +655,24 @@ h3 {
 }
 
 /* If needed, we can look at the specific component that renders the icon */
+
+/* Add proper spacing in the travel drawer */
+.travel-drawer .mb-1 {
+  margin-bottom: 0.75rem !important;
+}
+
+/* Add space between store listings and options */
+.travel-drawer p.text-xs.mb-1.text-center {
+  margin-bottom: 0.75rem !important;
+}
+
+/* Add space between transport options and button */
+.travel-drawer .transport-grid {
+  margin-bottom: 1rem !important;
+}
+
+/* Add a bit more padding to the travel button container */
+.travel-drawer > div:last-child {
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+}
