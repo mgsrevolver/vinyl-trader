@@ -32,22 +32,18 @@
   cursor: pointer;
 }
 
-/* === Store Card Styles (from CardReset.css) === */
+/* === Store Card Styles - more precisely scoped === */
 .store-card-wrapper {
   background-color: white;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  padding: 16px;
-  padding-right: 48px; /* Make space for chevron */
+  padding: 16px 48px 16px 16px; /* Simplified padding */
   margin-bottom: 16px;
   position: relative;
   cursor: pointer;
   transition: all 0.2s ease-out;
   transform: translateZ(0); /* Hardware acceleration */
-  padding-top: 12px;
-  padding-bottom: 12px;
-  position: relative;
   overflow: hidden;
   z-index: 1;
 }
@@ -167,8 +163,8 @@
   font-size: 0.8rem;
 }
 
-/* Basic button styles */
-.btn {
+/* Basic button styles - renamed to avoid conflicts */
+.game-btn {
   font-weight: 500;
   transition: all 0.2s;
   border-radius: 9999px;
@@ -178,67 +174,25 @@
   cursor: pointer;
 }
 
-.btn-primary {
+.game-btn-primary {
   background-image: linear-gradient(to bottom, #e5e5e5, #a0a0a0);
   color: #000;
   border: 2px solid #000;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
-.btn-lg {
+.game-btn-lg {
   padding: 0.75rem 1.5rem;
   font-size: 1.125rem;
 }
 
-.btn-full {
+.game-btn-full {
   width: 100%;
 }
 
-/* Clean up any conflicting card styles */
-.card,
-.card-wrapper,
-.store-card-wrapper {
-  background-color: white;
-  border-radius: 0.5rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
-  border: 1px solid #eaeaea;
-  margin-bottom: 1rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
+/* REMOVED: Broad card styles that were causing conflicts */
 
-/* Remove all the other conflicting styles - keeping only what's needed */
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
-
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.read-the-docs {
-  color: #888;
-}
+/* REMOVED: Animation and logo stuff that's not relevant */
 
 .status-bar::before {
   content: '';
@@ -306,7 +260,7 @@
   }
 }
 
-/* New styles for TravelScreen */
+/* Travel Screen styles */
 .nyc-map-bg {
   background-image: url('/nyc-map.jpg');
   background-size: cover;
@@ -344,7 +298,7 @@
   flex-direction: column;
 }
 
-/* Location marker styles - simplified design */
+/* Location marker styles */
 .location-marker {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -354,7 +308,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  z-index: 2; /* Lower z-index so pins are behind the drawer */
+  z-index: 2;
 }
 
 .location-marker.current {
@@ -391,7 +345,7 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
-/* Backdrop for the drawer */
+/* Travel drawer styles */
 .travel-drawer-backdrop {
   position: fixed;
   top: 0;
@@ -404,7 +358,6 @@
   align-items: flex-end;
 }
 
-/* New compact travel drawer */
 .travel-drawer {
   width: 100%;
   background-color: white;
@@ -413,10 +366,9 @@
   box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.1);
   max-height: 60vh;
   overflow-y: auto;
-  padding: 0 16px 16px 16px; /* Add consistent padding inside the drawer */
+  padding: 0 16px 16px 16px;
 }
 
-/* Drawer handle for visual cue that it can be dragged */
 .drawer-handle {
   width: 40px;
   height: 4px;
@@ -425,17 +377,15 @@
   margin: 12px auto 8px;
 }
 
-/* Drawer header */
 .drawer-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 0 10px 0; /* Remove horizontal padding since container has it */
+  padding: 0 0 10px 0;
   border-bottom: 1px solid #eee;
   margin-bottom: 10px;
 }
 
-/* Close button */
 .close-button {
   width: 32px;
   height: 32px;
@@ -451,7 +401,6 @@
   background-color: #eee;
 }
 
-/* Transport grid layout */
 .transport-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -460,7 +409,6 @@
   margin-bottom: 8px;
 }
 
-/* More compact transport options */
 .transport-option {
   padding: 10px;
   border-radius: 8px;
@@ -522,7 +470,7 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
-/* Record-themed button styles */
+/* Record themed styles */
 .btn-vinyl::after {
   content: '';
   position: absolute;
@@ -533,30 +481,29 @@
   opacity: 0.8;
 }
 
-/* Font styles that look good for records */
+/* Font style classes */
 .font-serif {
   font-family: 'Bebas Neue', cursive, serif;
 }
 
-/* Record card transition */
+.font-records {
+  font-family: 'Permanent Marker', 'Bebas Neue', cursive;
+}
+
+.font-vintage {
+  font-family: 'Playfair Display', serif;
+}
+
+.font-vinyl {
+  font-family: 'Rubik Mono One', Impact, monospace;
+  letter-spacing: -0.03em;
+}
+
+/* Animations */
 .transition-transform {
   transition: transform 0.2s ease;
 }
 
-/* Record store card styling */
-.card-record-store {
-  transition: all 0.3s ease;
-}
-
-.card-record-store:hover {
-  transform: translateY(-3px);
-}
-
-.card-record-store:active {
-  transform: translateY(0) scale(0.98);
-}
-
-/* Vinyl spinning animation for record icons */
 @keyframes spin-slow {
   from {
     transform: rotate(0deg);
@@ -570,18 +517,9 @@
   animation: spin-slow 4s linear infinite;
 }
 
-/* Make the genre badge more attractive */
-.genre-badge {
-  background: linear-gradient(to right, #3490dc, #6574cd);
-  color: white;
-  padding: 4px 12px;
-  border-radius: 999px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
+/* REMOVED: Broad genre badge styles */
 
-/* Store card styling */
+/* Store card component-specific styling */
 .store-card {
   text-align: left;
   padding: 0;
@@ -608,7 +546,7 @@
   text-align: left;
 }
 
-/* Open/closed badge styling */
+/* Status badges */
 .status-badge-open {
   background-color: #d1fae5;
   color: #065f46;
@@ -629,7 +567,6 @@
   font-size: 0.75rem;
 }
 
-/* Tap indicator */
 .tap-indicator {
   color: #666;
   font-size: 0.85rem;
@@ -639,81 +576,39 @@
   border-top: 1px solid #eaeaea;
 }
 
-/* Remove previous attempts at hiding icons */
-.record-icon,
-.vinyl-icon,
-.location-icon,
-h1 > svg,
-h1 + svg,
-.header-row svg:first-of-type,
-.header-row > *:first-child:not(h1) {
-  /* Remove these rules */
-}
+/* REMOVED: Redundant icon hiding styles */
 
-/* Target specifically the circular icon, if we can identify it */
-.borough-icon {
-  display: none;
-}
+/* REMOVED: Broad heading styles */
 
-/* Make sure headings are visible */
-h1,
-h2,
-h3 {
-  display: block;
-  margin-top: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-/* If needed, we can look at the specific component that renders the icon */
-
-/* Add proper spacing in the travel drawer */
+/* Travel drawer spacing fixes */
 .travel-drawer .mb-1 {
   margin-bottom: 0.75rem !important;
 }
 
-/* Add space between store listings and options */
 .travel-drawer p.text-xs.mb-1.text-center {
   margin-bottom: 0.75rem !important;
 }
 
-/* Add space between transport options and button */
 .travel-drawer .transport-grid {
   margin-bottom: 1rem !important;
 }
 
-/* Add a bit more padding to the travel button container */
 .travel-drawer > div:last-child {
   padding-top: 0.75rem !important;
   padding-bottom: 0.75rem !important;
 }
 
-/* And add some utility classes for quick styling */
-.font-records {
-  font-family: 'Permanent Marker', 'Bebas Neue', cursive;
-}
-
-.font-vintage {
-  font-family: 'Playfair Display', serif;
-}
-
-.font-vinyl {
-  font-family: 'Rubik Mono One', Impact, monospace;
-  letter-spacing: -0.03em;
-}
-
-/* Apply record-style typography to headings in the drawer */
+/* Typography styling for travel drawer */
 .travel-drawer h2 {
   font-family: 'Permanent Marker', 'Bebas Neue', cursive;
   letter-spacing: 0.5px;
 }
 
-/* Make store names in the drawer look like record labels */
 .travel-drawer .text-xs.text-center {
   font-family: 'Playfair Display', serif;
   font-weight: 600;
 }
 
-/* Style the travel heading for more record store vibes */
 .travel-drawer .drawer-header h2 {
   background: linear-gradient(90deg, #333, #111);
   -webkit-background-clip: text;
@@ -722,14 +617,12 @@ h3 {
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-/* Make the main borough heading prominent */
 .header-row h1.font-records {
   font-family: 'Permanent Marker', cursive;
   text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.1);
   letter-spacing: 0.5px;
 }
 
-/* Make store names use the same font but lighter */
 .store-card-title .font-records {
   font-family: 'Permanent Marker', cursive;
   font-size: 1.4rem;
@@ -763,7 +656,6 @@ h3 {
   pointer-events: none;
 }
 
-/* Enhance styling for store pages */
 .store-header-card h1.font-records {
   font-family: 'Permanent Marker', cursive;
   font-size: 2rem;
@@ -771,21 +663,18 @@ h3 {
   margin-bottom: 0.25rem;
 }
 
-/* Style inventory headers */
 .bg-blue-600 h2.font-records {
   font-family: 'Permanent Marker', cursive;
   font-size: 1.3rem;
   letter-spacing: 0.5px;
 }
 
-/* Style record names in inventory */
 .inventory-grid h3.font-records {
   font-family: 'Permanent Marker', cursive;
   font-size: 1.1rem;
   opacity: 0.9;
 }
 
-/* Store card background image styling */
 .store-card-bg-image {
   position: absolute;
   top: 0;
@@ -800,113 +689,222 @@ h3 {
   transition: opacity 0.3s ease;
 }
 
-/* On hover, make the background image slightly more visible */
 .store-card-wrapper:hover .store-card-bg-image {
   opacity: 0.25;
 }
 
-/* Ensure content remains on top */
 .store-card-content {
   position: relative;
   z-index: 2;
 }
 
-/* Improve the title on these background images */
 .store-card-title .font-records {
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
 }
 
-/* Add these styles at the end of your App.css file */
-/* Target the action button specifically to avoid conflicts */
+/* Action button styles */
 .action-button {
-  /* Reset any conflicting styles */
-  all: initial;
-  font-family: 'Inter', system-ui, sans-serif;
   box-sizing: border-box;
-  border-radius: 6px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-}
-
-/* Ensure the travel-button class doesn't affect our action button */
-button.action-button.travel-button {
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-/* Record card - new design that overrides conflicting styles */
+/* Product card styles specifically matching wireframe */
 .product-card {
-  /* Reset any conflicting styles */
-  all: revert;
-  width: 100% !important;
-  display: block !important;
-  aspect-ratio: 3/4 !important;
-  position: relative !important;
-  overflow: hidden !important;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
-  border: 4px solid #e5e7eb !important;
-  border-radius: 0.75rem !important;
-  background-color: #f3f4f6 !important;
-  margin-bottom: 1rem !important;
-  text-align: left !important;
-  padding: 0 !important;
+  width: 100%;
+  aspect-ratio: 3/4;
+  position: relative;
+  border-radius: 24px;
+  overflow: hidden;
+  background-color: #f2f2f2;
+  border: 4px solid #e5e7eb;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Fix grid layout in Store.jsx */
+.product-card-image {
+  height: 60%;
+  background-color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.product-image {
+  max-width: 90%;
+  max-height: 90%;
+  object-fit: contain;
+}
+
+.product-image-placeholder {
+  width: 80%;
+  height: 80%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  border: 1px solid #e5e7eb;
+  font-size: 0.875rem;
+}
+
+.product-card-info {
+  padding: 12px 16px;
+  height: 40%;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-title-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.product-title {
+  font-size: 1rem;
+  color: #111827;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+
+.product-genre-year {
+  font-size: 0.875rem;
+  color: #4b5563;
+  text-align: right;
+}
+
+.product-condition {
+  font-size: 0.875rem;
+  color: #4b5563;
+  margin-bottom: 16px;
+}
+
+.product-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+}
+
+.product-rarity {
+  display: flex;
+}
+
+.star-active {
+  color: #f59e0b;
+  margin-right: 2px;
+}
+
+.star-inactive {
+  color: #d1d5db;
+  margin-right: 2px;
+}
+
+.product-price {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.product-quantity {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 8px;
+}
+
+.product-action {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+.product-action-button {
+  width: 100%;
+  padding: 12px;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.product-action-button:hover {
+  background-color: #2563eb;
+}
+
+.product-action-button:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.product-sell-button {
+  background-color: #10b981;
+}
+
+.product-sell-button:hover {
+  background-color: #059669;
+}
+
+/* Store page grid layout */
 .grid.grid-cols-1.sm\:grid-cols-2.gap-4 {
-  display: grid !important;
-  grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
-  gap: 1rem !important;
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1rem;
 }
 
 @media (min-width: 640px) {
   .grid.grid-cols-1.sm\:grid-cols-2.gap-4 {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-/* Ensure card sections display correctly */
+/* Product card inner elements */
 .product-card > div {
-  width: 100% !important;
+  width: 100%;
 }
 
 .product-card .h-\[60\%\] {
-  height: 60% !important;
-  background-color: white !important;
+  height: 60%;
+  background-color: white;
 }
 
-/* Fix text styling */
 .product-card h3 {
-  font-size: 1.125rem !important;
-  font-weight: bold !important;
-  margin-bottom: 0.25rem !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
+  font-size: 1.125rem;
+  font-weight: bold;
+  margin-bottom: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* Fix action buttons */
 .product-card .absolute.bottom-0 {
-  position: absolute !important;
-  bottom: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  background-color: rgba(0, 0, 0, 0.5) !important;
-  padding: 0.5rem !important;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  padding: 0.5rem;
 }
 
 .product-card button {
-  display: block !important;
-  width: 100% !important;
-  padding: 0.5rem !important;
-  text-align: center !important;
-  border-radius: 0.25rem !important;
-  font-weight: 500 !important;
+  display: block;
+  width: 100%;
+  padding: 0.5rem;
+  text-align: center;
+  border-radius: 0.25rem;
+  font-weight: 500;
 }
 
-/* Make sure the stars display properly */
 .product-card .flex svg {
-  display: inline !important;
+  display: inline;
 }
