@@ -1,4 +1,3 @@
-// src/contexts/GameContext.jsx
 import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +9,7 @@ import {
   buyRecord,
   sellRecord,
 } from '../lib/gameActions';
+import ConfirmationModal from '../components/ui/ConfirmationModal';
 
 const GameContext = createContext();
 
@@ -24,6 +24,15 @@ export const GameProvider = ({ children }) => {
   const [gameLoading, setGameLoading] = useState(false);
   const [players, setPlayers] = useState([]);
   const [playerId, setPlayerId] = useState(null);
+  const [confirmationOpen, setConfirmationOpen] = useState(false);
+  const [confirmationProps, setConfirmationProps] = useState({
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
+  });
+  const [pendingAction, setPendingAction] = useState(null);
 
   // Generate or retrieve player ID
   useEffect(() => {
@@ -416,7 +425,86 @@ export const GameProvider = ({ children }) => {
     try {
       setLoading(true);
 
-      // Call the travel function from gameActions
+      // Get the action cost for this travel option
+      const { data: transportOptions } = await supabase
+        .from('transportation_options')
+        .select('action_cost')
+        .eq('player_id', player.id)
+        .eq('transportation_id', transportationId)
+        .eq('to_borough_id', neighborhoodId)
+        .maybeSingle();
+
+      const actionCost = transportOptions?.action_cost || 1;
+      console.log(`Travel will cost ${actionCost} actions`);
+
+      // Get current hour's actions directly here
+      const currentHour = currentGame.current_hour;
+      let { data: actionsData } = await supabase
+        .from('player_actions')
+        .select('*')
+        .eq('player_id', player.id)
+        .eq('game_id', currentGame.id)
+        .eq('hour', currentHour)
+        .maybeSingle();
+
+      console.log('Initial actions data from DB:', actionsData);
+
+      // If no player_actions row exists, create one with default values
+      if (!actionsData) {
+        console.log(
+          `No player_actions found for hour ${currentHour}, creating one`
+        );
+        const { data: newRow, error: insertError } = await supabase
+          .from('player_actions')
+          .insert({
+            player_id: player.id,
+            game_id: currentGame.id,
+            hour: currentHour,
+            actions_used: 0,
+            actions_available: 4, // Default to 4 available actions
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('Error creating player_actions row:', insertError);
+          // Continue anyway since we know the values
+        } else {
+          actionsData = newRow;
+          console.log('Created new player_actions row:', actionsData);
+        }
+      }
+
+      // Use UI-displayed values if DB data is still missing
+      const actionsAvailable = actionsData?.actions_available || 4;
+      const actionsUsed = actionsData?.actions_used || 0;
+      const actionsRemaining = actionsAvailable - actionsUsed;
+
+      console.log(
+        `Actions remaining: ${actionsRemaining}, Action cost: ${actionCost}`
+      );
+
+      // If not enough actions, confirm with the user
+      if (actionCost > actionsRemaining) {
+        console.log('Need to confirm action across hours');
+
+        const confirmed = window.confirm(
+          `This action requires ${actionCost} actions, but you only have ${actionsRemaining} remaining.\n\n` +
+            `Do you want to advance to the next hour?`
+        );
+
+        if (!confirmed) {
+          console.log('User cancelled travel');
+          setLoading(false);
+          return { success: false, canceled: true };
+        }
+
+        console.log('User confirmed travel');
+      } else {
+        console.log('User has enough actions, proceeding without confirmation');
+      }
+
+      // Execute the travel action
       const result = await travelToBorough(
         player.id,
         currentGame.id,
@@ -598,7 +686,7 @@ export const GameProvider = ({ children }) => {
     }
   }, [playerId]);
 
-  // Buy product (proxy to gameActions)
+  // Update buyProduct to use the attemptActionWithCost utility
   const buyProduct = async (productId, quantity, storeId, neighborhoodId) => {
     try {
       setLoading(true);
@@ -607,22 +695,27 @@ export const GameProvider = ({ children }) => {
         return { success: false, error: new Error('Game or player not found') };
       }
 
-      const result = await buyRecord(
-        player.id,
-        currentGame.id,
-        storeId,
-        productId,
-        quantity
-      );
+      // Assume buying costs 1 action (adjust as needed)
+      const actionCost = 1;
 
-      if (result.success) {
-        await fetchGameData(); // Refresh data if successful
-        toast.success('Purchase successful!');
-      } else {
-        toast.error(result.message || 'Purchase failed');
-      }
+      return await attemptActionWithCost(actionCost, async () => {
+        const result = await buyRecord(
+          player.id,
+          currentGame.id,
+          storeId,
+          productId,
+          quantity
+        );
 
-      return result;
+        if (result.success) {
+          await fetchGameData();
+          toast.success('Purchase successful!');
+        } else {
+          toast.error(result.message || 'Purchase failed');
+        }
+
+        return result;
+      });
     } catch (error) {
       console.error('Error in buyProduct:', error);
       toast.error(`Error: ${error.message}`);
@@ -632,7 +725,7 @@ export const GameProvider = ({ children }) => {
     }
   };
 
-  // Sell product (proxy to gameActions)
+  // Update sellProduct similarly
   const sellProduct = async (inventoryItemId, quantity, storeId) => {
     try {
       setLoading(true);
@@ -697,9 +790,38 @@ export const GameProvider = ({ children }) => {
         playerId,
         fetchGameData,
         refreshPlayerData,
+        confirmationOpen,
+        confirmationProps,
+        pendingAction,
       }}
     >
       {children}
+      {confirmationOpen && (
+        <div className="fixed inset-0 bg-red-500 bg-opacity-50 z-50">
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="bg-white p-4 rounded shadow-lg">
+              <p>Debug confirmation modal</p>
+              <p>This should be visible if modal state is working</p>
+              <button onClick={() => setConfirmationOpen(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <ConfirmationModal
+        isOpen={confirmationOpen}
+        onClose={() => {
+          console.log('Closing modal from onClose prop');
+          setConfirmationOpen(false);
+        }}
+        title={confirmationProps.title}
+        message={confirmationProps.message}
+        onConfirm={() => {
+          console.log('Confirm clicked in modal');
+          if (confirmationProps.onConfirm) confirmationProps.onConfirm();
+        }}
+        confirmText={confirmationProps.confirmText}
+        cancelText={confirmationProps.cancelText}
+      />
     </GameContext.Provider>
   );
 };
