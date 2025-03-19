@@ -14,6 +14,10 @@ const GameHeader = () => {
     getActionsRemaining, // New function we'll add to GameContext
   } = useGame();
   const previousHourRef = useRef(null);
+  const [isActionAnimating, setIsActionAnimating] = useState(false);
+  const [isHourAnimating, setIsHourAnimating] = useState(false);
+  const previousActionsRef = useRef(null);
+  const [floatingTexts, setFloatingTexts] = useState([]);
 
   // Add an effect to refresh data periodically
   useEffect(() => {
@@ -29,27 +33,57 @@ const GameHeader = () => {
     return () => clearInterval(intervalId);
   }, [fetchGameData]);
 
-  // Add effect to detect hour changes
+  // Update the hour change effect
   useEffect(() => {
-    // If we have a previous hour and it changed
     if (
       previousHourRef.current !== null &&
       currentGame?.current_hour &&
       previousHourRef.current !== currentGame.current_hour
     ) {
-      // Show a toast notification about the hour change
+      // Show toast and trigger animation
       toast.success(
         `Hour advanced! ${getHoursRemaining(
           currentGame.current_hour
         )} hours remaining`
       );
+      setIsHourAnimating(true);
+      setTimeout(() => setIsHourAnimating(false), 1000);
     }
 
-    // Update the ref with current hour
     if (currentGame?.current_hour) {
       previousHourRef.current = currentGame.current_hour;
     }
   }, [currentGame?.current_hour]);
+
+  // Add effect to detect actions changes and create floating text
+  useEffect(() => {
+    const currentActions = getActionsRemaining ? getActionsRemaining() : 4;
+
+    if (
+      previousActionsRef.current !== null &&
+      previousActionsRef.current > currentActions // Only show animation when actions decrease
+    ) {
+      setIsActionAnimating(true);
+
+      // Add a new floating text with unique ID
+      const newFloat = {
+        id: Date.now(),
+        value: -1,
+      };
+      setFloatingTexts((prev) => [...prev, newFloat]);
+
+      // Update timeout to match new animation duration (1200ms instead of 800ms)
+      const timeoutId = setTimeout(() => {
+        setFloatingTexts((prev) =>
+          prev.filter((item) => item.id !== newFloat.id)
+        );
+      }, 1200);
+
+      setTimeout(() => setIsActionAnimating(false), 1000);
+    }
+
+    previousActionsRef.current = currentActions;
+  }, [getActionsRemaining]);
 
   // Format money as whole dollars only
   const formatMoney = (amount) => {
@@ -72,8 +106,10 @@ const GameHeader = () => {
   return (
     <div className="status-bar top-bar">
       <div className="status-content">
-        {/* Clock - first item */}
-        <div className="status-stat">
+        {/* Clock - with animation */}
+        <div
+          className={`status-stat ${isHourAnimating ? 'action-change' : ''}`}
+        >
           <FaClock />
           <span>
             {timeDisplay.replace(':00', '')} ({hoursRemaining} hrs left)
@@ -94,10 +130,21 @@ const GameHeader = () => {
           </span>
         </Link>
 
-        {/* Actions Remaining - fourth item */}
-        <div className="status-stat">
+        {/* Actions Remaining - with floating animation */}
+        <div
+          className={`status-stat ${isActionAnimating ? 'action-change' : ''}`}
+          style={{ position: 'relative' }}
+        >
           <FaBolt />
           <span>{actionsRemaining} actions</span>
+
+          {/* Floating texts container */}
+          {floatingTexts.map((float) => (
+            <div key={float.id} className="floating-action">
+              <FaBolt className="floating-bolt" />
+              {float.value}
+            </div>
+          ))}
         </div>
       </div>
     </div>

@@ -1192,3 +1192,146 @@
 .swipe-indicator {
   display: none; /* Hide the old indicators */
 }
+
+/* Add these new animation styles */
+
+/* Animation for the action cost in StoreCard */
+.action-cost-animate {
+  color: #c2410c !important; /* Auburn/orange color */
+  animation: pulseScale 0.5s ease;
+}
+
+/* Animation for the actions counter in GameHeader */
+.status-stat.action-change {
+  animation: flashAndScale 0.5s ease;
+}
+
+@keyframes pulseScale {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+    color: #c2410c;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes flashAndScale {
+  0% {
+    background-color: rgba(0, 0, 0, 0.25);
+    transform: scale(1);
+  }
+  50% {
+    background-color: rgba(
+      194,
+      65,
+      12,
+      0.5
+    ); /* Auburn/orange with transparency */
+    transform: scale(1.1);
+  }
+  100% {
+    background-color: rgba(0, 0, 0, 0.25);
+    transform: scale(1);
+  }
+}
+
+/* Make sure transitions are smooth */
+.status-stat {
+  transition: all 0.3s ease;
+}
+
+.action-cost {
+  transition: all 0.3s ease;
+}
+
+/* Floating action animation */
+.floating-action {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  color: #000000;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  font-size: 0.9em;
+  animation: floatDownLeft 1.2s ease-out forwards;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.floating-bolt {
+  font-size: 0.9em;
+}
+
+@keyframes floatDownLeft {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.8);
+  }
+  25% {
+    /* Adjusted from 15% to 25% to spread out the effect */
+    opacity: 1;
+    transform: translate(0, 0) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-40px, 20px) scale(1);
+  }
+}
+
+/* Optional: add a motion blur effect */
+.floating-action {
+  filter: blur(0px);
+}
+
+.floating-action.animate {
+  animation: floatDownLeft 1.2s ease-out forwards,
+    blurMotion 1.2s ease-out forwards;
+}
+
+@keyframes blurMotion {
+  0% {
+    filter: blur(0px);
+  }
+  50% {
+    filter: blur(1px);
+  }
+  100% {
+    filter: blur(2px);
+  }
+}
+
+/* Update the floating animation duration */
+.floating-action {
+  animation: floatDownLeft 1.2s ease-out forwards;
+}
+
+.floating-action.animate {
+  animation: floatDownLeft 1.2s ease-out forwards,
+    blurMotion 1.2s ease-out forwards;
+}
+
+/* Update the action-change (bulge) animation duration */
+.action-change {
+  animation: actionChange 0.75s ease-out;
+}
+
+@keyframes actionChange {
+  0% {
+    color: inherit;
+    transform: scale(1);
+  }
+  50% {
+    color: #c2410c;
+    transform: scale(1.1);
+  }
+  100% {
+    color: inherit;
+    transform: scale(1);
+  }
+}

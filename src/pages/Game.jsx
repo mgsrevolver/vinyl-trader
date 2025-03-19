@@ -22,7 +22,15 @@ const Game = () => {
   const { gameId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { player, playerId, refreshPlayerData, currentGame } = useGame();
+  const {
+    player,
+    playerId,
+    refreshPlayerData,
+    currentGame,
+    getActionsRemaining,
+    useActions,
+    advanceGameHour,
+  } = useGame();
 
   // State management
   const [gameState, setGameState] = useState(null);
@@ -196,7 +204,7 @@ const Game = () => {
     }
   };
 
-  const goToStore = (storeId) => {
+  const goToStore = async (storeId) => {
     if (!playerState) {
       toast.error('Player information not loaded yet');
       return;
@@ -207,7 +215,40 @@ const Game = () => {
       return;
     }
 
-    navigate(`/store/${gameId}/${playerState.current_borough_id}/${storeId}`);
+    // Store visit costs 1 action
+    const actionsRemaining = getActionsRemaining();
+
+    if (actionsRemaining >= 1) {
+      // Use 1 action
+      const { success } = await useActions(1);
+
+      if (success) {
+        // Navigate to store
+        navigate(
+          `/store/${gameId}/${playerState.current_borough_id}/${storeId}`
+        );
+      } else {
+        toast.error('Failed to use action');
+      }
+    } else {
+      // Not enough actions - ask to advance hour
+      const shouldAdvance = window.confirm(
+        `You don't have enough actions left. Would you like to advance to the next hour?`
+      );
+
+      if (shouldAdvance) {
+        const { success } = await advanceGameHour();
+        if (success) {
+          // After advancing hour, use action and navigate
+          await useActions(1);
+          navigate(
+            `/store/${gameId}/${playerState.current_borough_id}/${storeId}`
+          );
+        } else {
+          toast.error("Couldn't advance to next hour");
+        }
+      }
+    }
   };
 
   const goToTravel = () => {
@@ -370,7 +411,7 @@ const Game = () => {
         </div>
 
         {/* Add a style tag for the spinner animation */}
-        <style jsx>{`
+        <style>{`
           @keyframes spin {
             from {
               transform: rotate(0deg);

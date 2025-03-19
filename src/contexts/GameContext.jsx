@@ -864,7 +864,23 @@ export const GameProvider = ({ children }) => {
     try {
       const { data, error } = await supabase
         .from('player_inventory_view')
-        .select('*')
+        .select(
+          `
+          *,
+          products:product_id (
+            id,
+            name,
+            artist,
+            genre,
+            year,
+            condition,
+            rarity,
+            description,
+            image_url,
+            base_price
+          )
+        `
+        )
         .eq('player_id', player.id)
         .eq('game_id', currentGame.id);
 

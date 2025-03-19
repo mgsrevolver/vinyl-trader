@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { FaClock, FaChevronRight } from 'react-icons/fa';
+import { FaClock, FaChevronRight, FaBolt } from 'react-icons/fa';
 import '../../App.css';
+import { useGame } from '../../contexts/GameContext';
 
 const StoreCard = ({ store, isOpen, formatTime, onClick, className = '' }) => {
+  const { getActionsRemaining } = useGame();
   const [backgroundImage, setBackgroundImage] = useState(null);
+  const [isAnimating, setIsAnimating] = useState(false);
 
   useEffect(() => {
     // Generate and check for store image when component mounts
@@ -41,12 +44,19 @@ const StoreCard = ({ store, isOpen, formatTime, onClick, className = '' }) => {
     }
   };
 
+  const handleClick = (e) => {
+    setIsAnimating(true);
+    // Reset animation after it completes
+    setTimeout(() => setIsAnimating(false), 1000);
+    onClick && onClick(e);
+  };
+
   return (
     <div
       className={`store-card-wrapper ${className} ${
         backgroundImage ? 'has-store-bg' : ''
       }`}
-      onClick={onClick}
+      onClick={handleClick}
       style={{ border: '2px solid #4e341a' }}
     >
       {backgroundImage && (
@@ -77,8 +87,32 @@ const StoreCard = ({ store, isOpen, formatTime, onClick, className = '' }) => {
         </div>
       </div>
 
-      <div className="store-card-chevron">
-        <FaChevronRight />
+      <div
+        className="store-card-actions"
+        style={{
+          position: 'absolute',
+          right: '16px',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+        }}
+      >
+        <div
+          className={`action-cost ${isAnimating ? 'action-cost-animate' : ''}`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '2px',
+            color: '#000',
+            fontSize: '14px',
+            transition: 'color 0.3s ease',
+          }}
+        >
+          <FaBolt /> 1
+        </div>
+        <FaChevronRight style={{ fontSize: '28px', color: '#9ca3af' }} />
       </div>
     </div>
   );
