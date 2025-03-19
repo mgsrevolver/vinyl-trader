@@ -698,13 +698,298 @@ export const GameProvider = ({ children }) => {
 
       console.log('Attempting travel to neighborhood:', neighborhoodId);
 
+      // FIRST: Check the action cost for this travel
+      // Get the current borough and transportation method
+      const fromBoroughId = player.current_borough_id;
+
+      // Get the borough distance record to determine action cost
+      const { data: distanceData, error: distanceError } = await supabase
+        .from('borough_distances')
+        .select('*')
+        .eq('from_borough_id', fromBoroughId)
+        .eq('to_borough_id', neighborhoodId)
+        .single();
+
+      if (distanceError) {
+        console.error('Error getting borough distance:', distanceError);
+        throw new Error('Could not determine travel distance');
+      }
+
+      // Get the transportation method details
+      const { data: transportData, error: transportError } = await supabase
+        .from('transportation_methods')
+        .select('*')
+        .eq('id', transportationId)
+        .single();
+
+      if (transportError) {
+        console.error('Error getting transportation details:', transportError);
+        throw new Error('Could not determine transportation details');
+      }
+
+      // Get player's current actions
+      const { data: actionsData, error: actionsError } = await supabase
+        .from('player_actions')
+        .select('*')
+        .eq('player_id', player.id)
+        .eq('game_id', currentGame.id)
+        .eq('hour', currentGame.current_hour)
+        .single();
+
+      // If no actions data is found, create a new record or use default values
+      let remainingActions = 0;
+      let actionCost = 0;
+
+      // Determine action cost first based on transportation type
+      if (transportData.name.toLowerCase().includes('walk')) {
+        actionCost = distanceData.walking_time;
+      } else if (transportData.name.toLowerCase().includes('subway')) {
+        actionCost = distanceData.subway_time;
+      } else if (transportData.name.toLowerCase().includes('taxi')) {
+        actionCost = distanceData.taxi_time;
+      } else if (transportData.name.toLowerCase().includes('bike')) {
+        actionCost = distanceData.bike_time;
+      } else {
+        // Default to walking time if can't determine
+        actionCost = distanceData.walking_time;
+      }
+
+      // If we couldn't fetch player actions, try to create a new record
+      if (actionsError || !actionsData) {
+        console.log(
+          'No player actions found, creating new record or using defaults'
+        );
+
+        try {
+          // Try to create a new player_actions record
+          const { data: newActionRecord, error: createError } = await supabase
+            .from('player_actions')
+            .insert({
+              player_id: player.id,
+              game_id: currentGame.id,
+              hour: currentGame.current_hour,
+              actions_used: 0,
+              actions_available: 4,
+            })
+            .select()
+            .single();
+
+          if (createError) {
+            console.error('Error creating player actions record:', createError);
+            // Use default values
+            remainingActions = 4;
+          } else if (newActionRecord) {
+            remainingActions =
+              newActionRecord.actions_available - newActionRecord.actions_used;
+          } else {
+            remainingActions = 4; // Fallback to default
+          }
+        } catch (err) {
+          console.error('Error handling player actions:', err);
+          remainingActions = 4; // Fallback to default
+        }
+      } else {
+        // Calculate remaining actions from fetched data
+        remainingActions =
+          actionsData.actions_available - actionsData.actions_used;
+      }
+
+      // Check if enough actions are available
+      if (remainingActions < actionCost) {
+        // Ask user for confirmation that this will advance their turn
+        if (
+          window.confirm(
+            `This trip requires ${actionCost} actions, but you only have ${remainingActions} remaining. Continue and advance to the next turn?`
+          )
+        ) {
+          console.log('User confirmed to advance turn and continue travel');
+
+          // Call endTurn first
+          const endTurnResult = await endTurn();
+
+          if (!endTurnResult.success) {
+            console.error('Failed to end turn:', endTurnResult.error);
+            throw new Error('Failed to advance to next turn');
+          }
+
+          console.log('Turn advanced successfully');
+
+          // Brief delay to allow turn to advance
+          await new Promise((resolve) => setTimeout(resolve, 500));
+
+          // Refresh game data to get new hour
+          await fetchGameData();
+
+          // Get the new hour
+          const { data: updatedGame } = await supabase
+            .from('games')
+            .select('current_hour')
+            .eq('id', currentGame.id)
+            .single();
+
+          if (updatedGame) {
+            console.log('New game hour:', updatedGame.current_hour);
+
+            // Ensure player_actions record exists for this new hour
+            const { data: newHourActions, error: newActionsError } =
+              await supabase
+                .from('player_actions')
+                .select('*')
+                .eq('player_id', player.id)
+                .eq('game_id', currentGame.id)
+                .eq('hour', updatedGame.current_hour)
+                .single();
+
+            if (newActionsError || !newHourActions) {
+              console.log('Creating fresh player_actions for new hour');
+
+              // Create new player_actions for the new hour
+              await supabase.from('player_actions').insert({
+                player_id: player.id,
+                game_id: currentGame.id,
+                hour: updatedGame.current_hour,
+                actions_used: 0,
+                actions_available: 4,
+              });
+            }
+
+            // Directly update player location on client-side instead of using the RPC
+            console.log('Implementing client-side travel as fallback');
+
+            try {
+              // Get transportation cost from stored data
+              let transportCost = 0;
+              if (transportData.name.toLowerCase().includes('taxi')) {
+                transportCost = distanceData.taxi_cost;
+              } else if (
+                !transportData.name.toLowerCase().includes('walk') &&
+                !transportData.name.toLowerCase().includes('bike')
+              ) {
+                transportCost = transportData.base_cost;
+              }
+
+              // 1. Update player cash and location
+              const { data: updatedPlayer, error: playerUpdateError } =
+                await supabase
+                  .from('players')
+                  .update({
+                    cash: player.cash - transportCost,
+                    current_borough_id: neighborhoodId,
+                  })
+                  .eq('id', player.id)
+                  .select()
+                  .single();
+
+              if (playerUpdateError) {
+                throw playerUpdateError;
+              }
+
+              // 2. Record transportation (ignore if it fails with unique violation)
+              try {
+                await supabase.from('player_transportation').insert({
+                  player_id: player.id,
+                  transportation_id: transportationId,
+                  unlocked_at: new Date().toISOString(),
+                  active: true,
+                });
+              } catch (err) {
+                console.log('Transportation record already exists, continuing');
+              }
+
+              // 3. Record transaction if needed
+              if (transportCost > 0) {
+                await supabase.from('transactions').insert({
+                  game_id: currentGame.id,
+                  player_id: player.id,
+                  quantity: 1,
+                  price: transportCost,
+                  hour: updatedGame.current_hour,
+                  transaction_type: 'transport',
+                  neighborhood_id: neighborhoodId,
+                });
+              }
+
+              // 4. Consume actions
+              const { data: actionsData } = await supabase
+                .from('player_actions')
+                .select('*')
+                .eq('player_id', player.id)
+                .eq('game_id', currentGame.id)
+                .eq('hour', updatedGame.current_hour)
+                .single();
+
+              if (actionsData) {
+                await supabase
+                  .from('player_actions')
+                  .update({
+                    actions_used: actionsData.actions_used + actionCost,
+                  })
+                  .eq('id', actionsData.id);
+              }
+
+              // Refresh player data
+              await refreshPlayerData();
+              await fetchGameData();
+
+              return {
+                success: true,
+                hourAdvanced: true,
+                newHour: updatedGame.current_hour,
+                clientSide: true,
+              };
+            } catch (clientErr) {
+              console.error(
+                'Client-side travel implementation failed:',
+                clientErr
+              );
+              throw new Error(
+                'Client-side travel failed: ' + clientErr.message
+              );
+            }
+          }
+        } else {
+          setLoading(false);
+          return { success: false, error: new Error('Travel cancelled') };
+        }
+      }
+
       // Call the travel function from gameActions
+      console.log('Calling travelToBorough with:', {
+        playerId: player.id,
+        gameId: currentGame.id,
+        toBorough: neighborhoodId,
+        transportId: transportationId,
+      });
+
+      // First ensure we have up-to-date player actions for the current hour
+      const { data: currentActionsData, error: currentActionsError } =
+        await supabase
+          .from('player_actions')
+          .select('*')
+          .eq('player_id', player.id)
+          .eq('game_id', currentGame.id)
+          .eq('hour', currentGame.current_hour)
+          .single();
+
+      if (!currentActionsError && currentActionsData) {
+        // Update actions_used directly in the database
+        console.log('Manually updating action points before travel');
+        const newActionsUsed = currentActionsData.actions_used + actionCost;
+
+        await supabase
+          .from('player_actions')
+          .update({ actions_used: newActionsUsed })
+          .eq('id', currentActionsData.id);
+      }
+
       const result = await travelToBorough(
         player.id,
         currentGame.id,
         neighborhoodId,
         transportationId
       );
+
+      console.log('travelToBorough result:', result);
 
       // Check if hour was advanced (can be detected by comparing game hour before and after)
       const { data: currentGameData } = await supabase
@@ -775,7 +1060,30 @@ export const GameProvider = ({ children }) => {
       };
     } catch (error) {
       console.error('Error traveling:', error);
-      return { success: false, error };
+
+      // Analyze and log details about the error
+      console.log('Full error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        code: error.code,
+        details: error.details,
+      });
+
+      // Provide more specific error message based on error type
+      let errorMessage = 'Travel failed';
+      if (error.message.includes('distance')) {
+        errorMessage = 'Could not calculate travel distance';
+      } else if (error.message.includes('actions')) {
+        errorMessage = 'Not enough action points remaining';
+      } else if (error.message.includes('transaction')) {
+        errorMessage = 'Database error during travel';
+      } else if (error.message.includes('turn')) {
+        errorMessage = 'Failed to advance turn';
+      }
+
+      toast.error(errorMessage);
+      return { success: false, error, errorMessage };
     } finally {
       setLoading(false);
     }

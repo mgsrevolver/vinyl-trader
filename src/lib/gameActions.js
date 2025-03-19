@@ -153,7 +153,7 @@ export const travelToBorough = async (
             player_id: playerId,
             game_id: gameId,
             hour: nextHour,
-            actions_used: 1, // Use 1 action for travel
+            actions_used: 0, // Don't pre-consume any actions, let the RPC handle it
             actions_available: 4,
           })
           .select();
@@ -163,38 +163,14 @@ export const travelToBorough = async (
 
           // If it's a unique constraint error, the row might already exist
           if (insertError.code === '23505') {
-            console.log('Row already exists, updating instead');
-            const { error: updateError } = await supabase
-              .from('player_actions')
-              .update({ actions_used: 1 })
-              .eq('player_id', playerId)
-              .eq('game_id', gameId)
-              .eq('hour', nextHour);
-
-            if (updateError) {
-              console.error(
-                'Error updating existing actions row:',
-                updateError
-              );
-            }
+            console.log('Row already exists, using existing row');
+            // Don't update actions_used here, let the RPC handle it
           }
         } else {
           console.log('Created new player_actions row for hour', nextHour);
         }
       } catch (err) {
         console.error('Exception handling player_actions for next hour:', err);
-      }
-    } else {
-      // Use an action for travel
-      const { error: actionError } = await supabase
-        .from('player_actions')
-        .update({ actions_used: actionsData.actions_used + 1 })
-        .eq('player_id', playerId)
-        .eq('game_id', gameId)
-        .eq('hour', currentHour);
-
-      if (actionError) {
-        console.error('Error using action for travel:', actionError);
       }
     }
 
