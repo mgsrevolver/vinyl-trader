@@ -10,6 +10,7 @@ import {
   FaStore,
   FaHome,
 } from 'react-icons/fa';
+import { BiTimeFive, BiChevronRight } from 'react-icons/bi';
 import toast from 'react-hot-toast';
 import { useGame } from '../contexts/GameContext';
 import {
@@ -26,7 +27,7 @@ const Game = () => {
   const { gameId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { player, playerId, refreshPlayerData } = useGame();
+  const { player, playerId, refreshPlayerData, currentGame } = useGame();
 
   // State management
   const [gameState, setGameState] = useState(null);
@@ -270,37 +271,57 @@ const Game = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {boroughStores.map((store) => (
-              <div
-                key={store.id}
-                className="card"
-                onClick={() => goToStore(store.id)}
-              >
-                <div className="store-card">
-                  <h3>{store.name}</h3>
+            {boroughStores.map((store) => {
+              // Calculate if store is open
+              const currentHour = currentGame
+                ? (24 - currentGame.current_hour) % 24
+                : 0;
+              const isOpen =
+                currentHour >= store.open_hour &&
+                currentHour < store.close_hour;
 
-                  <div className="store-info">
-                    <FaClock className="mr-2 text-gray-600" />
-                    <span>
-                      {formatTime(store.open_hour)} -{' '}
-                      {formatTime(store.close_hour)}
-                    </span>
-                  </div>
+              return (
+                <Card
+                  key={store.id}
+                  onClick={() => goToStore(store.id)}
+                  className="hover:shadow-lg active:shadow-md"
+                >
+                  <div className="p-4">
+                    <h3 className="text-xl font-bold text-left mb-3">
+                      {store.name}
+                    </h3>
 
-                  <div className="store-footer">
-                    <div>
-                      Genre:{' '}
-                      <span className="font-semibold">
-                        {store.specialty_genre || 'Various'}
+                    <div className="flex items-center mb-3 text-left">
+                      <BiTimeFive className="mr-2 text-gray-500" size={18} />
+                      <span>
+                        {formatTime(store.open_hour)} -{' '}
+                        {formatTime(store.close_hour)}{' '}
+                      </span>
+                      <span
+                        className={`ml-2 ${
+                          isOpen ? 'text-green-700' : 'text-gray-500'
+                        }`}
+                      >
+                        ({isOpen ? 'OPEN' : 'CLOSED'})
                       </span>
                     </div>
-                    <div className="arrow-button">
-                      <FaArrowRight />
+
+                    <div className="flex justify-between items-center text-left">
+                      <div>
+                        Genre:{' '}
+                        <span className="font-semibold">
+                          {store.specialty_genre || 'Various'}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            ))}
+
+                  <div className="bg-gray-100 px-4 py-2 border-t border-gray-200 flex justify-end">
+                    <div className="text-gray-500 text-sm">Tap to view →</div>
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         )}
 

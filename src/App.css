@@ -43,11 +43,18 @@
   transition: all 0.2s ease;
   border: 1px solid #eaeaea;
   cursor: pointer;
+  position: relative;
+  transform: translateY(0);
 }
 
 .card:hover {
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  border-color: #d0d0d0;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.card:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .read-the-docs {
@@ -522,12 +529,10 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-/* SIMPLIFIED store card styles */
+/* Store card styling */
 .store-card {
-  display: flex;
-  flex-direction: column;
   text-align: left;
-  padding: 1rem;
+  padding: 0;
 }
 
 .store-card h3 {
@@ -537,27 +542,47 @@
   text-align: left;
 }
 
-.store-card .store-info {
+.store-info {
   display: flex;
   align-items: center;
   margin-bottom: 0.75rem;
   text-align: left;
 }
 
-.store-card .store-footer {
+.store-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
   text-align: left;
 }
 
-.arrow-button {
-  background-color: #333;
-  color: white;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Open/closed badge styling */
+.status-badge-open {
+  background-color: #d1fae5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.status-badge-closed {
+  background-color: #f3f4f6;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+/* Tap indicator */
+.tap-indicator {
+  color: #666;
+  font-size: 0.85rem;
+  text-align: right;
+  padding: 8px 12px;
+  background-color: #f9fafb;
+  border-top: 1px solid #eaeaea;
 }
