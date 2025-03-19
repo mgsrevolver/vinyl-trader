@@ -297,39 +297,89 @@ const Game = () => {
           </div>
         )}
 
-        {/* End Turn Section - Fixed at bottom with horizontal flex layout */}
-        <div className="fixed bottom-6 left-0 right-0 max-w-xl mx-auto px-6">
-          <div className="flex flex-row justify-center space-x-4">
-            <button
-              onClick={handleEndTurn}
-              disabled={submitting}
-              className="travel-button flex justify-center"
-            >
-              {submitting ? (
-                <>
-                  <FaSpinner className="animate-spin mr-2" /> Processing...
-                </>
-              ) : (
-                'End Turn'
-              )}
-            </button>
+        {/* End Turn Section - Force horizontal layout with inline styles */}
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            left: '0',
+            right: '0',
+            display: 'flex',
+            flexDirection: 'row',
+            justifyContent: 'center',
+            gap: '16px',
+            maxWidth: '430px',
+            margin: '0 auto',
+            padding: '0 16px',
+            zIndex: 50,
+          }}
+        >
+          <button
+            onClick={handleEndTurn}
+            disabled={submitting}
+            style={{
+              backgroundColor: '#e5e7eb',
+              border: '1px solid #d1d5db',
+              borderRadius: '9999px',
+              padding: '8px 16px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#000',
+              fontWeight: 'normal',
+              fontSize: '16px',
+              flex: '1',
+            }}
+          >
+            {submitting ? (
+              <>
+                <FaSpinner
+                  style={{
+                    marginRight: '8px',
+                    animation: 'spin 1s linear infinite',
+                  }}
+                />{' '}
+                Processing...
+              </>
+            ) : (
+              'End Turn'
+            )}
+          </button>
 
-            <button
-              onClick={handleLeaveGame}
-              disabled={submitting}
-              className="travel-button flex justify-center"
-            >
-              Leave Game
-            </button>
-
-            {/* Space for additional buttons in the future */}
-            {/* 
-            <button className="travel-button flex justify-center">
-              Future Button
-            </button>
-            */}
-          </div>
+          <button
+            onClick={handleLeaveGame}
+            disabled={submitting}
+            style={{
+              backgroundColor: '#e5e7eb',
+              border: '1px solid #d1d5db',
+              borderRadius: '9999px',
+              padding: '8px 16px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#000',
+              fontWeight: 'normal',
+              fontSize: '16px',
+              flex: '1',
+            }}
+          >
+            Leave Game
+          </button>
         </div>
+
+        {/* Add a style tag for the spinner animation */}
+        <style jsx>{`
+          @keyframes spin {
+            from {
+              transform: rotate(0deg);
+            }
+            to {
+              transform: rotate(360deg);
+            }
+          }
+        `}</style>
       </div>
     </div>
   );
