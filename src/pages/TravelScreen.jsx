@@ -22,6 +22,7 @@ import Button from '../components/ui/Button';
 import {
   getTransportationMethods,
   getBoroughDistances,
+  getBoroughStores,
 } from '../lib/gameActions';
 
 // You'll need to add an NYC map image to your public/assets folder
@@ -40,6 +41,7 @@ const TravelScreen = () => {
   const [startY, setStartY] = useState(0);
   const [transportOptions, setTransportOptions] = useState([]);
   const [boroughDistances, setBoroughDistances] = useState([]);
+  const [neighborhoodStores, setNeighborhoodStores] = useState([]);
 
   // NYC borough coordinates based on the screenshot
   const boroughCoordinates = {
@@ -130,11 +132,55 @@ const TravelScreen = () => {
     loadTravelData();
   }, []);
 
+  useEffect(() => {
+    // Only fetch stores when a neighborhood is selected
+    const fetchStoresForNeighborhood = async () => {
+      if (!selectedNeighborhood) {
+        setNeighborhoodStores([]);
+        return;
+      }
+
+      try {
+        // Use the utility function from gameActions.js
+        const stores = await getBoroughStores(selectedNeighborhood.id);
+        console.log(
+          'Stores found for borough:',
+          stores.length,
+          'borough id:',
+          selectedNeighborhood.id
+        );
+
+        setNeighborhoodStores(stores || []);
+      } catch (err) {
+        console.error('Error fetching stores for neighborhood:', err);
+        toast.error('Failed to load stores');
+      }
+    };
+
+    fetchStoresForNeighborhood();
+  }, [selectedNeighborhood]);
+
   const handleSelectNeighborhood = (neighborhood) => {
     // Don't select current location
     if (neighborhood.id === player.current_borough_id) {
       toast.error("You're already in this neighborhood!");
       return;
+    }
+
+    // Add logging to see which ID is being selected
+    console.log('Selected neighborhood:', neighborhood.name, neighborhood.id);
+
+    // Check if this is Uptown and log both Uptown IDs
+    if (neighborhood.name === 'Uptown') {
+      console.log(
+        'Uptown IDs in database:',
+        '5886f15f-e81d-4d83-8705-100a58adada1',
+        '27ea6aa4-e00d-43e1-93fd-78dccf329b98'
+      );
+      console.log(
+        'Stores linked to which Uptown ID?',
+        'Check your store records'
+      );
     }
 
     setSelectedNeighborhood(neighborhood);
@@ -229,6 +275,14 @@ const TravelScreen = () => {
     return { time, cost };
   };
 
+  // Format time to 12-hour format
+  const formatTime = (hour) => {
+    if (hour === null || hour === undefined) return 'N/A';
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}${period}`;
+  };
+
   if (dataLoading || !player) {
     return (
       <div className="nyc-map-bg flex items-center justify-center">
@@ -314,7 +368,6 @@ const TravelScreen = () => {
                   Travel to {selectedNeighborhood.name}
                 </h2>
 
-                {/* Close Button - Keeping the original class but adding the white circular style */}
                 <button
                   className="close-button bg-white rounded-full w-10 h-10 flex items-center justify-center shadow-md"
                   onClick={handleCloseDrawer}
@@ -323,9 +376,25 @@ const TravelScreen = () => {
                 </button>
               </div>
 
-              <p className="text-sm mb-2 px-4">How do you want to get there?</p>
+              {/* Stores in this neighborhood - Super compact single line format */}
+              {neighborhoodStores.length > 0 && (
+                <div className="mb-3">
+                  {neighborhoodStores.map((store) => (
+                    <div key={store.id} className="text-sm text-center mb-0">
+                      {store.name} • {store.specialty_genre || 'Various'} •{' '}
+                      {formatTime(store.open_hour)}-
+                      {formatTime(store.close_hour)}
+                    </div>
+                  ))}
+                </div>
+              )}
 
-              <div className="transport-grid">
+              <p className="text-sm mb-2 text-center">
+                How do you want to get there?
+              </p>
+
+              {/* Make transport grid more compact */}
+              <div className="transport-grid" style={{ maxHeight: '220px' }}>
                 {transportOptions.map((transport) => {
                   // Get travel details for this transport option
                   const { time, cost } = getTravelDetails(
@@ -341,18 +410,19 @@ const TravelScreen = () => {
                       className={`transport-option ${
                         selectedTransport?.id === transport.id ? 'selected' : ''
                       }`}
+                      style={{ padding: '8px' }}
                     >
                       <div className="transport-icon">{transport.icon}</div>
                       <div className="transport-name">{transport.name}</div>
-                      <div className="transport-price">
+                      <div className="transport-price text-xs">
                         <FaCoins className="text-gray-500" size={10} />
                         <span>{formatMoney(cost)}</span>
                       </div>
-                      <div className="transport-time">
+                      <div className="transport-time text-xs">
                         <FaClock className="text-gray-500" size={10} />
                         <span>{time} hours</span>
                       </div>
-                      <div className="transport-price">
+                      <div className="transport-price text-xs">
                         <FaWarehouse className="text-gray-500" size={10} />
                         <span>
                           Capacity: {transport.capacity_modifier > 0 ? '+' : ''}
@@ -364,7 +434,8 @@ const TravelScreen = () => {
                 })}
               </div>
 
-              <div className="px-4 pb-4 pt-2">
+              {/* Add style to ensure button fits within the available space */}
+              <div className="px-4 pb-3 pt-1">
                 <Button
                   onClick={handleTravel}
                   disabled={loading || !selectedTransport}
