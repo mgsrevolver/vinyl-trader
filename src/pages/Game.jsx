@@ -293,7 +293,7 @@ const Game = () => {
         {/* Header Row with Borough name and Travel */}
         <div className="header-row">
           <div className="flex items-center">
-            <h1 className="text-2xl font-bold font-records">
+            <h1 className="text-3xl font-bold font-records">
               {currentBoroughName || 'Unknown Location'}
             </h1>
           </div>

@@ -113,18 +113,6 @@ const Home = () => {
                 <span>TRADER</span>
               </h1>
             </div>
-
-            {/* Tagline - below both title and icon */}
-            <p
-              style={{
-                fontSize: '20px',
-                margin: '16px 0 0 0',
-                color: 'black',
-                textAlign: 'left',
-              }}
-            >
-              The ultimate record trading adventure
-            </p>
           </div>
 
           {/* Play button */}

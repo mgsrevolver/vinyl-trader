@@ -37,7 +37,7 @@ const boroughCoordinates = {
   brooklyn: { x: 56, y: 85 },
   queens: { x: 78, y: 43 },
   bronx: { x: 85, y: 15 },
-  staten_island: { x: 1, y: 1 },
+  'staten island': { x: 1, y: 1 },
 };
 
 // Memo-ized components for better performance
@@ -166,10 +166,28 @@ const TravelScreen = () => {
         // Process neighborhoods
         if (isMounted) {
           // Add coordinates from our mapping
+          console.log(
+            'Borough data from DB:',
+            neighborhoodData.map((n) => n.name)
+          );
+
           const neighborhoodsWithCoords = neighborhoodData.map((hood) => {
             // Convert borough name to lowercase for matching with our coordinates
             const boroughKey = hood.name.toLowerCase();
+            console.log(`Looking up coordinates for: "${boroughKey}"`);
+
+            // Try to find matching coordinates
             const coords = boroughCoordinates[boroughKey] || { x: 50, y: 50 };
+
+            if (boroughCoordinates[boroughKey]) {
+              console.log(
+                `Found coordinates for ${boroughKey}: x=${coords.x}, y=${coords.y}`
+              );
+            } else {
+              console.log(
+                `WARNING: No coordinates found for ${boroughKey}, using default position`
+              );
+            }
 
             return {
               ...hood,
