@@ -60,33 +60,40 @@ const Home = () => {
 
       <main className="flex-1 flex flex-col items-center justify-center px-4 pb-4">
         <div className="w-full max-w-md">
-          {/* Logo and Title - revised layout */}
-          <div className="mb-4">
-            <div className="flex" style={{ alignItems: 'center' }}>
-              {/* Left: Title */}
-              <div>
-                <h1
-                  style={{
-                    fontSize: '40px',
-                    fontWeight: 'bold',
-                    margin: '0',
-                    lineHeight: '1',
-                    color: 'black',
-                    display: 'flex',
-                    flexDirection: 'column',
-                  }}
-                >
-                  <span>VINYL</span>
-                  <span>TRADER</span>
-                </h1>
-              </div>
+          {/* Logo and Title - improved layout */}
+          <div className="mb-12">
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%',
+                marginTop: '20px',
+              }}
+            >
+              {/* Title on left */}
+              <h1
+                style={{
+                  fontSize: '55px',
+                  fontWeight: 'bold',
+                  margin: '0',
+                  lineHeight: '0.9',
+                  color: 'black',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <span>VINYL</span>
+                <span>TRADER</span>
+              </h1>
 
-              {/* Right: Record icon */}
-              <div style={{ marginLeft: '20px' }}>
+              {/* Record icon directly to the right */}
+              <div style={{ marginLeft: '30px', flexShrink: 0 }}>
                 <FaCompactDisc
                   style={{
-                    color: '#f59e0b', // Yellow color (Tailwind's amber-500)
-                    fontSize: '100px',
+                    color: '#f59e0b',
+                    fontSize: '130px',
                     animation: 'spin 10s linear infinite',
                     filter: 'drop-shadow(0 0 10px rgba(250, 204, 21, 0.4))',
                   }}
@@ -97,9 +104,10 @@ const Home = () => {
             {/* Tagline - below both title and icon */}
             <p
               style={{
-                fontSize: '16px',
-                margin: '8px 0 0 0',
+                fontSize: '18px',
+                margin: '12px 0 0 0',
                 color: 'black',
+                textAlign: 'center',
               }}
             >
               The ultimate record trading adventure
