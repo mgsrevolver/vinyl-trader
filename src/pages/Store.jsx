@@ -295,16 +295,30 @@ const Store = () => {
     }
   };
 
-  const handleSell = async (productId, quantity = 1) => {
+  const handleSell = async (productId, quantity = 1, inventoryId) => {
     if (!player || !store) return;
 
     try {
+      console.log('Selling record with params:', {
+        productId,
+        quantity,
+        inventoryId,
+        storeId: store.id,
+      });
+
+      if (!inventoryId) {
+        toast.error('Cannot sell: Missing inventory ID for this record');
+        console.error('Missing inventory ID for sell operation');
+        return;
+      }
+
       const result = await sellRecord(
         player.id,
         gameId,
         store.id,
         productId,
-        quantity
+        quantity,
+        inventoryId
       );
 
       if (result.success) {

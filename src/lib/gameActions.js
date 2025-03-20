@@ -95,6 +95,7 @@ export const buyRecord = async (
  * @param {string} storeId - UUID of the store
  * @param {string} productId - UUID of the product (record)
  * @param {number} quantity - Number of records to sell
+ * @param {string} inventoryId - UUID of the specific inventory item
  * @returns {Promise<Object>} - Result object with success status
  */
 export const sellRecord = async (
@@ -102,7 +103,8 @@ export const sellRecord = async (
   gameId,
   storeId,
   productId,
-  quantity = 1
+  quantity = 1,
+  inventoryId
 ) => {
   try {
     console.log('Selling record with params:', {
@@ -111,76 +113,19 @@ export const sellRecord = async (
       storeId,
       productId,
       quantity,
+      inventoryId,
     });
 
-    // First, get product details for debugging
-    const { data: productData } = await supabase
-      .from('products')
-      .select('name, base_price')
-      .eq('id', productId)
-      .single();
-
-    console.log('Product base details:', productData);
-
-    // Get player inventory item to see purchase price
-    const { data: inventoryData } = await supabase
-      .from('player_inventory')
-      .select('purchase_price, condition')
-      .eq('player_id', playerId)
-      .eq('product_id', productId)
-      .single();
-
-    console.log('Player inventory details:', inventoryData);
-
-    // First, fetch the current market price with margin applied
-    const { data: marketData, error: marketError } = await supabase
-      .from('market_inventory')
-      .select('current_price, condition')
-      .eq('game_id', gameId)
-      .eq('store_id', storeId)
-      .eq('product_id', productId);
-
-    if (marketError) {
-      console.error('Error fetching market price:', marketError);
-      return { success: false, error: marketError };
-    }
-
-    // Handle case when market data is empty or has multiple records
-    if (!marketData || marketData.length === 0) {
-      console.error('No market data found for this product');
+    // Check if inventoryId is provided
+    if (!inventoryId) {
+      console.error('Missing inventory ID for sell_record');
       return {
         success: false,
-        error: { message: 'No market data found for this product' },
+        error: {
+          message: 'Missing inventory ID. Need to specify which copy to sell.',
+        },
       };
     }
-
-    console.log('Market data (all entries):', marketData);
-
-    // Use the first result if there are multiple
-    const currentPrice = marketData[0].current_price;
-
-    // Apply store margin (75%) - this is core business logic
-    const STORE_MARGIN = 0.75;
-    const sellPrice = currentPrice * STORE_MARGIN;
-
-    // Check what the database sell_record function will actually calculate
-    const { data: dbMarginData } = await supabase.rpc('calculate_sell_margin', {
-      condition: inventoryData?.condition || 'Good',
-    });
-
-    console.log('Database margin calculation:', {
-      condition: inventoryData?.condition || 'Good',
-      frontendMargin: STORE_MARGIN,
-      databaseMargin: dbMarginData,
-      frontendSellPrice: sellPrice,
-      databaseEstimatedSellPrice: currentPrice * dbMarginData,
-    });
-
-    console.log('Selling at price:', {
-      originalPrice: currentPrice,
-      sellPrice: sellPrice,
-      margin: STORE_MARGIN,
-    });
 
     // Call the database function to sell the record
     const { data, error } = await supabase.rpc('sell_record', {
@@ -189,44 +134,12 @@ export const sellRecord = async (
       p_store_id: storeId,
       p_product_id: productId,
       p_quantity: quantity,
+      p_inventory_id: inventoryId,
     });
 
     if (error) {
       console.error('Error selling record:', error);
       return { success: false, error: error };
-    }
-
-    // Update player's cash to reflect the correct margin
-    if (data) {
-      // After successful sale, ensure player receives the correct amount
-      // This is a workaround since we can't modify the database function
-      const priceDifference = currentPrice - sellPrice;
-
-      if (priceDifference > 0) {
-        // First, get the current cash value
-        const { data: playerData, error: fetchError } = await supabase
-          .from('players')
-          .select('cash')
-          .eq('id', playerId)
-          .single();
-
-        if (fetchError) {
-          console.error('Error fetching player cash:', fetchError);
-        } else {
-          // Then update with the calculated new value
-          const newCash = playerData.cash - priceDifference * quantity;
-
-          const { error: cashError } = await supabase
-            .from('players')
-            .update({ cash: newCash })
-            .eq('id', playerId);
-
-          if (cashError) {
-            console.error('Error adjusting player cash for margin:', cashError);
-            // Not returning error as the sale was completed, this is just an adjustment
-          }
-        }
-      }
     }
 
     return { success: true, data };

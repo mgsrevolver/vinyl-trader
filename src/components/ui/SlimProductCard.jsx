@@ -75,10 +75,18 @@ const SlimProductCard = ({
 
         onAction(productId, 1, inventoryId);
       } else {
-        // For selling, we just need the product ID
+        // For selling, we need both product ID and inventory ID
         const productId = item.product_id;
-        console.log('Sell clicked with:', { productId, item });
-        onAction(productId, 1);
+        const inventoryId = item.id; // The specific inventory item ID
+
+        console.log('Sell clicked with:', {
+          productId,
+          inventoryId,
+          item,
+        });
+
+        // Pass the inventoryId as the third parameter
+        onAction(productId, 1, inventoryId);
       }
     }
   };
