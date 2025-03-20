@@ -58,7 +58,6 @@ export const buyRecord = async (
  * @param {string} storeId - UUID of the store
  * @param {string} productId - UUID of the product (record)
  * @param {number} quantity - Number of records to sell
- * @param {number} margin - The percentage of buy price a store will pay (default: 0.75 or 75%)
  * @returns {Promise<Object>} - Result object with success status
  */
 export const sellRecord = async (
@@ -66,8 +65,7 @@ export const sellRecord = async (
   gameId,
   storeId,
   productId,
-  quantity = 1,
-  margin = 0.75
+  quantity = 1
 ) => {
   try {
     console.log('Selling record with params:', {
@@ -76,18 +74,39 @@ export const sellRecord = async (
       storeId,
       productId,
       quantity,
-      margin,
     });
 
-    // Prepare parameters for the database function call
-    // The margin is applied in the database function when calculating the sale price
+    // First, fetch the current market price with margin applied
+    const { data: marketData, error: marketError } = await supabase
+      .from('market_inventory')
+      .select('current_price')
+      .eq('game_id', gameId)
+      .eq('store_id', storeId)
+      .eq('product_id', productId)
+      .single();
+
+    if (marketError) {
+      console.error('Error fetching market price:', marketError);
+      return { success: false, error: marketError };
+    }
+
+    // Apply store margin (75%) - this is core business logic
+    const STORE_MARGIN = 0.75;
+    const sellPrice = marketData.current_price * STORE_MARGIN;
+
+    console.log('Selling at price:', {
+      originalPrice: marketData.current_price,
+      sellPrice: sellPrice,
+      margin: STORE_MARGIN,
+    });
+
+    // Call the database function to sell the record
     const { data, error } = await supabase.rpc('sell_record', {
       p_player_id: playerId,
       p_game_id: gameId,
       p_store_id: storeId,
       p_product_id: productId,
       p_quantity: quantity,
-      p_margin: margin, // Add margin parameter to the database function call
     });
 
     if (error) {
@@ -95,10 +114,74 @@ export const sellRecord = async (
       return { success: false, error: error };
     }
 
+    // Update player's cash to reflect the correct margin
+    if (data) {
+      // After successful sale, ensure player receives the correct amount
+      // This is a workaround since we can't modify the database function
+      const priceDifference = marketData.current_price - sellPrice;
+
+      if (priceDifference > 0) {
+        // Adjust player cash to reflect the margin
+        const { error: cashError } = await supabase
+          .from('players')
+          .update({
+            cash: supabase.raw(`cash - ${priceDifference * quantity}`),
+          })
+          .eq('id', playerId);
+
+        if (cashError) {
+          console.error('Error adjusting player cash for margin:', cashError);
+          // Not returning error as the sale was completed, this is just an adjustment
+        }
+      }
+    }
+
     return { success: true, data };
   } catch (err) {
     console.error('Error selling record:', err);
     return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Get sell prices with store margin applied
+ * @param {string} storeId - UUID of the store
+ * @param {string} gameId - UUID of the game
+ * @param {string[]} productIds - Array of product IDs
+ * @returns {Promise<Object>} - Map of product IDs to sell prices
+ */
+export const getSellPrices = async (storeId, gameId, productIds) => {
+  try {
+    if (!productIds || productIds.length === 0) {
+      return {};
+    }
+
+    // Fetch all market prices for these products at this store
+    const { data, error } = await supabase
+      .from('market_inventory')
+      .select('product_id, current_price')
+      .eq('store_id', storeId)
+      .eq('game_id', gameId)
+      .in('product_id', productIds);
+
+    if (error) {
+      console.error('Error fetching sell prices:', error);
+      return {};
+    }
+
+    // Apply 75% margin - this is core business logic
+    const STORE_MARGIN = 0.75;
+
+    // Create a map of product ID to adjusted sell price
+    const priceMap = {};
+    data.forEach((item) => {
+      priceMap[item.product_id] = item.current_price * STORE_MARGIN;
+    });
+
+    return priceMap;
+  } catch (error) {
+    console.error('Error in getSellPrices:', error);
+    return {};
   }
 };
 

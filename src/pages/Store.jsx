@@ -12,7 +12,12 @@ import {
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useGame } from '../contexts/GameContext';
-import { getStoreInventory, buyRecord, sellRecord } from '../lib/gameActions';
+import {
+  getStoreInventory,
+  buyRecord,
+  sellRecord,
+  getSellPrices,
+} from '../lib/gameActions';
 import ActionButton from '../components/ui/ActionButton';
 import ProductCard from '../components/ui/ProductCard';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -144,31 +149,11 @@ const Store = () => {
     const productIds = playerInventory.map((item) => item.product_id);
 
     try {
-      // Get current prices for these products at this store
-      const { data, error } = await supabase
-        .from('market_inventory')
-        .select('product_id, current_price')
-        .eq('store_id', store.id)
-        .eq('game_id', gameId)
-        .in('product_id', productIds);
-
-      if (error) {
-        console.error('Error loading store prices:', error);
-        return;
-      }
-
-      // Apply 75% margin to all prices - stores pay 75% of what they sell for
-      const STORE_MARGIN = 0.75;
-
-      // Create a map of product ID to adjusted sell price
-      const priceMap = {};
-      data.forEach((item) => {
-        // Apply the margin - stores will pay 75% of their selling price
-        priceMap[item.product_id] = item.current_price * STORE_MARGIN;
-      });
+      // Use the getSellPrices function from gameActions.js
+      const priceMap = await getSellPrices(store.id, gameId, productIds);
 
       setInventoryStorePrices(priceMap);
-      console.log('Store prices loaded with margin applied:', priceMap);
+      console.log('Store sell prices loaded:', priceMap);
     } catch (error) {
       console.error('Error fetching store prices:', error);
     }
@@ -223,17 +208,13 @@ const Store = () => {
   const handleSell = async (productId, quantity = 1) => {
     if (!player || !store) return;
 
-    // Define store margin constant
-    const STORE_MARGIN = 0.75;
-
     try {
       const result = await sellRecord(
         player.id,
         gameId,
         store.id,
         productId,
-        quantity,
-        STORE_MARGIN // Pass the margin to the sellRecord function
+        quantity
       );
 
       if (result.success) {

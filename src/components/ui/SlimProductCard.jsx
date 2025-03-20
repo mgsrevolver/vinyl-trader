@@ -16,7 +16,7 @@ const SlimProductCard = ({
 
   // If we're in sell mode and have a store price, use that instead
   if (actionType === 'sell' && storePrice !== undefined) {
-    // Use the store price directly - margin is now applied at the API level
+    // The storePrice already has the 75% margin applied at the API/business logic level
     displayPrice = storePrice;
   }
 
