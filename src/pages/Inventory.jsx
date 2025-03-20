@@ -235,7 +235,7 @@ const Inventory = () => {
               marginBottom: '4px',
             }}
           >
-            Net Worth
+            Net Worth (Score)
           </h2>
           <div
             style={{

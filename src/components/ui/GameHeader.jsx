@@ -98,8 +98,22 @@ const GameHeader = () => {
   // Get actions remaining directly from the context
   const actionsRemaining = getActionsRemaining ? getActionsRemaining() : 4;
 
+  // Only create inventory link if we have a game ID
+  const inventoryLink = currentGame?.id
+    ? `/game/${currentGame.id}/inventory`
+    : '';
+
   return (
-    <div className="status-bar top-bar">
+    <Link
+      to={inventoryLink}
+      className="status-bar top-bar"
+      style={{
+        display: 'block',
+        textDecoration: 'none',
+        color: 'inherit',
+        cursor: 'pointer',
+      }}
+    >
       <div className="status-content">
         {/* Clock - with animation */}
         <div
@@ -118,12 +132,12 @@ const GameHeader = () => {
         </div>
 
         {/* Inventory - third item */}
-        <Link to={`/game/${currentGame.id}/inventory`} className="status-stat">
+        <div className="status-stat">
           <FaWarehouse />
           <span>
             {inventoryCount}/{player.inventory_capacity}
           </span>
-        </Link>
+        </div>
 
         {/* Actions Remaining - with floating animation */}
         <div
@@ -142,7 +156,7 @@ const GameHeader = () => {
           ))}
         </div>
       </div>
-    </div>
+    </Link>
   );
 };
 
