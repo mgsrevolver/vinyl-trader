@@ -157,14 +157,18 @@ const Store = () => {
         return;
       }
 
-      // Create a map of product ID to current price
+      // Apply 75% margin to all prices - stores pay 75% of what they sell for
+      const STORE_MARGIN = 0.75;
+
+      // Create a map of product ID to adjusted sell price
       const priceMap = {};
       data.forEach((item) => {
-        priceMap[item.product_id] = item.current_price;
+        // Apply the margin - stores will pay 75% of their selling price
+        priceMap[item.product_id] = item.current_price * STORE_MARGIN;
       });
 
       setInventoryStorePrices(priceMap);
-      console.log('Store prices loaded:', priceMap);
+      console.log('Store prices loaded with margin applied:', priceMap);
     } catch (error) {
       console.error('Error fetching store prices:', error);
     }
@@ -219,13 +223,17 @@ const Store = () => {
   const handleSell = async (productId, quantity = 1) => {
     if (!player || !store) return;
 
+    // Define store margin constant
+    const STORE_MARGIN = 0.75;
+
     try {
       const result = await sellRecord(
         player.id,
         gameId,
         store.id,
         productId,
-        quantity
+        quantity,
+        STORE_MARGIN // Pass the margin to the sellRecord function
       );
 
       if (result.success) {

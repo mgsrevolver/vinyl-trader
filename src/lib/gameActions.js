@@ -58,6 +58,7 @@ export const buyRecord = async (
  * @param {string} storeId - UUID of the store
  * @param {string} productId - UUID of the product (record)
  * @param {number} quantity - Number of records to sell
+ * @param {number} margin - The percentage of buy price a store will pay (default: 0.75 or 75%)
  * @returns {Promise<Object>} - Result object with success status
  */
 export const sellRecord = async (
@@ -65,7 +66,8 @@ export const sellRecord = async (
   gameId,
   storeId,
   productId,
-  quantity = 1
+  quantity = 1,
+  margin = 0.75
 ) => {
   try {
     console.log('Selling record with params:', {
@@ -74,14 +76,18 @@ export const sellRecord = async (
       storeId,
       productId,
       quantity,
+      margin,
     });
 
+    // Prepare parameters for the database function call
+    // The margin is applied in the database function when calculating the sale price
     const { data, error } = await supabase.rpc('sell_record', {
       p_player_id: playerId,
       p_game_id: gameId,
       p_store_id: storeId,
       p_product_id: productId,
       p_quantity: quantity,
+      p_margin: margin, // Add margin parameter to the database function call
     });
 
     if (error) {

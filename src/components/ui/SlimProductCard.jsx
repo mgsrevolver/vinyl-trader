@@ -14,10 +14,10 @@ const SlimProductCard = ({
   // Determine the display price based on the context
   let displayPrice = estimated_current_price || purchase_price || 0;
 
-  // If we're in sell mode and have a store price, use that instead with 75% margin
+  // If we're in sell mode and have a store price, use that instead
   if (actionType === 'sell' && storePrice !== undefined) {
-    // Apply a 75% margin - stores will pay at most 75% of their selling price
-    displayPrice = storePrice * 0.75;
+    // Use the store price directly - margin is now applied at the API level
+    displayPrice = storePrice;
   }
 
   // Only calculate profit if in sell mode
