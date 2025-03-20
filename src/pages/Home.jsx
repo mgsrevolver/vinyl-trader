@@ -23,6 +23,7 @@ const Home = () => {
 
   const handleSinglePlayerGame = async () => {
     setLoadingButton('singlePlayer');
+    console.log('Single player button clicked'); // Debug log
 
     try {
       // Use either custom name or generated name
@@ -31,18 +32,36 @@ const Home = () => {
           ? playerName.trim()
           : generatePlayerName();
 
+      console.log('Creating game for player:', name); // Debug log
+
       // Create the game - no alerts, no toasts
-      const { success, gameId } = await createGame(name);
+      const { success, gameId, error } = await createGame(name);
 
-      if (success) {
+      console.log('Game creation result:', { success, gameId, error }); // Debug log
+
+      if (success && gameId) {
         // Start it silently
-        await startGame(gameId);
+        console.log('Starting game:', gameId); // Debug log
+        const startResult = await startGame(gameId);
+        console.log('Start game result:', startResult); // Debug log
 
-        // Go straight to the game
-        window.location.href = `/game/${gameId}`;
+        // Navigate to the game page
+        console.log('Navigating to:', `/game/${gameId}`); // Debug log
+
+        // Use both methods to ensure navigation works
+        navigate(`/game/${gameId}`);
+
+        // As a fallback, use window.location after a short delay
+        setTimeout(() => {
+          window.location.href = `/game/${gameId}`;
+        }, 500);
+      } else {
+        console.error('Failed to create game:', error);
+        toast.error('Failed to create game');
       }
     } catch (error) {
-      console.error(error);
+      console.error('Error in handleSinglePlayerGame:', error);
+      toast.error('An error occurred');
     } finally {
       setLoadingButton(null);
     }
@@ -63,9 +82,9 @@ const Home = () => {
       if (success) {
         toast.success('Game created! Entering lobby...');
 
-        // Use window.location for more reliable navigation
+        // Use navigate for more consistent routing
         setTimeout(() => {
-          window.location.href = `/lobby/${gameId}`;
+          navigate(`/lobby/${gameId}`);
         }, 300);
       } else {
         toast.error('Failed to create game');
@@ -97,7 +116,7 @@ const Home = () => {
 
       if (success) {
         toast.success('Joined game successfully!');
-        window.location.href = `/lobby/${gameId}`;
+        navigate(`/lobby/${gameId}`);
       } else {
         toast.error(`Failed to join: ${error?.message || 'Unknown error'}`);
       }
@@ -166,6 +185,8 @@ const Home = () => {
               onClick={handleSinglePlayerGame}
               disabled={loadingButton !== null}
               className="w-full px-4 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              id="play-now-button"
+              type="button"
             >
               {loadingButton === 'singlePlayer' ? (
                 <span className="flex items-center">

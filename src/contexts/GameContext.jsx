@@ -4,6 +4,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useMemo,
 } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
@@ -16,6 +17,7 @@ import {
   sellRecord,
 } from '../lib/gameActions';
 import ConfirmationModal from '../components/ui/ConfirmationModal';
+import * as gameAPI from '../services/gameAPI';
 
 const GameContext = createContext();
 
@@ -23,13 +25,16 @@ export const useGame = () => useContext(GameContext);
 
 export const GameProvider = ({ children }) => {
   const navigate = useNavigate();
+  // Core state
   const [currentGame, setCurrentGame] = useState(null);
   const [player, setPlayer] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [playerInventory, setPlayerInventory] = useState([]);
-  const [gameLoading, setGameLoading] = useState(false);
   const [players, setPlayers] = useState([]);
   const [playerId, setPlayerId] = useState(null);
+
+  // UI state
+  const [loading, setLoading] = useState(false);
+  const [gameLoading, setGameLoading] = useState(false);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
   const [confirmationProps, setConfirmationProps] = useState({
     title: '',
@@ -42,7 +47,6 @@ export const GameProvider = ({ children }) => {
 
   // Generate or retrieve player ID
   useEffect(() => {
-    // First check for game-specific player ID
     const currentGameId = localStorage.getItem('deliWarsCurrentGame');
     const gameSpecificPlayerId = currentGameId
       ? localStorage.getItem(`player_${currentGameId}`)
@@ -76,86 +80,223 @@ export const GameProvider = ({ children }) => {
     }
   }, []);
 
-  // Create a new game
+  // Check for stored game on mount
+  useEffect(() => {
+    const storedGameId = localStorage.getItem('deliWarsCurrentGame');
+    if (storedGameId && playerId) {
+      loadGame(storedGameId);
+    }
+  }, [playerId]);
+
+  // Unified data fetching
+  const fetchGameData = useCallback(async () => {
+    if (!currentGame?.id || !player?.id) return false;
+
+    try {
+      const [gameData, playerData, inventoryData] = await Promise.all([
+        gameAPI.fetchGame(currentGame.id),
+        gameAPI.fetchPlayerWithBorough(player.id),
+        gameAPI.fetchPlayerInventory(player.id),
+      ]);
+
+      if (!gameData || !playerData) {
+        console.error('Error fetching data');
+        return false;
+      }
+
+      // Format player data
+      const playerWithBorough = {
+        ...playerData,
+        current_borough: playerData.boroughs?.name || 'Unknown Location',
+      };
+
+      // Update state
+      setCurrentGame(gameData);
+      setPlayer(playerWithBorough);
+      setPlayerInventory(inventoryData || []);
+
+      return true;
+    } catch (error) {
+      console.error('Error in fetchGameData:', error);
+      return false;
+    }
+  }, [currentGame?.id, player?.id]);
+
+  // Refresh player data
+  const refreshPlayerData = useCallback(async () => {
+    if (!player?.id) return false;
+
+    try {
+      const data = await gameAPI.fetchPlayerWithBorough(player.id);
+      if (!data) return false;
+
+      // Format the data
+      const playerWithBorough = {
+        ...data,
+        current_borough: data.boroughs?.name || 'Unknown Location',
+        current_borough_id: data.current_borough_id,
+      };
+
+      setPlayer(playerWithBorough);
+      return true;
+    } catch (error) {
+      console.error('Error in refreshPlayerData:', error);
+      return false;
+    }
+  }, [player?.id]);
+
+  // Refresh player inventory
+  const refreshPlayerInventory = useCallback(async () => {
+    if (!player?.id) return false;
+
+    try {
+      const inventory = await gameAPI.fetchPlayerInventory(player.id);
+      setPlayerInventory(inventory || []);
+      return true;
+    } catch (error) {
+      console.error('Error refreshing player inventory:', error);
+      return false;
+    }
+  }, [player?.id]);
+
+  // Action economy helpers
+  const getActionsRemaining = useCallback(() => {
+    if (!player) return 0;
+    const maxActionsPerHour = 4; // Could be moved to a game setting
+    return maxActionsPerHour - (player.actions_used_this_hour || 0);
+  }, [player]);
+
+  const useActions = useCallback(
+    async (actionCount) => {
+      if (!player || !currentGame) return { success: false };
+
+      const actionsRemaining = getActionsRemaining();
+      if (actionsRemaining < actionCount) {
+        return {
+          success: false,
+          message: `Not enough actions (need ${actionCount}, have ${actionsRemaining})`,
+        };
+      }
+
+      // Update the player's actions used
+      const data = await gameAPI.updatePlayerActions(
+        player.id,
+        (player.actions_used_this_hour || 0) + actionCount
+      );
+
+      if (!data) {
+        return { success: false, error: 'Failed to update actions' };
+      }
+
+      // Update local state
+      setPlayer(data);
+      return { success: true };
+    },
+    [player, currentGame, getActionsRemaining]
+  );
+
+  // Advance game hour
+  const advanceGameHour = useCallback(async () => {
+    if (!currentGame || !player?.id) return { success: false };
+
+    const newHour = currentGame.current_hour - 1;
+    const success = await gameAPI.advanceGameHour(
+      currentGame.id,
+      newHour,
+      player.id
+    );
+
+    if (!success) {
+      return { success: false };
+    }
+
+    // Refresh data
+    await refreshPlayerData();
+
+    // Update local game state
+    setCurrentGame((prev) => ({
+      ...prev,
+      current_hour: newHour,
+    }));
+
+    return { success: true };
+  }, [currentGame, player?.id, refreshPlayerData]);
+
+  // Core action economy system
+  const attemptAction = useCallback(
+    async (actionCost, performAction) => {
+      if (!player || !currentGame) return { success: false };
+
+      const actionsRemaining = getActionsRemaining();
+
+      // If player has enough actions, simply use them and perform the action
+      if (actionsRemaining >= actionCost) {
+        // Use actions
+        const { success: actionsSuccess } = await useActions(actionCost);
+        if (!actionsSuccess) {
+          return { success: false, message: 'Failed to use actions' };
+        }
+
+        // Perform the action
+        return await performAction();
+      }
+      // Not enough actions - handle overflow
+      else {
+        // Calculate overflow
+        const overflow = actionCost - actionsRemaining;
+
+        // Ask if player wants to advance hour
+        const shouldAdvance = window.confirm(
+          `You only have ${actionsRemaining} actions, but need ${actionCost}. ` +
+            `Would you like to advance to the next hour? ` +
+            `(${overflow} actions will be deducted from your next hour's actions)`
+        );
+
+        if (!shouldAdvance) {
+          return { success: false, message: 'Action canceled' };
+        }
+
+        // Use whatever actions remain in this hour
+        if (actionsRemaining > 0) {
+          await useActions(actionsRemaining);
+        }
+
+        // Store overflow amount for next hour
+        await gameAPI.setPlayerOverflow(player.id, overflow);
+
+        // Advance hour
+        const { success } = await advanceGameHour();
+        if (!success) {
+          return { success: false, message: "Couldn't advance to next hour" };
+        }
+
+        // Now perform the action (it's already "paid for" with the overflow)
+        return await performAction();
+      }
+    },
+    [player, currentGame, getActionsRemaining, useActions, advanceGameHour]
+  );
+
+  // Create game
   const createGame = async (playerName) => {
     try {
       setLoading(true);
+      const result = await gameAPI.createGame(playerName);
 
-      // Get user ID
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData?.user?.id;
-
-      if (!userId) {
-        return { success: false, error: 'Authentication required' };
+      if (!result.success) {
+        return result;
       }
 
-      // STEP 1: Create the game
-      const { data: game, error: gameError } = await supabase
-        .from('games')
-        .insert({
-          name: `${playerName}'s Game`,
-          created_by: userId,
-          status: 'active',
-          current_hour: 24,
-          max_hours: 24,
-        })
-        .select()
-        .single();
-
-      if (gameError) {
-        console.error('Error creating game:', gameError);
-        return { success: false, error: gameError };
-      }
-
-      // STEP 2: Get Downtown borough
-      const { data: downtown, error: boroughError } = await supabase
-        .from('boroughs')
-        .select('id')
-        .eq('name', 'Downtown')
-        .single();
-
-      if (boroughError) {
-        console.error('Error finding Downtown:', boroughError);
-        return { success: false, error: boroughError };
-      }
-
-      // STEP 3: Create the player
-      const { data: player, error: playerError } = await supabase
-        .from('players')
-        .insert({
-          user_id: userId,
-          game_id: game.id,
-          username: playerName,
-          current_borough_id: downtown.id,
-          cash: 100,
-          loan_amount: 100,
-          inventory_capacity: 10,
-        })
-        .select()
-        .single();
-
-      if (playerError) {
-        console.error('Error creating player:', playerError);
-        await supabase.from('games').delete().eq('id', game.id);
-        return { success: false, error: playerError };
-      }
-
-      // STEP 4: Initialize game data in background
-      supabase
-        .rpc('initialize_game_data', { game_id: game.id })
-        .then(() => console.log('Game data initialized'))
-        .catch((err) => console.error('Error initializing game data:', err));
-
-      // Store player ID in localStorage
-      localStorage.setItem(`player_${game.id}`, player.id);
-      localStorage.setItem('deliWarsCurrentGame', game.id);
-      setPlayerId(player.id);
+      // Store IDs
+      localStorage.setItem(`player_${result.gameId}`, result.playerId);
+      localStorage.setItem('deliWarsCurrentGame', result.gameId);
+      setPlayerId(result.playerId);
 
       // Set state
-      setCurrentGame(game);
-      setPlayer(player);
+      setCurrentGame(result.game);
+      setPlayer(result.player);
 
-      return { success: true, gameId: game.id };
+      return result;
     } catch (error) {
       console.error('Error in createGame:', error);
       return { success: false, error };
@@ -164,7 +305,7 @@ export const GameProvider = ({ children }) => {
     }
   };
 
-  // Join an existing game
+  // Join game
   const joinGame = async (gameId, playerName = null) => {
     if (!playerId) return { success: false, error: new Error('No player ID') };
     if (!gameId)
@@ -172,89 +313,24 @@ export const GameProvider = ({ children }) => {
 
     try {
       setLoading(true);
+      const result = await gameAPI.joinGame(gameId, playerId, playerName);
 
-      // Get default starting borough
-      let defaultBoroughId = null;
-      const { data: borough } = await supabase
-        .from('boroughs')
-        .select('id')
-        .limit(1)
-        .single();
-
-      if (borough) {
-        defaultBoroughId = borough.id;
+      if (!result.success) {
+        toast.error(result.error?.message || 'Failed to join game');
+        return result;
       }
 
-      // Check if game exists
-      const { data: game, error: gameError } = await supabase
-        .from('games')
-        .select('*')
-        .eq('id', gameId)
-        .single();
-
-      if (gameError) throw gameError;
-
-      if (game.status === 'completed') {
-        throw new Error('This game has already ended');
+      // Store info
+      localStorage.setItem('deliWarsCurrentGame', gameId);
+      if (result.playerName) {
+        localStorage.setItem('deliWarsPlayerName', result.playerName);
       }
 
-      // Check if player is already in the game
-      const { data: existingPlayer } = await supabase
-        .from('players')
-        .select('*')
-        .eq('game_id', gameId)
-        .eq('user_id', playerId)
-        .maybeSingle();
+      // Update state
+      setCurrentGame(result.game);
+      setPlayer(result.player);
 
-      if (existingPlayer) {
-        // Already in game, just return the player
-        setCurrentGame(game);
-        setPlayer(existingPlayer);
-
-        localStorage.setItem('deliWarsCurrentGame', game.id);
-        localStorage.setItem('deliWarsPlayerName', existingPlayer.username);
-
-        return { success: true, gameId, existing: true };
-      }
-
-      // Use provided player name or generate one
-      const username = playerName || 'Player';
-
-      // Initialize player
-      const newPlayerId = await initializePlayer(
-        gameId,
-        playerId,
-        defaultBoroughId
-      );
-
-      if (!newPlayerId) {
-        throw new Error('Failed to initialize player');
-      }
-
-      // Fetch the created player data
-      const { data: playerData, error: playerFetchError } = await supabase
-        .from('players')
-        .select('*')
-        .eq('id', newPlayerId)
-        .single();
-
-      if (playerFetchError) throw playerFetchError;
-
-      // Update username separately
-      const { error: usernameError } = await supabase
-        .from('players')
-        .update({ username: username })
-        .eq('id', newPlayerId);
-
-      if (usernameError) console.warn('Failed to set username:', usernameError);
-
-      setCurrentGame(game);
-      setPlayer(playerData);
-
-      localStorage.setItem('deliWarsCurrentGame', game.id);
-      localStorage.setItem('deliWarsPlayerName', username);
-
-      return { success: true, gameId };
+      return result;
     } catch (error) {
       console.error('Error joining game:', error);
       toast.error(`Error: ${error.message}`);
@@ -285,53 +361,26 @@ export const GameProvider = ({ children }) => {
         return { success: false, needsJoin: true };
       }
 
-      // Load data in parallel for better performance
-      const [gameResult, playerResult, allPlayersResult, inventoryResult] =
-        await Promise.all([
-          // Game data
-          supabase.from('games').select('*').eq('id', gameId).single(),
+      const result = await gameAPI.loadGame(gameId, playerIdToUse);
 
-          // Player data with borough information
-          supabase
-            .from('players')
-            .select('*, boroughs:current_borough_id (id, name)')
-            .eq('id', playerIdToUse)
-            .single(),
-
-          // All players in game
-          supabase.from('players').select('*').eq('game_id', gameId),
-
-          // Player inventory
-          supabase
-            .from('player_inventory')
-            .select(`*, products:product_id (name, description)`)
-            .eq('player_id', playerIdToUse),
-        ]);
-
-      if (playerResult.error) {
-        console.error('Player not found with ID:', playerIdToUse);
-        return { success: false, needsJoin: true, game: gameResult.data };
+      if (result.needsJoin) {
+        return result;
       }
 
-      // Format player data
-      const playerWithBorough = {
-        ...playerResult.data,
-        current_borough: playerResult.data.boroughs?.name || 'Unknown Location',
-      };
+      if (!result.success) {
+        toast.error('Error loading game');
+        return result;
+      }
 
       // Update state
-      setCurrentGame(gameResult.data);
-      setPlayer(playerWithBorough);
-      setPlayers(allPlayersResult.data || []);
-      setPlayerInventory(inventoryResult.data || []);
+      setCurrentGame(result.game);
+      setPlayer(result.player);
+      setPlayers(result.allPlayers || []);
+      setPlayerInventory(result.inventory || []);
 
       localStorage.setItem('deliWarsCurrentGame', gameId);
 
-      return {
-        success: true,
-        game: gameResult.data,
-        player: playerWithBorough,
-      };
+      return result;
     } catch (error) {
       console.error('Error loading game:', error);
       toast.error(`Error: ${error.message}`);
@@ -347,26 +396,20 @@ export const GameProvider = ({ children }) => {
 
     try {
       setLoading(true);
+      const success = await gameAPI.startGame(gameId);
 
-      // Update game status
-      const { error } = await supabase
-        .from('games')
-        .update({
-          status: 'active',
-          current_hour: 24,
-          started_at: new Date().toISOString(),
-        })
-        .eq('id', gameId);
-
-      if (error) throw error;
+      if (!success) {
+        toast.error('Failed to start game');
+        return { success: false };
+      }
 
       // Update local state
       if (currentGame && currentGame.id === gameId) {
-        setCurrentGame({
-          ...currentGame,
+        setCurrentGame((prev) => ({
+          ...prev,
           status: 'active',
           current_hour: 24,
-        });
+        }));
       }
 
       return { success: true };
@@ -379,355 +422,59 @@ export const GameProvider = ({ children }) => {
     }
   };
 
-  // Refresh player data
-  const refreshPlayerData = useCallback(async () => {
-    if (!player?.id) return false;
-
-    try {
-      // Fetch updated player data with borough information
-      const { data, error } = await supabase
-        .from('players')
-        .select(
-          `
-          *,
-          boroughs:current_borough_id (id, name)
-        `
-        )
-        .eq('id', player.id)
-        .single();
-
-      if (error) {
-        console.error('Error refreshing player data:', error);
-        return false;
-      }
-
-      // Format the data to include current_borough as string
-      const playerWithBorough = {
-        ...data,
-        current_borough: data.boroughs?.name || 'Unknown Location',
-        current_borough_id: data.current_borough_id,
-      };
-
-      // Update player state
-      setPlayer(playerWithBorough);
-
-      return true;
-    } catch (error) {
-      console.error('Error in refreshPlayerData:', error);
-      return false;
-    }
-  }, [player?.id]);
-
-  // Replace the getPlayerActions function with this simpler version
-  const getActionsRemaining = useCallback(() => {
-    if (!player) return 0;
-    const maxActionsPerHour = 4; // Could be moved to a game setting
-    return maxActionsPerHour - (player.actions_used_this_hour || 0);
-  }, [player]);
-
-  // Replace your useAction function with this
-  const useActions = async (actionCount) => {
-    if (!player || !currentGame) return { success: false };
-
-    const actionsRemaining = getActionsRemaining();
-    if (actionsRemaining < actionCount) {
-      return {
-        success: false,
-        message: `Not enough actions (need ${actionCount}, have ${actionsRemaining})`,
-      };
-    }
-
-    // Update the player's actions used
-    const { data, error } = await supabase
-      .from('players')
-      .update({
-        actions_used_this_hour:
-          (player.actions_used_this_hour || 0) + actionCount,
-      })
-      .eq('id', player.id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating actions used:', error);
-      return { success: false, error };
-    }
-
-    // Update local state
-    setPlayer(data);
-    return { success: true };
-  };
-
-  // Advance game hour function
-  const advanceGameHour = async () => {
-    if (!currentGame) return { success: false };
-
-    // First update the game's current hour (DECREASING it because we're counting down)
-    const newHour = currentGame.current_hour - 1;
-    const { error: gameError } = await supabase
-      .from('games')
-      .update({ current_hour: newHour })
-      .eq('id', currentGame.id);
-
-    if (gameError) {
-      console.error('Error advancing game hour:', gameError);
-      return { success: false, error: gameError };
-    }
-
-    // Get any overflow actions from previous hour
-    const { data: playerData } = await supabase
-      .from('players')
-      .select('actions_overflow')
-      .eq('id', player.id)
-      .single();
-
-    const overflowActions = playerData?.actions_overflow || 0;
-
-    // Reset player's actions but apply overflow
-    const { error: playerError } = await supabase
-      .from('players')
-      .update({
-        actions_used_this_hour: overflowActions,
-        actions_overflow: 0, // Reset overflow after applying it
-      })
-      .eq('id', player.id);
-
-    if (playerError) {
-      console.error('Error resetting player actions:', playerError);
-      return { success: false, error: playerError };
-    }
-
-    // Refresh the game and player data
-    await refreshPlayerData();
-
-    // Update local game state
-    setCurrentGame({
-      ...currentGame,
-      current_hour: newHour,
-    });
-
-    return { success: true };
-  };
-
-  // Update your travelToNeighborhood function
+  // Travel to neighborhood
   const travelToNeighborhood = async (neighborhoodId, transportationId) => {
     if (!player || !currentGame) return { success: false };
 
     try {
       setLoading(true);
 
-      // Get the action cost for this travel option
-      const { data: transportOptions } = await supabase
-        .from('transportation_options')
-        .select('action_cost, monetary_cost')
-        .eq('player_id', player.id)
-        .eq('transportation_id', transportationId)
-        .eq('to_borough_id', neighborhoodId)
-        .maybeSingle();
+      // Get travel costs
+      const travelInfo = await gameAPI.getTravelInfo(
+        player.id,
+        transportationId,
+        neighborhoodId
+      );
 
-      const actionCost = transportOptions?.action_cost || 1;
-      const moneyCost = transportOptions?.monetary_cost || 0;
+      if (!travelInfo) {
+        setLoading(false);
+        return { success: false, message: "Couldn't get travel information" };
+      }
 
       // Check if player has enough money
-      if (player.cash < moneyCost) {
+      if (player.cash < travelInfo.monetary_cost) {
         setLoading(false);
         return {
           success: false,
-          message: `Not enough money. Travel costs $${moneyCost} but you only have $${player.cash}.`,
+          message: `Not enough money. Travel costs $${travelInfo.monetary_cost} but you only have $${player.cash}.`,
         };
       }
 
       // Handle action cost with the generic function
-      const result = await attemptAction(actionCost, async () => {
-        // Update player's location and money
-        const { error: updateError } = await supabase
-          .from('players')
-          .update({
-            current_borough_id: neighborhoodId,
-            cash: player.cash - moneyCost,
-          })
-          .eq('id', player.id);
+      return await attemptAction(travelInfo.action_cost, async () => {
+        const success = await gameAPI.movePlayer(
+          player.id,
+          neighborhoodId,
+          player.cash - travelInfo.monetary_cost
+        );
 
-        if (updateError) {
-          console.error('Error updating player location:', updateError);
-          return { success: false, error: updateError };
-        }
-
-        // Record transaction if needed
-        if (moneyCost > 0) {
-          // Transaction logic here...
+        if (!success) {
+          return { success: false, message: 'Failed to travel' };
         }
 
         // Refresh player data
         await refreshPlayerData();
         return { success: true };
       });
-
-      setLoading(false);
-      return result;
     } catch (error) {
       console.error('Error traveling to borough:', error);
-      setLoading(false);
-      return { success: false, error };
-    }
-  };
-
-  // Fetch game data
-  const fetchGameData = useCallback(async () => {
-    if (!currentGame?.id || !player?.id) return false;
-
-    try {
-      // Load data in parallel
-      const [gameData, playerData, inventoryData] = await Promise.all([
-        // Game data
-        supabase.from('games').select('*').eq('id', currentGame.id).single(),
-
-        // Player data with borough
-        supabase
-          .from('players')
-          .select('*, boroughs:current_borough_id (id, name)')
-          .eq('id', player.id)
-          .single(),
-
-        // Keep player_inventory table but expand product fields
-        supabase
-          .from('player_inventory')
-          .select(
-            `
-            *,
-            products:product_id (
-              id,
-              name,
-              artist,
-              genre,
-              year,
-              condition,
-              rarity,
-              description,
-              image_url,
-              base_price
-            )
-          `
-          )
-          .eq('player_id', player.id),
-      ]);
-
-      if (gameData.error || playerData.error) {
-        console.error(
-          'Error fetching data:',
-          gameData.error || playerData.error
-        );
-        return false;
-      }
-
-      // Format player data
-      const playerWithBorough = {
-        ...playerData.data,
-        current_borough: playerData.data.boroughs?.name || 'Unknown Location',
-      };
-
-      // Update state
-      setCurrentGame(gameData.data);
-      setPlayer(playerWithBorough);
-      setPlayerInventory(inventoryData.data || []);
-
-      return true;
-    } catch (error) {
-      console.error('Error in fetchGameData:', error);
-      return false;
-    }
-  }, [currentGame?.id, player?.id]);
-
-  // End turn
-  const endTurn = async () => {
-    if (!player || !currentGame) return { success: false };
-
-    try {
-      setLoading(true);
-
-      // Check if all players have completed their turns
-      const { data: activePlayers, error: playersError } = await supabase
-        .from('players')
-        .select('id, turn_completed')
-        .eq('game_id', currentGame.id);
-
-      if (playersError) throw playersError;
-
-      // Mark this player's turn as completed
-      const { error: updateError } = await supabase
-        .from('players')
-        .update({ turn_completed: true })
-        .eq('id', player.id);
-
-      if (updateError) throw updateError;
-
-      // Check if all players have completed their turn
-      const allCompleted = activePlayers.every(
-        (p) => p.id === player.id || p.turn_completed === true
-      );
-
-      if (allCompleted) {
-        // Decrease hours remaining
-        const nextHour = currentGame.current_hour - 1;
-        const gameOver = nextHour <= 0;
-
-        // Update game status
-        const { data: updatedGame, error: gameError } = await supabase
-          .from('games')
-          .update({
-            current_hour: nextHour,
-            current_player_id: null,
-            status: gameOver ? 'completed' : 'active',
-            ended_at: gameOver ? new Date().toISOString() : null,
-          })
-          .eq('id', currentGame.id)
-          .select()
-          .single();
-
-        if (gameError) throw gameError;
-
-        // Reset all players' turn_completed flags
-        const { error: resetError } = await supabase
-          .from('players')
-          .update({ turn_completed: false })
-          .eq('game_id', currentGame.id);
-
-        if (resetError) throw resetError;
-
-        // Update local state immediately
-        setCurrentGame(updatedGame);
-
-        if (gameOver) {
-          toast.success('Game over! Final results are in.');
-        } else {
-          toast.success(`Time passing... ${nextHour} hours remaining`);
-        }
-      } else {
-        toast.success('Turn completed, waiting for other players');
-      }
-
-      // Immediately fetch updated data to refresh UI
-      await fetchGameData();
-
-      return { success: true };
-    } catch (error) {
-      console.error('Error ending turn:', error);
-      toast.error(`Error: ${error.message}`);
       return { success: false, error };
     } finally {
       setLoading(false);
     }
   };
 
-  // Check for stored game on mount
-  useEffect(() => {
-    const storedGameId = localStorage.getItem('deliWarsCurrentGame');
-    if (storedGameId && playerId) {
-      loadGame(storedGameId);
-    }
-  }, [playerId]);
-
-  // Update buyProduct to use the attemptActionWithCost utility
+  // Buy product
   const buyProduct = async (productId, quantity, storeId, neighborhoodId) => {
     try {
       setLoading(true);
@@ -736,7 +483,7 @@ export const GameProvider = ({ children }) => {
         return { success: false, error: new Error('Game or player not found') };
       }
 
-      // Assume buying costs 1 action (adjust as needed)
+      // Assume buying costs 1 action
       const actionCost = 1;
 
       return await attemptAction(actionCost, async () => {
@@ -766,7 +513,7 @@ export const GameProvider = ({ children }) => {
     }
   };
 
-  // Update sellProduct similarly
+  // Sell product
   const sellProduct = async (inventoryItemId, quantity, storeId) => {
     try {
       setLoading(true);
@@ -775,16 +522,10 @@ export const GameProvider = ({ children }) => {
         return { success: false, error: new Error('Game or player not found') };
       }
 
-      // First get the product ID from the inventory item
+      // Find the product ID
       const inventoryItem =
         playerInventory.find((item) => item.id === inventoryItemId) ||
-        (
-          await supabase
-            .from('player_inventory')
-            .select('product_id')
-            .eq('id', inventoryItemId)
-            .single()
-        ).data;
+        (await gameAPI.getInventoryItem(inventoryItemId));
 
       if (!inventoryItem) {
         return { success: false, error: new Error('Inventory item not found') };
@@ -818,124 +559,92 @@ export const GameProvider = ({ children }) => {
     }
   };
 
-  // THE CORE ACTION ECONOMY SYSTEM - KEEP THIS INTACT
-  const attemptAction = async (actionCost, performAction) => {
+  // End turn
+  const endTurn = async () => {
     if (!player || !currentGame) return { success: false };
 
-    const actionsRemaining = getActionsRemaining();
-
-    // If player has enough actions, simply use them and perform the action
-    if (actionsRemaining >= actionCost) {
-      // Use actions
-      const { success: actionsSuccess } = await useActions(actionCost);
-      if (!actionsSuccess) {
-        return { success: false, message: 'Failed to use actions' };
-      }
-
-      // Perform the action
-      return await performAction();
-    }
-    // Not enough actions - need to handle overflow
-    else {
-      // Calculate overflow
-      const overflow = actionCost - actionsRemaining;
-
-      // Ask if player wants to advance hour
-      const shouldAdvance = window.confirm(
-        `You only have ${actionsRemaining} actions, but need ${actionCost}. ` +
-          `Would you like to advance to the next hour? ` +
-          `(${overflow} actions will be deducted from your next hour's actions)`
-      );
-
-      if (!shouldAdvance) {
-        return { success: false, message: 'Action canceled' };
-      }
-
-      // Use whatever actions remain in this hour
-      if (actionsRemaining > 0) {
-        await useActions(actionsRemaining);
-      }
-
-      // Store overflow amount for next hour
-      await supabase
-        .from('players')
-        .update({ actions_overflow: overflow })
-        .eq('id', player.id);
-
-      // Advance hour
-      const { success } = await advanceGameHour();
-      if (!success) {
-        return { success: false, message: "Couldn't advance to next hour" };
-      }
-
-      // Now perform the action (it's already "paid for" with the overflow)
-      return await performAction();
-    }
-  };
-
-  // Add this function to your GameContext if it doesn't exist already
-  const refreshPlayerInventory = async () => {
-    if (!player?.id || !currentGame?.id) return;
-
     try {
-      const { data, error } = await supabase
-        .from('player_inventory_view')
-        .select(
-          `
-          *,
-          products:product_id (
-            id,
-            name,
-            artist,
-            genre,
-            year,
-            condition,
-            rarity,
-            description,
-            image_url,
-            base_price
-          )
-        `
-        )
-        .eq('player_id', player.id)
-        .eq('game_id', currentGame.id);
+      setLoading(true);
+      const result = await gameAPI.endPlayerTurn(player.id, currentGame.id);
 
-      if (error) throw error;
-      setPlayerInventory(data || []);
+      if (!result.success) {
+        toast.error('Failed to end turn');
+        return result;
+      }
+
+      if (result.allCompleted) {
+        // Game state was updated on server
+        if (result.gameOver) {
+          toast.success('Game over! Final results are in.');
+        } else {
+          toast.success(`Time passing... ${result.nextHour} hours remaining`);
+        }
+      } else {
+        toast.success('Turn completed, waiting for other players');
+      }
+
+      // Refresh data
+      await fetchGameData();
+      return { success: true };
     } catch (error) {
-      console.error('Error refreshing player inventory:', error);
+      console.error('Error ending turn:', error);
+      toast.error(`Error: ${error.message}`);
+      return { success: false, error };
+    } finally {
+      setLoading(false);
     }
   };
+
+  // Memoize the context value to prevent unnecessary re-renders
+  const contextValue = useMemo(
+    () => ({
+      currentGame,
+      player,
+      playerInventory,
+      players,
+      loading,
+      gameLoading,
+      createGame,
+      joinGame,
+      loadGame,
+      startGame,
+      buyProduct,
+      sellProduct,
+      travelToNeighborhood,
+      endTurn,
+      playerId,
+      fetchGameData,
+      refreshPlayerData,
+      confirmationOpen,
+      confirmationProps,
+      pendingAction,
+      getActionsRemaining,
+      useActions,
+      advanceGameHour,
+      refreshPlayerInventory,
+    }),
+    [
+      currentGame,
+      player,
+      playerInventory,
+      players,
+      loading,
+      gameLoading,
+      playerId,
+      confirmationOpen,
+      confirmationProps,
+      pendingAction,
+      getActionsRemaining,
+      useActions,
+      advanceGameHour,
+      refreshPlayerData,
+      fetchGameData,
+      refreshPlayerInventory,
+    ]
+  );
 
   return (
-    <GameContext.Provider
-      value={{
-        currentGame,
-        player,
-        playerInventory,
-        players,
-        loading,
-        gameLoading,
-        createGame,
-        joinGame,
-        loadGame,
-        startGame,
-        buyProduct,
-        sellProduct,
-        travelToNeighborhood,
-        endTurn,
-        playerId,
-        fetchGameData,
-        refreshPlayerData,
-        confirmationOpen,
-        confirmationProps,
-        pendingAction,
-        getActionsRemaining,
-        useActions,
-        advanceGameHour,
-        refreshPlayerInventory,
-      }}
-    >
+    <GameContext.Provider value={contextValue}>
       {children}
       <ConfirmationModal
         isOpen={confirmationOpen}

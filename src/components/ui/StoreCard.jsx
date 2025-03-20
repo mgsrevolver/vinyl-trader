@@ -7,6 +7,7 @@ const StoreCard = ({ store, isOpen, formatTime, onClick, className = '' }) => {
   const { getActionsRemaining } = useGame();
   const [backgroundImage, setBackgroundImage] = useState(null);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [isTouched, setIsTouched] = useState(false);
 
   useEffect(() => {
     // Generate and check for store image when component mounts
@@ -47,22 +48,45 @@ const StoreCard = ({ store, isOpen, formatTime, onClick, className = '' }) => {
   const handleClick = (e) => {
     setIsAnimating(true);
     // Reset animation after it completes
-    setTimeout(() => setIsAnimating(false), 1000);
+    setTimeout(() => setIsAnimating(false), 300); // Shorter duration for mobile
     onClick && onClick(e);
+  };
+
+  const handleTouchStart = () => {
+    setIsTouched(true);
+  };
+
+  const handleTouchEnd = () => {
+    setIsTouched(false);
   };
 
   return (
     <div
       className={`store-card-wrapper ${className} ${
         backgroundImage ? 'has-store-bg' : ''
+      } ${isTouched ? 'touch-active' : ''} ${
+        isAnimating ? 'card-clicked' : ''
       }`}
       onClick={handleClick}
-      style={{ border: '2px solid #4e341a' }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
+      style={{
+        border: '2px solid #4e341a',
+        transform: 'translateZ(0)',
+        willChange: 'transform, opacity',
+        transition:
+          'transform 0.15s ease, opacity 0.15s ease, background-color 0.15s ease',
+      }}
     >
       {backgroundImage && (
         <div
           className="store-card-bg-image"
-          style={{ backgroundImage: `url(${backgroundImage})` }}
+          style={{
+            backgroundImage: `url(${backgroundImage})`,
+            willChange: 'opacity',
+            transform: 'translateZ(0)',
+          }}
         ></div>
       )}
 

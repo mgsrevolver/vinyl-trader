@@ -46,17 +46,36 @@
   transform: translateZ(0); /* Hardware acceleration */
   overflow: hidden;
   z-index: 1;
+  -webkit-tap-highlight-color: transparent; /* Remove default mobile tap highlight */
 }
 
 .store-card-wrapper:hover {
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
-  transform: translateY(-3px);
-  border-color: #d1d5db;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
 }
 
-.store-card-wrapper:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+.store-card-wrapper:active,
+.store-card-wrapper.touch-active {
+  background-color: rgba(245, 247, 250, 1);
+  transform: scale(0.98);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  transition: all 0.1s ease-out;
+}
+
+.store-card-wrapper.card-clicked {
+  animation: card-pulse 0.3s ease-out;
+}
+
+@keyframes card-pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.96);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .store-card-wrapper.has-store-bg {
