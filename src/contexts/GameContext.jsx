@@ -595,6 +595,46 @@ export const GameProvider = ({ children }) => {
     }
   };
 
+  // Calculate total inventory
+  const inventoryCount =
+    playerInventory?.reduce((acc, item) => acc + (item.quantity || 0), 0) || 0;
+
+  if (!currentGame || !player) return null;
+
+  // Calculate net worth (cash + inventory value - loan)
+  const getNetWorth = useCallback(() => {
+    if (!player) return 0;
+
+    // Calculate total inventory value
+    const totalInventoryValue = playerInventory.reduce((sum, item) => {
+      return (
+        sum +
+        (item.estimated_current_price || item.purchase_price || 0) *
+          (item.quantity || 0)
+      );
+    }, 0);
+
+    // Get player cash and loan amounts
+    const cashAmount = player.cash || 0;
+    const loanAmount = player.loan_amount || 0;
+
+    // Calculate net worth
+    return cashAmount + totalInventoryValue - loanAmount;
+  }, [player, playerInventory]);
+
+  // Get total inventory value for display purposes
+  const getInventoryValue = useCallback(() => {
+    if (!playerInventory || playerInventory.length === 0) return 0;
+
+    return playerInventory.reduce((sum, item) => {
+      return (
+        sum +
+        (item.estimated_current_price || item.purchase_price || 0) *
+          (item.quantity || 0)
+      );
+    }, 0);
+  }, [playerInventory]);
+
   // Memoize the context value to prevent unnecessary re-renders
   const contextValue = useMemo(
     () => ({
@@ -622,6 +662,8 @@ export const GameProvider = ({ children }) => {
       useActions,
       advanceGameHour,
       refreshPlayerInventory,
+      getNetWorth,
+      getInventoryValue,
     }),
     [
       currentGame,
@@ -640,6 +682,8 @@ export const GameProvider = ({ children }) => {
       refreshPlayerData,
       fetchGameData,
       refreshPlayerInventory,
+      getNetWorth,
+      getInventoryValue,
     ]
   );
 

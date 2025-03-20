@@ -20,7 +20,13 @@ import SlimProductCard from '../components/ui/SlimProductCard';
 const Inventory = () => {
   const { gameId } = useParams();
   const navigate = useNavigate();
-  const { playerInventory, player, refreshPlayerInventory } = useGame();
+  const {
+    playerInventory,
+    player,
+    refreshPlayerInventory,
+    getNetWorth,
+    getInventoryValue,
+  } = useGame();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState('artist');
@@ -154,18 +160,11 @@ const Inventory = () => {
     }
   };
 
-  // Calculate total inventory value
-  const totalInventoryValue = filteredInventory.reduce((sum, item) => {
-    return (
-      sum +
-      (item.estimated_current_price || item.purchase_price) * item.quantity
-    );
-  }, 0);
-
-  // Calculate net worth (cash + inventory value - loan)
+  // Calculate values using context methods
+  const netWorth = getNetWorth ? getNetWorth() : 0;
+  const totalInventoryValue = getInventoryValue ? getInventoryValue() : 0;
   const cashAmount = player?.cash || 0;
   const loanAmount = player?.loan_amount || 0;
-  const netWorth = cashAmount + totalInventoryValue - loanAmount;
 
   // Get sort icon based on field and direction
   const getSortIcon = (field) => {
