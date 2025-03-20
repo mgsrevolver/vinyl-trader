@@ -589,10 +589,26 @@ export const GameProvider = ({ children }) => {
           .eq('id', player.id)
           .single(),
 
-        // Inventory data
+        // Keep player_inventory table but expand product fields
         supabase
           .from('player_inventory')
-          .select('*, products:product_id (name, description)')
+          .select(
+            `
+            *,
+            products:product_id (
+              id,
+              name,
+              artist,
+              genre,
+              year,
+              condition,
+              rarity,
+              description,
+              image_url,
+              base_price
+            )
+          `
+          )
           .eq('player_id', player.id),
       ]);
 
