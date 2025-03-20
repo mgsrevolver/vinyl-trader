@@ -58,16 +58,24 @@ export const buyRecord = async (
  * @param {string} storeId - UUID of the store
  * @param {string} productId - UUID of the product (record)
  * @param {number} quantity - Number of records to sell
- * @returns {Promise<boolean>} - True if successful
+ * @returns {Promise<Object>} - Result object with success status
  */
 export const sellRecord = async (
   playerId,
   gameId,
   storeId,
   productId,
-  quantity
+  quantity = 1
 ) => {
   try {
+    console.log('Selling record with params:', {
+      playerId,
+      gameId,
+      storeId,
+      productId,
+      quantity,
+    });
+
     const { data, error } = await supabase.rpc('sell_record', {
       p_player_id: playerId,
       p_game_id: gameId,
@@ -78,13 +86,13 @@ export const sellRecord = async (
 
     if (error) {
       console.error('Error selling record:', error);
-      return false;
+      return { success: false, error: error };
     }
 
-    return data;
-  } catch (e) {
-    console.error('Exception in sellRecord:', e);
-    return false;
+    return { success: true, data };
+  } catch (err) {
+    console.error('Error selling record:', err);
+    return { success: false, error: err.message };
   }
 };
 

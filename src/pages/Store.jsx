@@ -21,7 +21,12 @@ import SlimProductCard from '../components/ui/SlimProductCard';
 const Store = () => {
   const { gameId, boroughId, storeId } = useParams();
   const navigate = useNavigate();
-  const { player, playerInventory, loading: gameLoading } = useGame();
+  const {
+    player,
+    playerInventory,
+    refreshPlayerInventory,
+    loading: gameLoading,
+  } = useGame();
 
   const [loading, setLoading] = useState(true);
   const [borough, setBorough] = useState(null);
@@ -37,6 +42,7 @@ const Store = () => {
   const [showNextCard, setShowNextCard] = useState(false);
   const [key, setKey] = useState(0);
   const [listView, setListView] = useState(false);
+  const [inventoryStorePrices, setInventoryStorePrices] = useState({});
 
   useEffect(() => {
     if (gameId && boroughId && storeId) {
@@ -46,6 +52,12 @@ const Store = () => {
       setLoading(false);
     }
   }, [gameId, boroughId, storeId]);
+
+  useEffect(() => {
+    if (!buyMode && playerInventory?.length > 0 && store) {
+      loadInventoryStorePrices();
+    }
+  }, [buyMode, playerInventory, store]);
 
   const loadStoreData = async () => {
     try {
@@ -125,6 +137,39 @@ const Store = () => {
     }
   };
 
+  const loadInventoryStorePrices = async () => {
+    if (!store || !playerInventory?.length) return;
+
+    // Get all product IDs from player inventory
+    const productIds = playerInventory.map((item) => item.product_id);
+
+    try {
+      // Get current prices for these products at this store
+      const { data, error } = await supabase
+        .from('market_inventory')
+        .select('product_id, current_price')
+        .eq('store_id', store.id)
+        .eq('game_id', gameId)
+        .in('product_id', productIds);
+
+      if (error) {
+        console.error('Error loading store prices:', error);
+        return;
+      }
+
+      // Create a map of product ID to current price
+      const priceMap = {};
+      data.forEach((item) => {
+        priceMap[item.product_id] = item.current_price;
+      });
+
+      setInventoryStorePrices(priceMap);
+      console.log('Store prices loaded:', priceMap);
+    } catch (error) {
+      console.error('Error fetching store prices:', error);
+    }
+  };
+
   const handleBuy = async (productId, quantity = 1) => {
     if (!player) return;
 
@@ -153,7 +198,13 @@ const Store = () => {
 
       if (result.success) {
         toast.success('Purchase successful!');
-        loadStoreData();
+        // Refresh both store AND player inventory
+        await loadStoreData();
+
+        // Make sure we refresh the player inventory
+        if (refreshPlayerInventory) {
+          await refreshPlayerInventory();
+        }
       } else {
         const errorMessage =
           result.error?.message || 'Unable to complete purchase';
@@ -177,12 +228,18 @@ const Store = () => {
         quantity
       );
 
-      if (result) {
+      if (result.success) {
         toast.success('Record sold successfully!');
-        // Refresh inventory
-        loadStoreData();
+        // Refresh both store AND player inventory
+        await loadStoreData();
+
+        // Make sure we refresh the player inventory
+        if (refreshPlayerInventory) {
+          await refreshPlayerInventory();
+        }
       } else {
-        toast.error('Failed to sell record');
+        const errorMessage = result.error?.message || 'Failed to sell record';
+        toast.error(errorMessage);
       }
     } catch (error) {
       console.error('Error selling record:', error);
@@ -337,10 +394,10 @@ const Store = () => {
                       // Transform the storeInventory item to match what SlimProductCard expects
                       const transformedItem = {
                         id: item.id,
-                        product_id: item.product_id,
+                        product_id: item.products?.id,
                         quantity: item.quantity,
                         products: {
-                          id: item.product_id,
+                          id: item.products?.id,
                           name: item.products?.name || 'Unknown Record',
                           artist: item.products?.artist || 'Unknown Artist',
                           genre: item.products?.genre || 'Various',
@@ -480,14 +537,20 @@ const Store = () => {
                   </p>
                 ) : (
                   <div>
-                    {playerInventory.map((item) => (
-                      <SlimProductCard
-                        key={item.id}
-                        item={item}
-                        actionType="sell"
-                        onAction={handleSell}
-                      />
-                    ))}
+                    {playerInventory.map((item) => {
+                      // Get the current store price for this item, or use purchase price as fallback
+                      const storePrice = inventoryStorePrices[item.product_id];
+
+                      return (
+                        <SlimProductCard
+                          key={item.id}
+                          item={item}
+                          actionType="sell"
+                          onAction={handleSell}
+                          storePrice={storePrice}
+                        />
+                      );
+                    })}
                   </div>
                 )}
               </div>

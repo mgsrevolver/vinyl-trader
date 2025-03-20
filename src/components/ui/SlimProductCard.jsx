@@ -5,15 +5,24 @@ const SlimProductCard = ({
   item,
   actionType = 'none', // 'none', 'buy', or 'sell'
   onAction,
+  storePrice, // New prop for the current store price
 }) => {
   // Correctly access the product data through item.products
   const product = item.products || {};
   const { purchase_price, estimated_current_price } = item;
 
-  const displayPrice = estimated_current_price || purchase_price || 0;
+  // Determine the display price based on the context
+  let displayPrice = estimated_current_price || purchase_price || 0;
 
-  // Only calculate profit if not in buy mode
-  const showProfit = actionType !== 'buy';
+  // If we're in sell mode and have a store price, use that instead with 75% margin
+  if (actionType === 'sell' && storePrice !== undefined) {
+    // Apply a 75% margin - stores will pay at most 75% of their selling price
+    displayPrice = storePrice * 0.75;
+  }
+
+  // Only calculate profit if in sell mode
+  const showProfit = actionType === 'sell';
+  // If we have a purchase price, calculate the profit/loss
   const profit = showProfit ? displayPrice - purchase_price : 0;
   const profitPercentage =
     showProfit && purchase_price ? (profit / purchase_price) * 100 : 0;
@@ -27,8 +36,9 @@ const SlimProductCard = ({
   // Handle button click
   const handleClick = () => {
     if (onAction && actionType !== 'none') {
-      // Extract the product_id from either product.id or item.product_id, ensuring we have a valid ID
-      const productId = product?.id || item?.product_id;
+      // Try to find the product ID from various possible locations
+      const productId =
+        product?.id || item?.product_id || item?.products?.id || item?.id;
 
       if (productId) {
         console.log('SlimProductCard onClick with productId:', productId);
