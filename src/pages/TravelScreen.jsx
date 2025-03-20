@@ -37,7 +37,7 @@ const boroughCoordinates = {
   brooklyn: { x: 56, y: 85 },
   queens: { x: 78, y: 43 },
   bronx: { x: 85, y: 15 },
-  staten_island: { x: 25, y: 85 },
+  staten_island: { x: 1, y: 1 },
 };
 
 // Memo-ized components for better performance
