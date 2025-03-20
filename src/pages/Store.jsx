@@ -46,7 +46,7 @@ const Store = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [showNextCard, setShowNextCard] = useState(false);
   const [key, setKey] = useState(0);
-  const [listView, setListView] = useState(false);
+  const [listView, setListView] = useState(true);
   const [inventoryStorePrices, setInventoryStorePrices] = useState({});
 
   useEffect(() => {
@@ -131,8 +131,24 @@ const Store = () => {
           return;
         }
 
-        setStoreInventory(inventoryResult.items || []);
-        console.log('Store inventory loaded:', inventoryResult.items);
+        // Explode inventory items with quantity > 1 into individual items
+        let expandedInventory = [];
+
+        (inventoryResult.items || []).forEach((item) => {
+          // Create individual cards for each copy of the record
+          for (let i = 0; i < item.quantity; i++) {
+            expandedInventory.push({
+              ...item,
+              // Give each copy a unique ID by appending index
+              uniqueId: `${item.id}-${i}`,
+              // Set quantity to 1 since we're treating each as a separate item
+              quantity: 1,
+            });
+          }
+        });
+
+        setStoreInventory(expandedInventory);
+        console.log('Store inventory loaded:', expandedInventory);
       }
     } catch (error) {
       console.error('Error loading store data:', error);
@@ -171,6 +187,25 @@ const Store = () => {
     }
 
     try {
+      // Find the record being purchased to get its price
+      const recordToBuy = storeInventory.find(
+        (item) =>
+          item.products?.id === productId || item.product_id === productId
+      );
+
+      if (!recordToBuy) {
+        toast.error('Record not found in store inventory');
+        return;
+      }
+
+      const recordPrice = recordToBuy.current_price;
+
+      // Check if player has enough cash
+      if (player.cash < recordPrice) {
+        toast.error(`Not enough cash. You need $${Math.round(recordPrice)}.`);
+        return;
+      }
+
       console.log('Buying product:', {
         productId,
         quantity,
@@ -382,9 +417,9 @@ const Store = () => {
                     {storeInventory.map((item) => {
                       // Transform the storeInventory item to match what SlimProductCard expects
                       const transformedItem = {
-                        id: item.id,
+                        id: item.uniqueId || item.id,
                         product_id: item.products?.id,
-                        quantity: item.quantity,
+                        quantity: 1, // Force quantity to 1
                         products: {
                           id: item.products?.id,
                           name: item.products?.name || 'Unknown Record',
@@ -401,7 +436,7 @@ const Store = () => {
 
                       return (
                         <SlimProductCard
-                          key={item.id}
+                          key={item.uniqueId || item.id}
                           item={transformedItem}
                           actionType="buy"
                           onAction={handleBuy}
@@ -526,19 +561,25 @@ const Store = () => {
                   </p>
                 ) : (
                   <div>
-                    {playerInventory.map((item) => {
-                      // Get the current store price for this item, or use purchase price as fallback
-                      const storePrice = inventoryStorePrices[item.product_id];
+                    {playerInventory.flatMap((item) => {
+                      // Create an array of individual items for each quantity
+                      return Array.from({ length: item.quantity }, (_, i) => {
+                        const individualItem = {
+                          ...item,
+                          uniqueId: `${item.id}-${i}`,
+                          quantity: 1, // Force quantity to 1
+                        };
 
-                      return (
-                        <SlimProductCard
-                          key={item.id}
-                          item={item}
-                          actionType="sell"
-                          onAction={handleSell}
-                          storePrice={storePrice}
-                        />
-                      );
+                        return (
+                          <SlimProductCard
+                            key={individualItem.uniqueId}
+                            item={individualItem}
+                            actionType="sell"
+                            onAction={handleSell}
+                            storePrice={inventoryStorePrices[item.product_id]}
+                          />
+                        );
+                      });
                     })}
                   </div>
                 )}

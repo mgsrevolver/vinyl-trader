@@ -39,7 +39,23 @@ const Inventory = () => {
   // Filter inventory when search term changes
   useEffect(() => {
     if (playerInventory) {
-      const filtered = playerInventory.filter((item) => {
+      // Explode inventory to treat each item as unique
+      let expandedInventory = [];
+
+      playerInventory.forEach((item) => {
+        // Create individual cards for each copy of the record
+        for (let i = 0; i < item.quantity; i++) {
+          expandedInventory.push({
+            ...item,
+            // Give each copy a unique ID by appending index
+            uniqueId: `${item.id}-${i}`,
+            // Set quantity to 1 since we're treating each as a separate item
+            quantity: 1,
+          });
+        }
+      });
+
+      const filtered = expandedInventory.filter((item) => {
         const record = item.products || {};
         const searchable =
           `${record.name} ${record.artist} ${record.genre}`.toLowerCase();
@@ -290,7 +306,11 @@ const Inventory = () => {
             </div>
           ) : (
             filteredInventory.map((item) => (
-              <SlimProductCard key={item.id} item={item} actionType="none" />
+              <SlimProductCard
+                key={item.uniqueId}
+                item={item}
+                actionType="none"
+              />
             ))
           )}
         </div>

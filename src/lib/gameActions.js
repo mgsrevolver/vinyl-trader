@@ -41,13 +41,34 @@ export const buyRecord = async (
 
     if (error) {
       console.error('Error buying record:', error);
-      return { error };
+      return {
+        success: false,
+        error: {
+          message: error.message || 'Transaction failed',
+        },
+      };
+    }
+
+    // If we get a false response, it typically means insufficient funds or inventory
+    if (data === false) {
+      return {
+        success: false,
+        error: {
+          message:
+            'Purchase failed. You may not have enough funds or the item is out of stock.',
+        },
+      };
     }
 
     return { success: true, data };
   } catch (err) {
     console.error('Error buying record:', err);
-    return { error: err.message };
+    return {
+      success: false,
+      error: {
+        message: err.message || 'An unexpected error occurred',
+      },
+    };
   }
 };
 
@@ -82,20 +103,31 @@ export const sellRecord = async (
       .select('current_price')
       .eq('game_id', gameId)
       .eq('store_id', storeId)
-      .eq('product_id', productId)
-      .single();
+      .eq('product_id', productId);
 
     if (marketError) {
       console.error('Error fetching market price:', marketError);
       return { success: false, error: marketError };
     }
 
+    // Handle case when market data is empty or has multiple records
+    if (!marketData || marketData.length === 0) {
+      console.error('No market data found for this product');
+      return {
+        success: false,
+        error: { message: 'No market data found for this product' },
+      };
+    }
+
+    // Use the first result if there are multiple
+    const currentPrice = marketData[0].current_price;
+
     // Apply store margin (75%) - this is core business logic
     const STORE_MARGIN = 0.75;
-    const sellPrice = marketData.current_price * STORE_MARGIN;
+    const sellPrice = currentPrice * STORE_MARGIN;
 
     console.log('Selling at price:', {
-      originalPrice: marketData.current_price,
+      originalPrice: currentPrice,
       sellPrice: sellPrice,
       margin: STORE_MARGIN,
     });
@@ -118,20 +150,31 @@ export const sellRecord = async (
     if (data) {
       // After successful sale, ensure player receives the correct amount
       // This is a workaround since we can't modify the database function
-      const priceDifference = marketData.current_price - sellPrice;
+      const priceDifference = currentPrice - sellPrice;
 
       if (priceDifference > 0) {
-        // Adjust player cash to reflect the margin
-        const { error: cashError } = await supabase
+        // First, get the current cash value
+        const { data: playerData, error: fetchError } = await supabase
           .from('players')
-          .update({
-            cash: supabase.raw(`cash - ${priceDifference * quantity}`),
-          })
-          .eq('id', playerId);
+          .select('cash')
+          .eq('id', playerId)
+          .single();
 
-        if (cashError) {
-          console.error('Error adjusting player cash for margin:', cashError);
-          // Not returning error as the sale was completed, this is just an adjustment
+        if (fetchError) {
+          console.error('Error fetching player cash:', fetchError);
+        } else {
+          // Then update with the calculated new value
+          const newCash = playerData.cash - priceDifference * quantity;
+
+          const { error: cashError } = await supabase
+            .from('players')
+            .update({ cash: newCash })
+            .eq('id', playerId);
+
+          if (cashError) {
+            console.error('Error adjusting player cash for margin:', cashError);
+            // Not returning error as the sale was completed, this is just an adjustment
+          }
         }
       }
     }
@@ -139,7 +182,7 @@ export const sellRecord = async (
     return { success: true, data };
   } catch (err) {
     console.error('Error selling record:', err);
-    return { success: false, error: err.message };
+    return { success: false, error: { message: err.message } };
   }
 };
 

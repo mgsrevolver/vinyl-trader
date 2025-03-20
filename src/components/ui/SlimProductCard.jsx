@@ -42,6 +42,7 @@ const SlimProductCard = ({
 
       if (productId) {
         console.log('SlimProductCard onClick with productId:', productId);
+        // Always use quantity 1 since each card represents one record
         onAction(productId, 1);
       } else {
         console.error('No product ID found in SlimProductCard:', {
