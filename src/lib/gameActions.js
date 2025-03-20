@@ -13,6 +13,7 @@ import { supabase } from './supabase';
  * @param {string} storeId - UUID of the store
  * @param {string} productId - UUID of the product (record)
  * @param {number} quantity - Number of records to buy
+ * @param {string} inventoryId - UUID of the specific inventory item to buy
  * @returns {Promise<Object>} - Result of the operation
  */
 export const buyRecord = async (
@@ -20,7 +21,8 @@ export const buyRecord = async (
   gameId,
   storeId,
   productId,
-  quantity = 1
+  quantity = 1,
+  inventoryId
 ) => {
   try {
     console.log('Buying record with params:', {
@@ -29,14 +31,28 @@ export const buyRecord = async (
       storeId,
       productId,
       quantity,
+      inventoryId,
     });
 
+    // If no productId is provided, this will fail
+    if (!productId) {
+      console.error('Missing required productId for buy_record');
+      return {
+        success: false,
+        error: {
+          message: 'Missing required product ID',
+        },
+      };
+    }
+
+    // Call the buy_record function with the parameters it expects
     const { data, error } = await supabase.rpc('buy_record', {
       p_player_id: playerId,
       p_game_id: gameId,
       p_product_id: productId,
       p_quantity: quantity,
       p_store_id: storeId,
+      // The database function doesn't have an inventory_id parameter
     });
 
     if (error) {
@@ -97,10 +113,29 @@ export const sellRecord = async (
       quantity,
     });
 
+    // First, get product details for debugging
+    const { data: productData } = await supabase
+      .from('products')
+      .select('name, base_price')
+      .eq('id', productId)
+      .single();
+
+    console.log('Product base details:', productData);
+
+    // Get player inventory item to see purchase price
+    const { data: inventoryData } = await supabase
+      .from('player_inventory')
+      .select('purchase_price, condition')
+      .eq('player_id', playerId)
+      .eq('product_id', productId)
+      .single();
+
+    console.log('Player inventory details:', inventoryData);
+
     // First, fetch the current market price with margin applied
     const { data: marketData, error: marketError } = await supabase
       .from('market_inventory')
-      .select('current_price')
+      .select('current_price, condition')
       .eq('game_id', gameId)
       .eq('store_id', storeId)
       .eq('product_id', productId);
@@ -119,12 +154,27 @@ export const sellRecord = async (
       };
     }
 
+    console.log('Market data (all entries):', marketData);
+
     // Use the first result if there are multiple
     const currentPrice = marketData[0].current_price;
 
     // Apply store margin (75%) - this is core business logic
     const STORE_MARGIN = 0.75;
     const sellPrice = currentPrice * STORE_MARGIN;
+
+    // Check what the database sell_record function will actually calculate
+    const { data: dbMarginData } = await supabase.rpc('calculate_sell_margin', {
+      condition: inventoryData?.condition || 'Good',
+    });
+
+    console.log('Database margin calculation:', {
+      condition: inventoryData?.condition || 'Good',
+      frontendMargin: STORE_MARGIN,
+      databaseMargin: dbMarginData,
+      frontendSellPrice: sellPrice,
+      databaseEstimatedSellPrice: currentPrice * dbMarginData,
+    });
 
     console.log('Selling at price:', {
       originalPrice: currentPrice,
@@ -427,6 +477,7 @@ export const getStoreInventory = async (storeId, gameId) => {
         condition,
         quality_rating,
         base_markup,
+        product_id,
         products (
           id,
           name,

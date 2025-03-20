@@ -163,7 +163,7 @@ const ProductCard = ({
             >
               {onBuy && (
                 <button
-                  onClick={() => onBuy(id, 1)}
+                  onClick={() => onBuy(id, 1, item?.id)}
                   disabled={quantity < 1}
                   className="product-action-button"
                 >

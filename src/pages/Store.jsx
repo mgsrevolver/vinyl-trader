@@ -133,15 +133,17 @@ const Store = () => {
 
         // Explode inventory items with quantity > 1 into individual items
         let expandedInventory = [];
-
         (inventoryResult.items || []).forEach((item) => {
           // Create individual cards for each copy of the record
           for (let i = 0; i < item.quantity; i++) {
             expandedInventory.push({
               ...item,
-              // Give each copy a unique ID by appending index
-              uniqueId: `${item.id}-${i}`,
-              // Set quantity to 1 since we're treating each as a separate item
+              // Create a display-only unique ID for React keys
+              displayId: `${item.id}-${i}`,
+              // Keep the original ID for database operations
+              id: item.id,
+              // Set quantity to 1 to display as individual items
+              originalQuantity: item.quantity,
               quantity: 1,
             });
           }
@@ -175,7 +177,7 @@ const Store = () => {
     }
   };
 
-  const handleBuy = async (productId, quantity = 1) => {
+  const handleBuy = async (productId, quantity = 1, inventoryId) => {
     if (!player) return;
 
     // Make sure storeId is available, or use store.id as fallback
@@ -187,18 +189,58 @@ const Store = () => {
     }
 
     try {
-      // Find the record being purchased to get its price
-      const recordToBuy = storeInventory.find(
-        (item) =>
-          item.products?.id === productId || item.product_id === productId
-      );
+      console.log('Looking for record with:', {
+        productId,
+        inventoryId,
+        storeInventorySize: storeInventory.length,
+      });
+
+      // Find the record being purchased
+      // First try finding by inventory ID if provided
+      let recordToBuy = null;
+      if (inventoryId) {
+        // Since we're using displayId for expanded items,
+        // we need to check both id and displayId
+        recordToBuy = storeInventory.find(
+          (item) => item.id === inventoryId || item.displayId === inventoryId
+        );
+      }
+
+      // If not found by inventory ID, fallback to product ID
+      if (!recordToBuy && productId) {
+        recordToBuy = storeInventory.find(
+          (item) => item.product_id === productId
+        );
+      }
 
       if (!recordToBuy) {
         toast.error('Record not found in store inventory');
+        console.error('Record not found in inventory:', {
+          inventoryId,
+          productId,
+          availableIds: storeInventory
+            .map((item) => ({
+              id: item.id,
+              displayId: item.displayId,
+              product_id: item.product_id,
+            }))
+            .slice(0, 5),
+        });
         return;
       }
 
+      console.log('Found record to buy:', recordToBuy);
+
+      // Make sure we have the product ID from the record
+      const productIdToUse = recordToBuy.product_id || productId;
+      const actualInventoryId = recordToBuy.id; // Use the original ID, not displayId
       const recordPrice = recordToBuy.current_price;
+
+      if (!productIdToUse) {
+        toast.error('Product ID missing from record');
+        console.error('Product ID missing:', recordToBuy);
+        return;
+      }
 
       // Check if player has enough cash
       if (player.cash < recordPrice) {
@@ -207,18 +249,31 @@ const Store = () => {
       }
 
       console.log('Buying product:', {
-        productId,
-        quantity,
+        productId: productIdToUse,
+        originalInventoryId: actualInventoryId,
+        displayId: recordToBuy.displayId,
         storeId: currentStoreId,
+        price: recordPrice,
+        quantity,
       });
 
+      // Call buyRecord with the correct parameters
       const result = await buyRecord(
         player.id,
         gameId,
         currentStoreId,
-        productId,
+        productIdToUse,
         quantity
       );
+
+      console.log('Buy record API call made with:', {
+        playerId: player.id,
+        gameId,
+        storeId: currentStoreId,
+        productId: productIdToUse,
+        quantity,
+        result,
+      });
 
       if (result.success) {
         toast.success('Purchase successful!');
@@ -285,11 +340,13 @@ const Store = () => {
   };
 
   const handleLike = (id) => {
-    const productId =
-      storeInventory[currentIndex]?.products?.id ||
-      storeInventory[currentIndex]?.product_id;
+    const currentItem = storeInventory[currentIndex];
+    const productId = currentItem.products?.id || currentItem.product_id;
 
-    handleBuy(productId, 1);
+    // Make sure to use the actual ID, not the uniqueId with suffix
+    const inventoryId = currentItem.id;
+
+    handleBuy(productId, 1, inventoryId);
 
     setDirection('right');
     setTimeout(() => {
@@ -417,30 +474,20 @@ const Store = () => {
                     {storeInventory.map((item) => {
                       // Transform the storeInventory item to match what SlimProductCard expects
                       const transformedItem = {
-                        id: item.uniqueId || item.id,
-                        product_id: item.products?.id,
-                        quantity: 1, // Force quantity to 1
+                        id: item.id,
+                        product_id: item.product_id,
+                        quantity: item.quantity,
                         // Pass the condition directly from the market_inventory item
                         condition: item.condition,
                         // Pass quality_rating if needed
                         quality_rating: item.quality_rating,
-                        products: {
-                          id: item.products?.id,
-                          name: item.products?.name || 'Unknown Record',
-                          artist: item.products?.artist || 'Unknown Artist',
-                          genre: item.products?.genre || 'Various',
-                          year: item.products?.year || 'N/A',
-                          // Don't pass product.condition here since we're using item.condition
-                          rarity: item.products?.rarity || 0.5,
-                          description: item.products?.description || '',
-                          image_url: item.products?.image_url || null,
-                        },
+                        products: item.products,
                         estimated_current_price: item.current_price,
                       };
 
                       return (
                         <SlimProductCard
-                          key={item.uniqueId || item.id}
+                          key={item.id}
                           item={transformedItem}
                           actionType="buy"
                           onAction={handleBuy}
@@ -459,11 +506,8 @@ const Store = () => {
                       <div className="next-card">
                         <ProductCard
                           product={{
-                            id:
-                              storeInventory[getNextCardIndex(currentIndex)]
-                                ?.products?.id ||
-                              storeInventory[getNextCardIndex(currentIndex)]
-                                ?.product_id,
+                            id: storeInventory[getNextCardIndex(currentIndex)]
+                              ?.product_id,
                             name:
                               storeInventory[getNextCardIndex(currentIndex)]
                                 ?.products?.name || 'Unknown Record',
@@ -521,9 +565,7 @@ const Store = () => {
                         <ProductCard
                           key={`product-${currentIndex}-${key}`}
                           product={{
-                            id:
-                              storeInventory[currentIndex]?.products?.id ||
-                              storeInventory[currentIndex]?.product_id,
+                            id: storeInventory[currentIndex]?.product_id,
                             name:
                               storeInventory[currentIndex]?.products?.name ||
                               'Unknown Record',
@@ -567,24 +609,29 @@ const Store = () => {
                 ) : (
                   <div>
                     {playerInventory.flatMap((item) => {
-                      // Create an array of individual items for each quantity
-                      return Array.from({ length: item.quantity }, (_, i) => {
-                        const individualItem = {
-                          ...item,
-                          uniqueId: `${item.id}-${i}`,
-                          quantity: 1, // Force quantity to 1
-                        };
+                      // Create multiple entries for items with quantity > 1
+                      return Array.from(
+                        { length: item.quantity },
+                        (_, index) => {
+                          // Create a unique key for each copy
+                          const uniqueKey = `${item.id}-${index}`;
 
-                        return (
-                          <SlimProductCard
-                            key={individualItem.uniqueId}
-                            item={individualItem}
-                            actionType="sell"
-                            onAction={handleSell}
-                            storePrice={inventoryStorePrices[item.product_id]}
-                          />
-                        );
-                      });
+                          return (
+                            <SlimProductCard
+                              key={uniqueKey}
+                              item={{
+                                ...item,
+                                displayId: uniqueKey, // For React key purposes
+                                id: item.id, // Keep the original ID for database operations
+                                quantity: 1, // Show as individual items
+                              }}
+                              actionType="sell"
+                              onAction={handleSell}
+                              storePrice={inventoryStorePrices[item.product_id]}
+                            />
+                          );
+                        }
+                      );
                     })}
                   </div>
                 )}

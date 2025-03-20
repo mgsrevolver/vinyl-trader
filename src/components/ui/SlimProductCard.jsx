@@ -55,19 +55,30 @@ const SlimProductCard = ({
   // Handle button click
   const handleClick = () => {
     if (onAction && actionType !== 'none') {
-      // Try to find the product ID from various possible locations
-      const productId =
-        product?.id || item?.product_id || item?.products?.id || item?.id;
+      if (actionType === 'buy') {
+        const productId = item.product_id || item.products?.id;
 
-      if (productId) {
-        console.log('SlimProductCard onClick with productId:', productId);
-        // Always use quantity 1 since each card represents one record
-        onAction(productId, 1);
-      } else {
-        console.error('No product ID found in SlimProductCard:', {
-          product,
+        // Use displayId for UI purposes if available, otherwise fallback to id
+        const inventoryId = item.displayId || item.id;
+
+        if (!productId) {
+          console.error('No product ID found in SlimProductCard:', item);
+          return;
+        }
+
+        console.log('Buy clicked with:', {
+          productId,
+          inventoryId,
+          originalId: item.id,
           item,
         });
+
+        onAction(productId, 1, inventoryId);
+      } else {
+        // For selling, we just need the product ID
+        const productId = item.product_id;
+        console.log('Sell clicked with:', { productId, item });
+        onAction(productId, 1);
       }
     }
   };
