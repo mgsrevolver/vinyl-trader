@@ -7,6 +7,15 @@ import {
   FaBolt,
 } from 'react-icons/fa';
 
+// Add keyframes for button texture animation
+const buttonTextureKeyframes = `
+@keyframes subtle-shift {
+  0% { background-position: 0% 0%; }
+  50% { background-position: 100% 0%; }
+  100% { background-position: 0% 0%; }
+}
+`;
+
 const Button = ({
   children,
   onClick,
@@ -54,6 +63,11 @@ const Button = ({
       'border-blue-600'
     );
     buttonClasses += ' text-white hover:bg-blue-600';
+  } else if (variant === 'record') {
+    // Apply the record player silvery button style
+    buttonClasses = buttonClasses.replace('bg-[#e5e7eb]', 'bg-none');
+    buttonClasses = buttonClasses.replace('border-[#d1d5db]', 'border-[#333]');
+    // Not using classes for these complex styles, will apply with style prop
   }
 
   // Apply size styles
@@ -92,53 +106,109 @@ const Button = ({
   // Add any additional custom classes
   buttonClasses += ` ${className}`;
 
+  // Create record variant specific styles object
+  const recordVariantStyle =
+    variant === 'record'
+      ? {
+          background:
+            'linear-gradient(145deg, #e6e6e6, #d9d9d9, #a0a0a0, #c0c0c0)',
+          backgroundSize: '200% 200%',
+          animation: 'subtle-shift 8s ease infinite',
+          color: 'black',
+          fontWeight: 'bold',
+          textShadow: '0 1px 1px rgba(255, 255, 255, 0.6)',
+          boxShadow:
+            'inset 0 1px 0 rgba(255,255,255,0.6), 0 4px 6px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.2)',
+          border: '2px solid #333',
+        }
+      : {};
+
+  // Handle hover events for record variant
+  const handleMouseOver = (e) => {
+    if (variant === 'record' && !disabled) {
+      e.currentTarget.style.boxShadow =
+        'inset 0 1px 0 rgba(255,255,255,0.6), 0 5px 10px rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.2)';
+      e.currentTarget.style.transform = 'translateY(-1px)';
+    }
+  };
+
+  const handleMouseOut = (e) => {
+    if (variant === 'record' && !disabled) {
+      e.currentTarget.style.boxShadow =
+        'inset 0 1px 0 rgba(255,255,255,0.6), 0 4px 6px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.2)';
+      e.currentTarget.style.transform = 'translateY(0)';
+    }
+  };
+
   // If this is an action cost button, we'll use a different rendering approach
   if (withActionCost) {
     return (
-      <button
-        type={type}
-        onClick={onClick}
-        disabled={disabled}
-        className={`${buttonClasses.trim()} relative group`}
-      >
-        {/* Beveled effect overlay */}
-        <span className="absolute inset-0 opacity-10 bg-gradient-to-b from-white via-transparent to-black pointer-events-none"></span>
+      <>
+        {variant === 'record' && <style>{buttonTextureKeyframes}</style>}
+        <button
+          type={type}
+          onClick={onClick}
+          disabled={disabled}
+          className={`${buttonClasses.trim()} relative group`}
+          style={recordVariantStyle}
+          onMouseOver={handleMouseOver}
+          onMouseOut={handleMouseOut}
+        >
+          {/* Beveled effect overlay */}
+          <span className="absolute inset-0 opacity-10 bg-gradient-to-b from-white via-transparent to-black pointer-events-none"></span>
 
-        <div className="flex items-center justify-between w-full">
-          {/* Left side - button text */}
-          <div className="flex items-center">
-            {icon && <span className="mr-2">{icon}</span>}
-            <span>{children}</span>
+          <div className="flex items-center justify-between w-full">
+            {/* Left side - button text */}
+            <div className="flex items-center">
+              {icon && <span className="mr-2">{icon}</span>}
+              <span>{children}</span>
+            </div>
+
+            {/* Separator */}
+            <div className="mx-2 h-4 border-l border-gray-400 opacity-50"></div>
+
+            {/* Right side - action cost */}
+            <div className="flex items-center text-xs font-semibold">
+              <FaBolt className="mr-1 text-yellow-500" />
+              <span>{actionCost}</span>
+            </div>
           </div>
-
-          {/* Separator */}
-          <div className="mx-2 h-4 border-l border-gray-400 opacity-50"></div>
-
-          {/* Right side - action cost */}
-          <div className="flex items-center text-xs font-semibold">
-            <FaBolt className="mr-1 text-yellow-500" />
-            <span>{actionCost}</span>
-          </div>
-        </div>
-      </button>
+        </button>
+      </>
     );
   }
 
   // Regular button rendering
   return (
-    <button
-      type={type}
-      onClick={onClick}
-      disabled={disabled}
-      className={buttonClasses.trim()}
-      aria-label={isBack ? 'Back' : isClose ? 'Close' : undefined}
-    >
-      {/* Beveled effect overlay */}
-      <span className="absolute inset-0 opacity-10 bg-gradient-to-b from-white via-transparent to-black pointer-events-none"></span>
+    <>
+      {variant === 'record' && <style>{buttonTextureKeyframes}</style>}
+      <button
+        type={type}
+        onClick={onClick}
+        disabled={disabled}
+        className={buttonClasses.trim()}
+        style={recordVariantStyle}
+        onMouseOver={handleMouseOver}
+        onMouseOut={handleMouseOut}
+        aria-label={isBack ? 'Back' : isClose ? 'Close' : undefined}
+      >
+        {/* Beveled effect overlay */}
+        <span className="absolute inset-0 opacity-10 bg-gradient-to-b from-white via-transparent to-black pointer-events-none"></span>
 
-      {icon && <span className="mr-2">{icon}</span>}
-      {!iconOnly && <span>{children}</span>}
-    </button>
+        {icon && (
+          <span
+            className={`${
+              variant === 'record'
+                ? 'filter drop-shadow(0 1px 1px rgba(0,0,0,0.2))'
+                : ''
+            } ${iconOnly ? '' : 'mr-2'}`}
+          >
+            {icon}
+          </span>
+        )}
+        {!iconOnly && <span>{children}</span>}
+      </button>
+    </>
   );
 };
 

@@ -355,62 +355,31 @@ const Game = () => {
             zIndex: 50,
           }}
         >
-          <button
+          <Button
+            variant="record"
+            size="lg"
+            fullWidth
             onClick={handleEndTurn}
             disabled={submitting}
-            style={{
-              backgroundColor: '#e5e7eb',
-              border: '1px solid #d1d5db',
-              borderRadius: '9999px',
-              padding: '8px 16px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#000',
-              fontWeight: 'normal',
-              fontSize: '16px',
-              flex: '1',
-            }}
+            icon={submitting ? <FaSpinner className="animate-spin" /> : null}
+            className="game-action-button"
           >
-            {submitting ? (
-              <>
-                <FaSpinner
-                  style={{
-                    marginRight: '8px',
-                    animation: 'spin 1s linear infinite',
-                  }}
-                />{' '}
-                Processing...
-              </>
-            ) : (
-              'End Turn'
-            )}
-          </button>
+            {submitting ? 'Processing...' : 'End Turn'}
+          </Button>
 
-          <button
+          <Button
+            variant="record"
+            size="lg"
+            fullWidth
             onClick={handleLeaveGame}
             disabled={submitting}
-            style={{
-              backgroundColor: '#e5e7eb',
-              border: '1px solid #d1d5db',
-              borderRadius: '9999px',
-              padding: '8px 16px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#000',
-              fontWeight: 'normal',
-              fontSize: '16px',
-              flex: '1',
-            }}
+            className="game-action-button"
           >
             Leave Game
-          </button>
+          </Button>
         </div>
 
-        {/* Add a style tag for the spinner animation */}
+        {/* No longer needed - animation is part of Button component */}
         <style>{`
           @keyframes spin {
             from {

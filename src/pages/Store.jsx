@@ -16,6 +16,7 @@ import { getStoreInventory, buyRecord, sellRecord } from '../lib/gameActions';
 import ActionButton from '../components/ui/ActionButton';
 import ProductCard from '../components/ui/ProductCard';
 import { motion, AnimatePresence } from 'framer-motion';
+import SlimProductCard from '../components/ui/SlimProductCard';
 
 const Store = () => {
   const { gameId, boroughId, storeId } = useParams();
@@ -35,6 +36,7 @@ const Store = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [showNextCard, setShowNextCard] = useState(false);
   const [key, setKey] = useState(0);
+  const [listView, setListView] = useState(false);
 
   useEffect(() => {
     if (gameId && boroughId && storeId) {
@@ -124,42 +126,42 @@ const Store = () => {
   };
 
   const handleBuy = async (productId, quantity = 1) => {
-    if (!player || !store) return;
+    if (!player) return;
+
+    // Make sure storeId is available, or use store.id as fallback
+    const currentStoreId = storeId || (store && store.id);
+
+    if (!currentStoreId) {
+      toast.error('Store information is missing');
+      return;
+    }
 
     try {
+      console.log('Buying product:', {
+        productId,
+        quantity,
+        storeId: currentStoreId,
+      });
+
       const result = await buyRecord(
         player.id,
         gameId,
-        store.id,
+        currentStoreId,
         productId,
         quantity
       );
 
-      // Log the result to see what we're getting
-      console.log('Buy result:', result);
-
       if (result.success) {
-        toast.success(result.message || 'Purchase successful!');
+        toast.success('Purchase successful!');
         loadStoreData();
       } else {
-        // Check different possible error message locations
         const errorMessage =
-          result.message ||
-          (result.error && result.error.message) ||
-          result.error ||
-          'Unable to complete purchase';
-
+          result.error?.message || 'Unable to complete purchase';
         toast.error(errorMessage);
       }
     } catch (error) {
       console.error('Error buying record:', error);
-      // Handle thrown errors
-      const errorMessage =
-        error.message ||
-        (error.response && error.response.message) ||
-        'An unexpected error occurred';
-
-      toast.error(errorMessage);
+      toast.error('An unexpected error occurred');
     }
   };
 
@@ -308,6 +310,18 @@ const Store = () => {
           </button>
         </div>
 
+        {/* View toggle button - only show in buy mode */}
+        {buyMode && (
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={() => setListView(!listView)}
+              className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-md flex items-center"
+            >
+              {listView ? 'Card View' : 'List View'}
+            </button>
+          </div>
+        )}
+
         {/* Inventory Display */}
         <div className="bg-white shadow-md mb-4 rounded-lg overflow-hidden">
           <div className="p-3">
@@ -317,6 +331,38 @@ const Store = () => {
                   <p className="text-gray-500 italic text-center py-4">
                     No records available in this store
                   </p>
+                ) : listView ? (
+                  <div>
+                    {storeInventory.map((item) => {
+                      // Transform the storeInventory item to match what SlimProductCard expects
+                      const transformedItem = {
+                        id: item.id,
+                        product_id: item.product_id,
+                        quantity: item.quantity,
+                        products: {
+                          id: item.product_id,
+                          name: item.products?.name || 'Unknown Record',
+                          artist: item.products?.artist || 'Unknown Artist',
+                          genre: item.products?.genre || 'Various',
+                          year: item.products?.year || 'N/A',
+                          condition: item.products?.condition || 'Unknown',
+                          rarity: item.products?.rarity || 0.5,
+                          description: item.products?.description || '',
+                          image_url: item.products?.image_url || null,
+                        },
+                        estimated_current_price: item.current_price,
+                      };
+
+                      return (
+                        <SlimProductCard
+                          key={item.id}
+                          item={transformedItem}
+                          actionType="buy"
+                          onAction={handleBuy}
+                        />
+                      );
+                    })}
+                  </div>
                 ) : (
                   <div className="card-stack-container">
                     <div className="swipe-counter">
@@ -433,30 +479,13 @@ const Store = () => {
                     Your inventory is empty
                   </p>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
                     {playerInventory.map((item) => (
-                      <ProductCard
+                      <SlimProductCard
                         key={item.id}
-                        product={{
-                          id: item.product_id,
-                          name: item.products?.name || 'Unknown Record',
-                          artist: item.products?.artist || 'Unknown Artist',
-                          genre: item.products?.genre || 'Various',
-                          year: item.products?.year || 'N/A',
-                          condition: item.products?.condition || 'Unknown',
-                          rarity: item.products?.rarity || 0.5,
-                          description: item.products?.description || '',
-                          image_url: item.products?.image_url || null,
-                        }}
-                        price={
-                          item.estimated_current_price || item.purchase_price
-                        }
-                        quantity={item.quantity}
-                        onSell={handleSell}
-                        purchasePrice={item.purchase_price}
-                        estimatedValue={item.estimated_current_price}
-                        actionLabel="Sell"
-                        showAction={true}
+                        item={item}
+                        actionType="sell"
+                        onAction={handleSell}
                       />
                     ))}
                   </div>

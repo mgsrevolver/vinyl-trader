@@ -64,3 +64,30 @@ h6 {
     @apply px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
   }
 }
+
+/* Game-specific button styles with high specificity */
+.game-action-button {
+  height: 70px !important;
+  min-height: 70px !important;
+  padding: 12px 24px !important;
+  font-size: 1.25rem !important;
+  font-weight: bold !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25), 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+  border-width: 2px !important;
+  z-index: 100 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transform: translateY(0) !important;
+  transition: all 0.2s ease !important;
+}
+
+.game-action-button:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25), 0 3px 6px rgba(0, 0, 0, 0.2) !important;
+}
+
+.game-action-button:active {
+  transform: translateY(1px) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2) !important;
+}

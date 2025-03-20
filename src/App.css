@@ -10,6 +10,15 @@
   font-display: swap; /* Improves performance */
 }
 
+/* Add BDC Midnight Records Thin font */
+@font-face {
+  font-family: 'BDC Midnight Records Thin';
+  src: url('/BDC Midnight Records Thin.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* Core container */
 #root {
   max-width: 430px;
@@ -1378,4 +1387,15 @@ h1 {
     color: inherit;
     transform: scale(1);
   }
+}
+
+/* Apply BDC Midnight Records Thin to store names and h2 elements */
+.store-card-title span {
+  font-family: 'BDC Midnight Records Thin', 'Permanent Marker', cursive !important;
+  letter-spacing: 0.02em;
+}
+
+h2 {
+  font-family: 'BDC Midnight Records Thin', 'Permanent Marker', cursive !important;
+  letter-spacing: 0.02em;
 }

@@ -20,6 +20,15 @@ const spinKeyframes = `
 }
 `;
 
+// Add button texture keyframes
+const buttonTextureKeyframes = `
+@keyframes subtle-shift {
+  0% { background-position: 0% 0%; }
+  50% { background-position: 100% 0%; }
+  100% { background-position: 0% 0%; }
+}
+`;
+
 const Home = () => {
   const navigate = useNavigate();
   const { createGame, startGame } = useGame();
@@ -60,6 +69,7 @@ const Home = () => {
     >
       {/* Add the keyframes to the page */}
       <style>{spinKeyframes}</style>
+      <style>{buttonTextureKeyframes}</style>
 
       <main className="flex-1 flex flex-col items-center justify-start px-8 pb-4">
         <div className="w-full" style={{ maxWidth: '500px' }}>
@@ -115,7 +125,7 @@ const Home = () => {
             </div>
           </div>
 
-          {/* Play button */}
+          {/* Play button - updated with silvery gradient */}
           <button
             onClick={handlePlayNow}
             disabled={loading}
@@ -125,17 +135,42 @@ const Home = () => {
               justifyContent: 'center',
               width: '100%',
               padding: '16px 0',
-              border: '2px solid #000',
+              border: '2px solid #333',
               borderRadius: '50px',
-              backgroundColor: 'white',
+              background:
+                'linear-gradient(145deg, #e6e6e6, #d9d9d9, #a0a0a0, #c0c0c0)',
+              backgroundSize: '200% 200%',
+              animation: 'subtle-shift 8s ease infinite',
               color: 'black',
               fontSize: '22px',
               fontWeight: 'bold',
               marginBottom: '32px',
               cursor: 'pointer',
+              textShadow: '0 1px 1px rgba(255, 255, 255, 0.6)',
+              boxShadow:
+                'inset 0 1px 0 rgba(255,255,255,0.6), 0 4px 6px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.2)',
+              transition: 'all 0.2s ease',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.boxShadow =
+                'inset 0 1px 0 rgba(255,255,255,0.6), 0 5px 10px rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.2)';
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.boxShadow =
+                'inset 0 1px 0 rgba(255,255,255,0.6), 0 4px 6px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.2)';
+              e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
-            <FaPlay style={{ marginRight: '10px' }} /> PLAY NOW
+            <FaPlay
+              style={{
+                marginRight: '10px',
+                filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.2))',
+              }}
+            />{' '}
+            PLAY NOW
           </button>
 
           {/* Multiplayer Coming Soon */}

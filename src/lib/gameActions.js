@@ -20,48 +20,34 @@ export const buyRecord = async (
   gameId,
   storeId,
   productId,
-  quantity
+  quantity = 1
 ) => {
   try {
+    console.log('Buying record with params:', {
+      playerId,
+      gameId,
+      storeId,
+      productId,
+      quantity,
+    });
+
     const { data, error } = await supabase.rpc('buy_record', {
       p_player_id: playerId,
       p_game_id: gameId,
-      p_store_id: storeId,
       p_product_id: productId,
       p_quantity: quantity,
+      p_store_id: storeId,
     });
-
-    console.log('Buy record response:', { data, error }); // For debugging
 
     if (error) {
       console.error('Error buying record:', error);
-      return {
-        success: false,
-        message: error.message || 'Unable to buy record. Please try again.',
-      };
+      return { error };
     }
 
-    // Handle the new response format
-    if (data && typeof data === 'object') {
-      return {
-        success: data.success,
-        message: data.message,
-      };
-    }
-
-    // Fallback for boolean response (until DB is updated)
-    return {
-      success: !!data,
-      message: data
-        ? 'Record purchased successfully!'
-        : 'Unable to complete purchase. Check your funds and inventory space.',
-    };
-  } catch (e) {
-    console.error('Exception buying record:', e);
-    return {
-      success: false,
-      message: 'An unexpected error occurred. Please try again.',
-    };
+    return { success: true, data };
+  } catch (err) {
+    console.error('Error buying record:', err);
+    return { error: err.message };
   }
 };
 

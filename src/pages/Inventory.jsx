@@ -290,7 +290,7 @@ const Inventory = () => {
             </div>
           ) : (
             filteredInventory.map((item) => (
-              <SlimProductCard key={item.id} item={item} onSell={handleSell} />
+              <SlimProductCard key={item.id} item={item} actionType="none" />
             ))
           )}
         </div>
