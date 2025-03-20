@@ -7,9 +7,9 @@ import {
   FaSortUp,
   FaSortDown,
   FaStar,
-  FaCoins,
+  FaWallet,
   FaMoneyBillWave,
-  FaChartLine,
+  FaCompactDisc,
 } from 'react-icons/fa';
 import { useGame } from '../contexts/GameContext';
 import { sellRecord } from '../lib/gameActions';
@@ -162,13 +162,9 @@ const Inventory = () => {
     );
   }, 0);
 
-  // Calculate total profit potential
-  const totalProfitPotential = filteredInventory.reduce((sum, item) => {
-    const profit =
-      (item.estimated_current_price || item.purchase_price) -
-      item.purchase_price;
-    return sum + profit * item.quantity;
-  }, 0);
+  // Calculate net worth (cash + inventory value)
+  const cashAmount = player?.cash || 0;
+  const netWorth = cashAmount + totalInventoryValue;
 
   // Get sort icon based on field and direction
   const getSortIcon = (field) => {
@@ -220,34 +216,96 @@ const Inventory = () => {
           />
         </div>
 
-        {/* Inventory Summary */}
-        <div style={{ margin: '16px 0' }}>
+        {/* Financial Summary */}
+        <div
+          style={{
+            margin: '16px 0',
+            backgroundColor: '#f9fafb',
+            padding: '16px',
+            borderRadius: '8px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+          }}
+        >
+          {/* Net Worth (main number) */}
           <h2
             style={{
-              fontSize: '20px',
+              fontSize: '22px',
               fontWeight: 'bold',
-              marginBottom: '8px',
+              marginBottom: '4px',
             }}
           >
-            Total Value
+            Net Worth
           </h2>
-          <div className="stats-value">
-            <FaMoneyBillWave className="stats-icon" />
-            <span>${Math.round(totalInventoryValue)}</span>
+          <div
+            style={{
+              fontSize: '28px',
+              fontWeight: 'bold',
+              color: '#1e40af',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            <FaWallet style={{ marginRight: '8px' }} />${Math.round(netWorth)}
           </div>
 
-          <h2
-            style={{
-              fontSize: '20px',
-              fontWeight: 'bold',
-              marginBottom: '8px',
-            }}
-          >
-            Potential Profit
-          </h2>
-          <div className="stats-value">
-            <FaChartLine className="stats-icon" />
-            <span>${Math.round(totalProfitPotential)}</span>
+          {/* Cash + Records breakdown */}
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ flex: 1, paddingRight: '8px' }}>
+              <h3
+                style={{
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  color: '#4b5563',
+                }}
+              >
+                Cash
+              </h3>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  fontSize: '18px',
+                  color: '#047857',
+                }}
+              >
+                <FaMoneyBillWave
+                  style={{ marginRight: '6px', fontSize: '14px' }}
+                />
+                ${Math.round(cashAmount)}
+              </div>
+            </div>
+
+            <div
+              style={{
+                flex: 1,
+                paddingLeft: '8px',
+                borderLeft: '1px solid #e5e7eb',
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  color: '#4b5563',
+                }}
+              >
+                Records Value
+              </h3>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  fontSize: '18px',
+                  color: '#7c3aed',
+                }}
+              >
+                <FaCompactDisc
+                  style={{ marginRight: '6px', fontSize: '14px' }}
+                />
+                ${Math.round(totalInventoryValue)}
+              </div>
+            </div>
           </div>
         </div>
 
