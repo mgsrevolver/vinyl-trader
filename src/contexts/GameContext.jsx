@@ -595,12 +595,6 @@ export const GameProvider = ({ children }) => {
     }
   };
 
-  // Calculate total inventory
-  const inventoryCount =
-    playerInventory?.reduce((acc, item) => acc + (item.quantity || 0), 0) || 0;
-
-  if (!currentGame || !player) return null;
-
   // Calculate net worth (cash + inventory value - loan)
   const getNetWorth = useCallback(() => {
     if (!player) return 0;
@@ -634,6 +628,10 @@ export const GameProvider = ({ children }) => {
       );
     }, 0);
   }, [playerInventory]);
+
+  // Calculate total inventory
+  const inventoryCount =
+    playerInventory?.reduce((acc, item) => acc + (item.quantity || 0), 0) || 0;
 
   // Memoize the context value to prevent unnecessary re-renders
   const contextValue = useMemo(
@@ -686,6 +684,9 @@ export const GameProvider = ({ children }) => {
       getInventoryValue,
     ]
   );
+
+  // Return null if essential data is missing
+  if (!currentGame || !player) return null;
 
   return (
     <GameContext.Provider value={contextValue}>
