@@ -40,15 +40,11 @@ const SlimProductCard = ({
   const getConditionColor = (cond) => {
     switch (cond) {
       case 'Mint':
-      case 'Near Mint':
         return '#10b981'; // Green
-      case 'Very Good Plus':
-      case 'Very Good':
-        return '#3b82f6'; // Blue
       case 'Good':
-        return '#f59e0b'; // Yellow
+        return '#3b82f6'; // Blue
       case 'Fair':
-        return '#f97316'; // Orange
+        return '#f59e0b'; // Yellow
       case 'Poor':
         return '#ef4444'; // Red
       default:

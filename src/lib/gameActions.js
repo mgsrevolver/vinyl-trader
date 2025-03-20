@@ -424,13 +424,15 @@ export const getStoreInventory = async (storeId, gameId) => {
         id,
         quantity,
         current_price,
+        condition,
+        quality_rating,
+        base_markup,
         products (
           id,
           name,
           artist,
           genre,
           year,
-          condition,
           rarity,
           description,
           image_url
