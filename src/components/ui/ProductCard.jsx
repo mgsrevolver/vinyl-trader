@@ -15,11 +15,11 @@ const ProductCard = ({
   onSkip,
   onLike,
   setShowNextCard,
+  condition,
 }) => {
   if (!product) return null;
 
-  const { id, name, artist, genre, year, condition, rarity, image_url } =
-    product;
+  const { id, name, artist, genre, year, rarity, image_url } = product;
   const displayPrice = price || product.base_price || 0;
 
   // Calculate rarity stars (1-5 based on rarity value)

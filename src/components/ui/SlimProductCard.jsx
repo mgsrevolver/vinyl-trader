@@ -42,9 +42,9 @@ const SlimProductCard = ({
       case 'Mint':
         return '#10b981'; // Green
       case 'Good':
-        return '#3b82f6'; // Blue
+        return '#6b7280'; // Blue
       case 'Fair':
-        return '#f59e0b'; // Yellow
+        return '#6b7280'; // Yellow
       case 'Poor':
         return '#ef4444'; // Red
       default:
@@ -181,24 +181,28 @@ const SlimProductCard = ({
           >
             {product.genre || 'Genre'} ({product.year || 'Year'})
           </div>
+
+          {/* Stars moved next to genre */}
           <div
             style={{
-              padding: '1px 4px',
-              backgroundColor: '#f3f4f6',
-              borderRadius: '3px',
-              fontSize: '10px',
-              whiteSpace: 'nowrap',
-              fontWeight: 'bold',
-              color: getConditionColor(condition),
-              border: `1px solid ${getConditionColor(condition)}`,
+              display: 'flex',
+              alignItems: 'center',
+              marginLeft: '3px',
             }}
           >
-            {condition}
+            {[...Array(5)].map((_, i) => (
+              <FaStar
+                key={i}
+                color={i < rarityStars ? '#f59e0b' : '#d1d5db'}
+                size={8}
+                style={{ marginLeft: i > 0 ? '1px' : '0' }}
+              />
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Price, stars and button column - fixed width */}
+      {/* Price, condition and button column - fixed width */}
       <div
         style={{
           display: 'flex',
@@ -233,16 +237,26 @@ const SlimProductCard = ({
           )}
         </div>
 
-        {/* Stars row */}
-        <div style={{ display: 'flex', margin: '3px 0' }}>
-          {[...Array(5)].map((_, i) => (
-            <FaStar
-              key={i}
-              color={i < rarityStars ? '#f59e0b' : '#d1d5db'}
-              size={10}
-              style={{ marginLeft: i > 0 ? '1px' : '0' }}
-            />
-          ))}
+        {/* Condition row */}
+        <div
+          style={{
+            marginTop: '3px',
+            marginBottom: '3px',
+            fontSize: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            width: '100%',
+          }}
+        >
+          <span
+            style={{
+              color: getConditionColor(condition),
+              fontWeight: 'bold',
+            }}
+          >
+            {condition}
+          </span>
         </div>
 
         {/* Action button */}

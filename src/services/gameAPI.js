@@ -387,7 +387,6 @@ export const fetchPlayerInventory = async (playerId) => {
           artist,
           genre,
           year,
-          condition,
           rarity,
           description,
           image_url,

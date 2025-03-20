@@ -476,9 +476,6 @@ const Store = () => {
                             year:
                               storeInventory[getNextCardIndex(currentIndex)]
                                 ?.products?.year || 'N/A',
-                            condition:
-                              storeInventory[getNextCardIndex(currentIndex)]
-                                ?.condition || 'Good',
                             rarity:
                               storeInventory[getNextCardIndex(currentIndex)]
                                 ?.products?.rarity || 0.5,
@@ -486,6 +483,10 @@ const Store = () => {
                               storeInventory[getNextCardIndex(currentIndex)]
                                 ?.products?.image_url || null,
                           }}
+                          condition={
+                            storeInventory[getNextCardIndex(currentIndex)]
+                              ?.condition || 'Good'
+                          }
                           price={
                             storeInventory[getNextCardIndex(currentIndex)]
                               ?.current_price
@@ -535,8 +536,6 @@ const Store = () => {
                             year:
                               storeInventory[currentIndex]?.products?.year ||
                               'N/A',
-                            condition:
-                              storeInventory[currentIndex]?.condition || 'Good',
                             rarity:
                               storeInventory[currentIndex]?.products?.rarity ||
                               0.5,
@@ -544,6 +543,9 @@ const Store = () => {
                               storeInventory[currentIndex]?.products
                                 ?.image_url || null,
                           }}
+                          condition={
+                            storeInventory[currentIndex]?.condition || 'Good'
+                          }
                           price={storeInventory[currentIndex]?.current_price}
                           quantity={storeInventory[currentIndex]?.quantity}
                           onSkip={handleSkip}
