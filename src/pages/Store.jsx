@@ -351,6 +351,9 @@ const Store = () => {
                             rarity:
                               storeInventory[getNextCardIndex(currentIndex)]
                                 ?.products?.rarity || 0.5,
+                            image_url:
+                              storeInventory[getNextCardIndex(currentIndex)]
+                                ?.products?.image_url || null,
                           }}
                           price={
                             storeInventory[getNextCardIndex(currentIndex)]
@@ -407,6 +410,9 @@ const Store = () => {
                             rarity:
                               storeInventory[currentIndex]?.products?.rarity ||
                               0.5,
+                            image_url:
+                              storeInventory[currentIndex]?.products
+                                ?.image_url || null,
                           }}
                           price={storeInventory[currentIndex]?.current_price}
                           quantity={storeInventory[currentIndex]?.quantity}
@@ -440,6 +446,7 @@ const Store = () => {
                           condition: item.products?.condition || 'Unknown',
                           rarity: item.products?.rarity || 0.5,
                           description: item.products?.description || '',
+                          image_url: item.products?.image_url || null,
                         }}
                         price={
                           item.estimated_current_price || item.purchase_price

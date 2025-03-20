@@ -306,7 +306,8 @@ export const getStoreInventory = async (storeId, gameId) => {
           year,
           condition,
           rarity,
-          description
+          description,
+          image_url
         )
       `
       )
