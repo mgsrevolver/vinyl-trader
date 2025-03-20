@@ -54,60 +54,73 @@ const Home = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div
+      className="min-h-screen bg-white flex flex-col"
+      style={{ marginTop: '-55px' }}
+    >
       {/* Add the keyframes to the page */}
       <style>{spinKeyframes}</style>
 
-      <main className="flex-1 flex flex-col items-center justify-center px-4 pb-4">
-        <div className="w-full max-w-md">
+      <main className="flex-1 flex flex-col items-center justify-start px-8 pb-4">
+        <div className="w-full" style={{ maxWidth: '500px' }}>
           {/* Logo and Title - improved layout */}
-          <div className="mb-12">
+          <div
+            className="mb-10"
+            style={{ marginTop: '28px', position: 'relative' }}
+          >
             <div
               style={{
-                display: 'flex',
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
+                position: 'relative',
                 width: '100%',
-                marginTop: '20px',
+                height: '180px',
               }}
             >
-              {/* Title on left */}
+              {/* Record icon positioned in the background */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '-20px',
+                  right: '-15px',
+                  zIndex: 1,
+                }}
+              >
+                <FaCompactDisc
+                  style={{
+                    color: '#f59e0b',
+                    fontSize: '160px',
+                    animation: 'spin 10s linear infinite',
+                    filter: 'drop-shadow(0 0 10px rgba(250, 204, 21, 0.4))',
+                  }}
+                />
+              </div>
+
+              {/* Title positioned in the foreground */}
               <h1
                 style={{
-                  fontSize: '55px',
+                  fontSize: '70px',
                   fontWeight: 'bold',
                   margin: '0',
                   lineHeight: '0.9',
                   color: 'black',
                   display: 'flex',
                   flexDirection: 'column',
+                  position: 'relative',
+                  zIndex: 2,
+                  width: '100%',
                 }}
               >
                 <span>VINYL</span>
                 <span>TRADER</span>
               </h1>
-
-              {/* Record icon directly to the right */}
-              <div style={{ marginLeft: '30px', flexShrink: 0 }}>
-                <FaCompactDisc
-                  style={{
-                    color: '#f59e0b',
-                    fontSize: '130px',
-                    animation: 'spin 10s linear infinite',
-                    filter: 'drop-shadow(0 0 10px rgba(250, 204, 21, 0.4))',
-                  }}
-                />
-              </div>
             </div>
 
             {/* Tagline - below both title and icon */}
             <p
               style={{
-                fontSize: '18px',
-                margin: '12px 0 0 0',
+                fontSize: '20px',
+                margin: '16px 0 0 0',
                 color: 'black',
-                textAlign: 'center',
+                textAlign: 'left',
               }}
             >
               The ultimate record trading adventure
@@ -123,18 +136,18 @@ const Home = () => {
               alignItems: 'center',
               justifyContent: 'center',
               width: '100%',
-              padding: '12px 0',
-              border: '1px solid #000',
-              borderRadius: '8px',
+              padding: '16px 0',
+              border: '2px solid #000',
+              borderRadius: '50px',
               backgroundColor: 'white',
               color: 'black',
-              fontSize: '18px',
+              fontSize: '22px',
               fontWeight: 'bold',
-              marginBottom: '24px',
+              marginBottom: '32px',
               cursor: 'pointer',
             }}
           >
-            <FaPlay style={{ marginRight: '8px' }} /> PLAY NOW
+            <FaPlay style={{ marginRight: '10px' }} /> PLAY NOW
           </button>
 
           {/* Multiplayer Coming Soon */}
