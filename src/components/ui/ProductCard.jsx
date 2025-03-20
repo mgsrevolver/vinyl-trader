@@ -119,7 +119,7 @@ const ProductCard = ({
                 ))}
               </div>
               <div className="product-price" style={{ marginBottom: '50px' }}>
-                ${parseFloat(displayPrice).toFixed(2)}
+                ${Math.round(parseFloat(displayPrice))}
               </div>
             </div>
           </div>
@@ -214,7 +214,7 @@ const ProductCard = ({
                 ))}
               </div>
               <div className="product-price" style={{ marginBottom: '50px' }}>
-                ${parseFloat(displayPrice).toFixed(2)}
+                ${Math.round(parseFloat(displayPrice))}
               </div>
             </div>
           </div>

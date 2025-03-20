@@ -98,7 +98,7 @@ const TransportOption = memo(
         }}
       >
         <FaCoins style={{ marginRight: '4px' }} />
-        <span>${parseFloat(travelDetails.cost).toFixed(2)}</span>
+        <span>${Math.round(parseFloat(travelDetails.cost))}</span>
       </div>
 
       {/* Row 3: Actions - Replace clock with lightning bolt */}

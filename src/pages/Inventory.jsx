@@ -8,6 +8,8 @@ import {
   FaSortDown,
   FaStar,
   FaCoins,
+  FaMoneyBillWave,
+  FaChartLine,
 } from 'react-icons/fa';
 import { useGame } from '../contexts/GameContext';
 import { sellRecord } from '../lib/gameActions';
@@ -213,14 +215,9 @@ const Inventory = () => {
           >
             Total Value
           </h2>
-          <div
-            style={{
-              fontSize: '24px',
-              fontWeight: 'bold',
-              marginBottom: '16px',
-            }}
-          >
-            ${totalInventoryValue.toFixed(2)}
+          <div className="stats-value">
+            <FaMoneyBillWave className="stats-icon" />
+            <span>${Math.round(totalInventoryValue)}</span>
           </div>
 
           <h2
@@ -232,15 +229,9 @@ const Inventory = () => {
           >
             Potential Profit
           </h2>
-          <div
-            style={{
-              fontSize: '24px',
-              fontWeight: 'bold',
-              marginBottom: '16px',
-              color: totalProfitPotential >= 0 ? '#10b981' : '#ef4444',
-            }}
-          >
-            ${totalProfitPotential.toFixed(2)}
+          <div className="stats-value">
+            <FaChartLine className="stats-icon" />
+            <span>${Math.round(totalProfitPotential)}</span>
           </div>
         </div>
 

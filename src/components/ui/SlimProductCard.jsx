@@ -80,25 +80,22 @@ const SlimProductCard = ({ item, onSell }) => {
         <span>Qty: {quantity}</span>
       </div>
 
-      <div
-        style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '2px' }}
-      >
-        ${displayPrice.toFixed(2)}
-      </div>
-
-      <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '2px' }}>
-        Paid: ${purchase_price.toFixed(2)}
-      </div>
-
-      <div
-        style={{
-          fontSize: '14px',
-          color: profit >= 0 ? '#10b981' : '#ef4444',
-          marginBottom: '12px',
-        }}
-      >
-        {profit >= 0 ? '+' : ''}
-        {profit.toFixed(2)} ({profitPercentage.toFixed(1)}%)
+      <div className="product-values">
+        <div className="price-tag">
+          <span className="current-price">${Math.round(displayPrice)}</span>
+          {purchase_price && (
+            <span className="purchase-info">
+              Paid: ${Math.round(purchase_price)}
+            </span>
+          )}
+          {profit !== undefined && (
+            <span
+              className={`profit-info ${profit >= 0 ? 'positive' : 'negative'}`}
+            >
+              ${Math.round(profit)} ({profitPercentage.toFixed(0)}%)
+            </span>
+          )}
+        </div>
       </div>
 
       <button
