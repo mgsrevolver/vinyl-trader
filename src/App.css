@@ -1,6 +1,15 @@
 /* Add these font imports at the top of App.css */
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Permanent+Marker&family=Playfair+Display:wght@400;600;700&family=Rubik+Mono+One&display=swap');
 
+/* Add BDC Midnight Records font */
+@font-face {
+  font-family: 'BDC Midnight Records';
+  src: url('/BDC Midnight Records.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap; /* Improves performance */
+}
+
 /* Core container */
 #root {
   max-width: 430px;
@@ -10,6 +19,12 @@
   padding-right: 16px; /* Right padding */
   padding-bottom: 0;
   min-height: 100vh;
+}
+
+/* Set BDC Midnight Records as default for all h1 elements */
+h1 {
+  font-family: 'BDC Midnight Records', 'Permanent Marker', cursive !important;
+  letter-spacing: 0.02em;
 }
 
 /* Header layouts */
