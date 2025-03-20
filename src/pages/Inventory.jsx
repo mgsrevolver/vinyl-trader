@@ -162,9 +162,10 @@ const Inventory = () => {
     );
   }, 0);
 
-  // Calculate net worth (cash + inventory value)
+  // Calculate net worth (cash + inventory value - loan)
   const cashAmount = player?.cash || 0;
-  const netWorth = cashAmount + totalInventoryValue;
+  const loanAmount = player?.loan_amount || 0;
+  const netWorth = cashAmount + totalInventoryValue - loanAmount;
 
   // Get sort icon based on field and direction
   const getSortIcon = (field) => {
@@ -249,7 +250,7 @@ const Inventory = () => {
             <FaWallet style={{ marginRight: '8px' }} />${Math.round(netWorth)}
           </div>
 
-          {/* Cash + Records breakdown */}
+          {/* Cash + Records + Loan breakdown */}
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <div style={{ flex: 1, paddingRight: '8px' }}>
               <h3
@@ -280,6 +281,7 @@ const Inventory = () => {
               style={{
                 flex: 1,
                 paddingLeft: '8px',
+                paddingRight: '8px',
                 borderLeft: '1px solid #e5e7eb',
               }}
             >
@@ -290,7 +292,7 @@ const Inventory = () => {
                   color: '#4b5563',
                 }}
               >
-                Records Value
+                Records
               </h3>
               <div
                 style={{
@@ -304,6 +306,37 @@ const Inventory = () => {
                   style={{ marginRight: '6px', fontSize: '14px' }}
                 />
                 ${Math.round(totalInventoryValue)}
+              </div>
+            </div>
+
+            <div
+              style={{
+                flex: 1,
+                paddingLeft: '8px',
+                borderLeft: '1px solid #e5e7eb',
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  color: '#4b5563',
+                }}
+              >
+                Loan
+              </h3>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  fontSize: '18px',
+                  color: '#dc2626',
+                }}
+              >
+                <FaMoneyBillWave
+                  style={{ marginRight: '6px', fontSize: '14px' }}
+                />
+                -${Math.round(loanAmount)}
               </div>
             </div>
           </div>
