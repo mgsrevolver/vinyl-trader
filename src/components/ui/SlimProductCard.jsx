@@ -11,6 +11,9 @@ const SlimProductCard = ({
   const product = item.products || {};
   const { purchase_price, estimated_current_price } = item;
 
+  // Get condition from the item itself (market_inventory) not from products
+  const condition = item.condition || product.condition || 'Good';
+
   // Determine the display price based on the context
   let displayPrice = estimated_current_price || purchase_price || 0;
 
@@ -32,6 +35,26 @@ const SlimProductCard = ({
     1,
     Math.min(5, Math.round((product.rarity || 0.5) * 5))
   );
+
+  // Determine condition color
+  const getConditionColor = (cond) => {
+    switch (cond) {
+      case 'Mint':
+      case 'Near Mint':
+        return '#10b981'; // Green
+      case 'Very Good Plus':
+      case 'Very Good':
+        return '#3b82f6'; // Blue
+      case 'Good':
+        return '#f59e0b'; // Yellow
+      case 'Fair':
+        return '#f97316'; // Orange
+      case 'Poor':
+        return '#ef4444'; // Red
+      default:
+        return '#6b7280'; // Gray
+    }
+  };
 
   // Handle button click
   const handleClick = () => {
@@ -169,9 +192,12 @@ const SlimProductCard = ({
               borderRadius: '3px',
               fontSize: '10px',
               whiteSpace: 'nowrap',
+              fontWeight: 'bold',
+              color: getConditionColor(condition),
+              border: `1px solid ${getConditionColor(condition)}`,
             }}
           >
-            {product.condition || 'Condition'}
+            {condition}
           </div>
         </div>
       </div>

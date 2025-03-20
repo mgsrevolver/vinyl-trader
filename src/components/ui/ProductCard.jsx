@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { FaStar, FaTimes, FaCheck } from 'react-icons/fa';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 
@@ -35,6 +35,32 @@ const ProductCard = ({
 
   // Only add swipe functionality when handlers are provided
   const isSwipeable = onSkip && onLike;
+
+  const [flipped, setFlipped] = useState(false);
+  const cardRef = useRef(null);
+  const startX = useRef(0);
+  const [offset, setOffset] = useState(0);
+  const [exitDirection, setExitDirection] = useState(null);
+
+  // Determine condition color
+  const getConditionColor = (cond) => {
+    switch (cond) {
+      case 'Mint':
+      case 'Near Mint':
+        return '#10b981'; // Green
+      case 'Very Good Plus':
+      case 'Very Good':
+        return '#3b82f6'; // Blue
+      case 'Good':
+        return '#f59e0b'; // Yellow
+      case 'Fair':
+        return '#f97316'; // Orange
+      case 'Poor':
+        return '#ef4444'; // Red
+      default:
+        return '#6b7280'; // Gray
+    }
+  };
 
   return (
     <div className="product-card-wrapper">
@@ -99,7 +125,12 @@ const ProductCard = ({
 
             {/* Condition and stock info together */}
             <div className="product-details">
-              <div className="product-condition">Condition: {condition}</div>
+              <div
+                className="product-condition"
+                style={{ color: getConditionColor(condition) }}
+              >
+                Condition: {condition}
+              </div>
               {quantity !== undefined && (
                 <div className="product-stock">In Stock: {quantity}</div>
               )}
@@ -194,7 +225,12 @@ const ProductCard = ({
 
             {/* Condition and stock info together */}
             <div className="product-details">
-              <div className="product-condition">Condition: {condition}</div>
+              <div
+                className="product-condition"
+                style={{ color: getConditionColor(condition) }}
+              >
+                Condition: {condition}
+              </div>
               {quantity !== undefined && (
                 <div className="product-stock">In Stock: {quantity}</div>
               )}

@@ -420,13 +420,17 @@ const Store = () => {
                         id: item.uniqueId || item.id,
                         product_id: item.products?.id,
                         quantity: 1, // Force quantity to 1
+                        // Pass the condition directly from the market_inventory item
+                        condition: item.condition,
+                        // Pass quality_rating if needed
+                        quality_rating: item.quality_rating,
                         products: {
                           id: item.products?.id,
                           name: item.products?.name || 'Unknown Record',
                           artist: item.products?.artist || 'Unknown Artist',
                           genre: item.products?.genre || 'Various',
                           year: item.products?.year || 'N/A',
-                          condition: item.products?.condition || 'Unknown',
+                          // Don't pass product.condition here since we're using item.condition
                           rarity: item.products?.rarity || 0.5,
                           description: item.products?.description || '',
                           image_url: item.products?.image_url || null,
@@ -474,7 +478,7 @@ const Store = () => {
                                 ?.products?.year || 'N/A',
                             condition:
                               storeInventory[getNextCardIndex(currentIndex)]
-                                ?.products?.condition || 'Unknown',
+                                ?.condition || 'Good',
                             rarity:
                               storeInventory[getNextCardIndex(currentIndex)]
                                 ?.products?.rarity || 0.5,
@@ -532,8 +536,7 @@ const Store = () => {
                               storeInventory[currentIndex]?.products?.year ||
                               'N/A',
                             condition:
-                              storeInventory[currentIndex]?.products
-                                ?.condition || 'Unknown',
+                              storeInventory[currentIndex]?.condition || 'Good',
                             rarity:
                               storeInventory[currentIndex]?.products?.rarity ||
                               0.5,
