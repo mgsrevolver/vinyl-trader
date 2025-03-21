@@ -538,15 +538,16 @@ export const GameProvider = ({ children }) => {
           currentGame.id,
           storeId,
           inventoryItem.product_id,
-          quantity
+          quantity,
+          inventoryItemId
         );
 
-        if (result) {
+        if (result && result.success) {
           await fetchGameData(); // Refresh data if successful
           toast.success('Sale successful!');
           return { success: true };
         } else {
-          toast.error('Sale failed');
+          toast.error(result?.error?.message || 'Sale failed');
           return { success: false };
         }
       });

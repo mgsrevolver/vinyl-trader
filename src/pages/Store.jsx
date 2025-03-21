@@ -163,15 +163,97 @@ const Store = () => {
   const loadInventoryStorePrices = async () => {
     if (!store || !playerInventory?.length) return;
 
-    // Get all product IDs from player inventory
-    const productIds = playerInventory.map((item) => item.product_id);
-
     try {
-      // Use the getSellPrices function from gameActions.js
-      const priceMap = await getSellPrices(store.id, gameId, productIds);
+      // First get transaction history to determine where each item was purchased
+      const { data: purchaseHistory } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('player_id', player.id)
+        .eq('transaction_type', 'buy')
+        .order('created_at', { ascending: false });
+
+      console.log('Purchase history:', purchaseHistory);
+
+      // Create a map of where each product was purchased
+      const purchaseMap = {};
+      purchaseHistory?.forEach((transaction) => {
+        // Only store the first (most recent) transaction for each product
+        if (!purchaseMap[transaction.product_id]) {
+          purchaseMap[transaction.product_id] = {
+            store_id: transaction.store_id,
+            price: transaction.price,
+          };
+        }
+      });
+
+      // Get all product IDs from player inventory
+      const productIds = playerInventory.map((item) => item.product_id);
+
+      // Get market prices from current store
+      const { data } = await supabase
+        .from('market_inventory')
+        .select('product_id, current_price')
+        .eq('store_id', store.id)
+        .eq('game_id', gameId)
+        .in('product_id', productIds);
+
+      // Create proper price map with same-store logic - USING INVENTORY ID as key
+      const priceMap = {};
+
+      // For each inventory item
+      playerInventory.forEach((item) => {
+        const productId = item.product_id;
+        const inventoryId = item.id; // Unique per inventory item
+        const purchaseInfo = purchaseMap[productId];
+        const marketItem = data?.find((d) => d.product_id === productId);
+
+        // Base price before condition factor
+        let basePrice;
+
+        // If this is the same store where the item was purchased
+        if (purchaseInfo && purchaseInfo.store_id === store.id) {
+          // Sell for 75% of what was paid (enforced same-store discount)
+          basePrice = purchaseInfo.price * 0.75;
+          console.log(
+            `Same store sell price for ${inventoryId}: ${basePrice} (75% of purchase price ${purchaseInfo.price})`
+          );
+        } else if (marketItem) {
+          // Different store - can potentially make a profit
+          basePrice = marketItem.current_price * 0.75;
+          console.log(
+            `Different store sell price for ${inventoryId}: ${basePrice} (75% of market price ${marketItem.current_price})`
+          );
+        } else {
+          // Fallback to base price calculation
+          basePrice = item.purchase_price || 20; // Default if no purchase price
+          basePrice = basePrice * 0.75;
+          console.log(
+            `Fallback sell price for ${inventoryId}: ${basePrice} (75% of ${
+              item.purchase_price || 20
+            })`
+          );
+        }
+
+        // Apply condition factor
+        const conditionFactor =
+          item.condition === 'Mint'
+            ? 1.5
+            : item.condition === 'Good'
+            ? 1.0
+            : item.condition === 'Fair'
+            ? 0.7
+            : 0.5;
+
+        // Store price by INVENTORY ID (not product ID) so each copy has its own price
+        priceMap[inventoryId] = basePrice * conditionFactor;
+
+        console.log(
+          `Final sell price for ${inventoryId} with condition (${item.condition}): ${priceMap[inventoryId]}`
+        );
+      });
 
       setInventoryStorePrices(priceMap);
-      console.log('Store sell prices loaded:', priceMap);
+      console.log('Store sell prices calculated:', priceMap);
     } catch (error) {
       console.error('Error fetching store prices:', error);
     }
@@ -189,105 +271,74 @@ const Store = () => {
     }
 
     try {
-      console.log('Looking for record with:', {
+      console.log('Attempting to buy record:', {
         productId,
         inventoryId,
-        storeInventorySize: storeInventory.length,
       });
 
-      // Find the record being purchased
-      // First try finding by inventory ID if provided
-      let recordToBuy = null;
-      if (inventoryId) {
-        // Since we're using displayId for expanded items,
-        // we need to check both id and displayId
-        recordToBuy = storeInventory.find(
-          (item) => item.id === inventoryId || item.displayId === inventoryId
-        );
-      }
+      // Find the record being purchased - ONLY by exact inventory ID
+      let recordToBuy = storeInventory.find(
+        (item) => item.id === inventoryId || item.displayId === inventoryId
+      );
 
-      // If not found by inventory ID, fallback to product ID
-      if (!recordToBuy && productId) {
-        recordToBuy = storeInventory.find(
-          (item) => item.product_id === productId
-        );
-      }
-
+      // If we couldn't find the exact inventory item, don't fall back to product_id
       if (!recordToBuy) {
-        toast.error('Record not found in store inventory');
-        console.error('Record not found in inventory:', {
+        toast.error('Exact record not found. Please try again.');
+        console.error('Could not find exact inventory item:', {
           inventoryId,
           productId,
-          availableIds: storeInventory
-            .map((item) => ({
-              id: item.id,
-              displayId: item.displayId,
-              product_id: item.product_id,
-            }))
-            .slice(0, 5),
+          availableIds: storeInventory.map((item) => ({
+            id: item.id,
+            displayId: item.displayId,
+            product_id: item.product_id,
+            price: item.current_price,
+            condition: item.condition,
+          })),
         });
         return;
       }
 
-      console.log('Found record to buy:', recordToBuy);
-
       // Make sure we have the product ID from the record
       const productIdToUse = recordToBuy.product_id || productId;
-      const actualInventoryId = recordToBuy.id; // Use the original ID, not displayId
       const recordPrice = recordToBuy.current_price;
 
-      if (!productIdToUse) {
-        toast.error('Product ID missing from record');
-        console.error('Product ID missing:', recordToBuy);
-        return;
-      }
+      console.log('FOUND RECORD TO BUY:', {
+        recordToBuy: JSON.stringify(recordToBuy),
+        productIdToUse,
+        recordPrice,
+        displayPrice: recordToBuy.current_price,
+        fullRecord: recordToBuy,
+      });
 
       // Check if player has enough cash
       if (player.cash < recordPrice) {
-        toast.error(`Not enough cash. You need $${Math.round(recordPrice)}.`);
+        toast.error(
+          `Not enough cash. This record costs $${recordPrice.toFixed(2)}.`
+        );
         return;
       }
 
-      console.log('Buying product:', {
-        productId: productIdToUse,
-        originalInventoryId: actualInventoryId,
-        displayId: recordToBuy.displayId,
-        storeId: currentStoreId,
-        price: recordPrice,
-        quantity,
-      });
-
-      // Call buyRecord with the correct parameters
+      // IMPORTANT: Always buy with quantity=1 since the database function ignores quantity
+      // and always inserts with quantity=1
       const result = await buyRecord(
         player.id,
         gameId,
         currentStoreId,
         productIdToUse,
-        quantity
+        1 // Force quantity to 1
       );
 
-      console.log('Buy record API call made with:', {
-        playerId: player.id,
-        gameId,
-        storeId: currentStoreId,
-        productId: productIdToUse,
-        quantity,
-        result,
-      });
-
       if (result.success) {
-        toast.success('Purchase successful!');
+        toast.success(
+          `Purchased "${
+            recordToBuy.products?.name || 'Record'
+          }" for $${recordPrice.toFixed(2)}`
+        );
         // Refresh both store AND player inventory
         await loadStoreData();
-
-        // Make sure we refresh the player inventory
-        if (refreshPlayerInventory) {
-          await refreshPlayerInventory();
-        }
+        await refreshPlayerInventory();
       } else {
-        const errorMessage =
-          result.error?.message || 'Unable to complete purchase';
-        toast.error(errorMessage);
+        toast.error(result.error?.message || 'Purchase failed');
       }
     } catch (error) {
       console.error('Error buying record:', error);
@@ -312,6 +363,52 @@ const Store = () => {
         return;
       }
 
+      // Find the inventory item
+      const inventoryItem = playerInventory.find(
+        (item) => item.id === inventoryId
+      );
+      if (!inventoryItem) {
+        toast.error('Cannot find this record in your inventory');
+        return;
+      }
+
+      // Check where this item was originally purchased
+      const { data: purchaseHistory } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('player_id', player.id)
+        .eq('product_id', productId)
+        .eq('transaction_type', 'buy')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      const isSameStore = purchaseHistory?.[0]?.store_id === store.id;
+      const originalPrice = purchaseHistory?.[0]?.price;
+
+      console.log('Sell record details:', {
+        inventoryItem,
+        isSameStore,
+        originalPrice,
+        storeId: store.id,
+        sellPrice: inventoryStorePrices[inventoryId],
+        condition: inventoryItem.condition,
+      });
+
+      // Check to make sure same-store selling is at a loss
+      if (
+        isSameStore &&
+        originalPrice &&
+        inventoryStorePrices[inventoryId] > originalPrice
+      ) {
+        console.error('PRICING ERROR: Sell value > Original purchase price', {
+          sellPrice: inventoryStorePrices[inventoryId],
+          originalPrice,
+          storeName: store.name,
+        });
+        toast.error('Cannot sell for more than you paid at the same store!');
+        return;
+      }
+
       const result = await sellRecord(
         player.id,
         gameId,
@@ -322,7 +419,9 @@ const Store = () => {
       );
 
       if (result.success) {
-        toast.success('Record sold successfully!');
+        toast.success(
+          `Record sold for $${inventoryStorePrices[inventoryId].toFixed(2)}!`
+        );
         // Refresh both store AND player inventory
         await loadStoreData();
 
@@ -485,10 +584,12 @@ const Store = () => {
                   </p>
                 ) : listView ? (
                   <div>
-                    {storeInventory.map((item) => {
+                    {storeInventory.map((item, index) => {
                       // Transform the storeInventory item to match what SlimProductCard expects
                       const transformedItem = {
                         id: item.id,
+                        displayId:
+                          item.displayId || `store-item-${index}-${item.id}`,
                         product_id: item.product_id,
                         quantity: item.quantity,
                         // Pass the condition directly from the market_inventory item
@@ -496,12 +597,22 @@ const Store = () => {
                         // Pass quality_rating if needed
                         quality_rating: item.quality_rating,
                         products: item.products,
+                        // Ensure all price fields are properly passed
                         estimated_current_price: item.current_price,
+                        current_price: item.current_price,
                       };
+
+                      // Log each item's transformation to help debugging
+                      console.log(`Store item ${index}:`, {
+                        id: item.id,
+                        displayId: transformedItem.displayId,
+                        condition: item.condition,
+                        price: item.current_price,
+                      });
 
                       return (
                         <SlimProductCard
-                          key={item.id}
+                          key={transformedItem.displayId}
                           item={transformedItem}
                           actionType="buy"
                           onAction={handleBuy}
@@ -622,29 +733,22 @@ const Store = () => {
                   </p>
                 ) : (
                   <div>
-                    {playerInventory.flatMap((item) => {
-                      // Create multiple entries for items with quantity > 1
-                      return Array.from(
-                        { length: item.quantity },
-                        (_, index) => {
-                          // Create a unique key for each copy
-                          const uniqueKey = `${item.id}-${index}`;
+                    {playerInventory.flatMap((item, itemIndex) => {
+                      // Only create one card per inventory item, don't expand by quantity
+                      const uniqueKey = `inventory-item-${itemIndex}-${item.id}`;
 
-                          return (
-                            <SlimProductCard
-                              key={uniqueKey}
-                              item={{
-                                ...item,
-                                displayId: uniqueKey, // For React key purposes
-                                id: item.id, // Keep the original ID for database operations
-                                quantity: 1, // Show as individual items
-                              }}
-                              actionType="sell"
-                              onAction={handleSell}
-                              storePrice={inventoryStorePrices[item.product_id]}
-                            />
-                          );
-                        }
+                      return (
+                        <SlimProductCard
+                          key={uniqueKey}
+                          item={{
+                            ...item,
+                            displayId: uniqueKey, // For React key purposes
+                            id: item.id, // Keep the original ID for database operations
+                          }}
+                          actionType="sell"
+                          onAction={handleSell}
+                          storePrice={inventoryStorePrices[item.id]}
+                        />
                       );
                     })}
                   </div>

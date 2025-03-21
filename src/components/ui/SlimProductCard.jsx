@@ -70,9 +70,14 @@ const SlimProductCard = ({
           productId,
           inventoryId,
           originalId: item.id,
-          item,
+          displayPrice,
+          condition,
+          item: JSON.stringify(item),
+          current_price: item.current_price,
         });
 
+        // IMPORTANT: The price shown in the UI might not match the actual price in the database
+        // We're only passing IDs, not the price itself
         onAction(productId, 1, inventoryId);
       } else {
         // For selling, we need both product ID and inventory ID
@@ -234,12 +239,12 @@ const SlimProductCard = ({
         {/* Price section */}
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontWeight: 'bold', fontSize: '15px' }}>
-            ${Math.round(displayPrice)}
+            ${displayPrice.toFixed(2)}
           </div>
 
           {showProfit && purchase_price && (
             <div style={{ fontSize: '10px', color: '#6b7280' }}>
-              Paid: ${Math.round(purchase_price)}
+              Paid: ${purchase_price.toFixed(2)}
             </div>
           )}
 
@@ -251,7 +256,7 @@ const SlimProductCard = ({
                 fontWeight: '500',
               }}
             >
-              ${Math.round(profit)} ({profitPercentage.toFixed(0)}%)
+              ${profit.toFixed(2)} ({profitPercentage.toFixed(0)}%)
             </div>
           )}
         </div>
