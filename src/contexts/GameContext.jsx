@@ -703,7 +703,28 @@ export const GameProvider = ({ children }) => {
   );
 
   // Return null if essential data is missing
-  if (!currentGame || !player) return null;
+  if (!currentGame || !player) {
+    // Only show loading state if we're actually loading
+    if (loading) {
+      console.log('GameProvider: Still loading...');
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+            <p className="mt-3 text-blue-700">Loading game...</p>
+          </div>
+        </div>
+      );
+    }
+
+    // If we're not loading and don't have game data, just render children
+    // This allows the home page to render without a game
+    return (
+      <GameContext.Provider value={contextValue}>
+        {children}
+      </GameContext.Provider>
+    );
+  }
 
   // Wrap the provider's children with loading and error states
   if (error) {
@@ -720,18 +741,6 @@ export const GameProvider = ({ children }) => {
           >
             Reload Page
           </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    console.log('GameProvider: Still loading...');
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
-          <p className="mt-3 text-blue-700">Loading game...</p>
         </div>
       </div>
     );
