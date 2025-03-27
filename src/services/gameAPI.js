@@ -24,7 +24,7 @@ export const createGame = async (playerName) => {
       .insert({
         name: `${playerName}'s Game`,
         created_by: userId,
-        status: 'pending', // Start as pending until initialization is complete
+        status: 'waiting', // Start as waiting until initialization is complete
         current_hour: 24,
         max_hours: 24,
       })
