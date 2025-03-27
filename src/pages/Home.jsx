@@ -5,7 +5,7 @@ import { FaPlay, FaCompactDisc, FaRecordVinyl } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { generatePlayerName } from '../lib/nameGenerator';
 import { useGame } from '../contexts/GameContext';
-import GameJamBanner from '../components/game/JAmBanner';
+import GameJamBanner from '../components/game/JamBanner';
 import Button from '../components/ui/Button';
 
 // Add keyframes for the spinning animation
