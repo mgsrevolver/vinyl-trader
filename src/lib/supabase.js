@@ -6,12 +6,42 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    'Missing Supabase environment variables. Check your .env file.'
+  throw new Error(
+    'Missing Supabase environment variables. Check your .env file and make sure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.'
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Initialize Supabase with retries
+const initSupabase = () => {
+  try {
+    console.log('Initializing Supabase client with URL:', supabaseUrl);
+    const client = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,
+      },
+    });
+    return client;
+  } catch (error) {
+    console.error('Failed to initialize Supabase client:', error);
+    throw error;
+  }
+};
+
+export const supabase = initSupabase();
+
+// Add connection status check
+export const checkConnection = async () => {
+  try {
+    const { error } = await supabase.from('games').select('id').limit(1);
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Supabase connection check failed:', error);
+    return false;
+  }
+};
 
 // Auth helpers
 export const getCurrentUser = async () => {

@@ -33,8 +33,10 @@ export const GameProvider = ({ children }) => {
   const [playerId, setPlayerId] = useState(null);
 
   // UI state
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with loading true
   const [gameLoading, setGameLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [initialized, setInitialized] = useState(false);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
   const [confirmationProps, setConfirmationProps] = useState({
     title: '',
@@ -47,46 +49,59 @@ export const GameProvider = ({ children }) => {
 
   // Generate or retrieve player ID
   useEffect(() => {
-    const currentGameId = localStorage.getItem('deliWarsCurrentGame');
-    const gameSpecificPlayerId = currentGameId
-      ? localStorage.getItem(`player_${currentGameId}`)
-      : null;
+    console.log('GameProvider: Initializing player ID');
+    try {
+      const currentGameId = localStorage.getItem('deliWarsCurrentGame');
+      const gameSpecificPlayerId = currentGameId
+        ? localStorage.getItem(`player_${currentGameId}`)
+        : null;
 
-    // If we have a game-specific player ID, use that
-    if (
-      gameSpecificPlayerId &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        gameSpecificPlayerId
-      )
-    ) {
-      setPlayerId(gameSpecificPlayerId);
-      return;
-    }
-
-    // Otherwise use/create general player ID
-    const storedPlayerId = localStorage.getItem('deliWarsPlayerId');
-
-    if (
-      storedPlayerId &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        storedPlayerId
-      )
-    ) {
-      setPlayerId(storedPlayerId);
-    } else {
-      const newPlayerId = uuidv4();
-      localStorage.setItem('deliWarsPlayerId', newPlayerId);
-      setPlayerId(newPlayerId);
+      if (
+        gameSpecificPlayerId &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          gameSpecificPlayerId
+        )
+      ) {
+        setPlayerId(gameSpecificPlayerId);
+      } else {
+        const storedPlayerId = localStorage.getItem('deliWarsPlayerId');
+        if (
+          storedPlayerId &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            storedPlayerId
+          )
+        ) {
+          setPlayerId(storedPlayerId);
+        } else {
+          const newPlayerId = uuidv4();
+          localStorage.setItem('deliWarsPlayerId', newPlayerId);
+          setPlayerId(newPlayerId);
+        }
+      }
+    } catch (err) {
+      console.error('Error initializing player ID:', err);
+      setError(err);
+    } finally {
+      setInitialized(true);
+      setLoading(false);
     }
   }, []);
 
   // Check for stored game on mount
   useEffect(() => {
+    console.log('GameProvider: Checking stored game', {
+      playerId,
+      initialized,
+    });
+    if (!initialized) return;
+
     const storedGameId = localStorage.getItem('deliWarsCurrentGame');
     if (storedGameId && playerId) {
       loadGame(storedGameId);
+    } else {
+      setLoading(false);
     }
-  }, [playerId]);
+  }, [playerId, initialized]);
 
   // Unified data fetching
   const fetchGameData = useCallback(async () => {
@@ -641,36 +656,37 @@ export const GameProvider = ({ children }) => {
       player,
       playerInventory,
       players,
-      loading,
-      gameLoading,
+      loading: gameLoading,
+      error,
+      initialized,
       createGame,
       joinGame,
       loadGame,
       startGame,
+      travelToNeighborhood,
       buyProduct,
       sellProduct,
-      travelToNeighborhood,
       endTurn,
-      playerId,
-      fetchGameData,
-      refreshPlayerData,
-      confirmationOpen,
-      confirmationProps,
-      pendingAction,
       getActionsRemaining,
       useActions,
       advanceGameHour,
       refreshPlayerInventory,
+      refreshPlayerData,
+      fetchGameData,
       getNetWorth,
       getInventoryValue,
+      confirmationOpen,
+      confirmationProps,
+      pendingAction,
     }),
     [
       currentGame,
       player,
       playerInventory,
       players,
-      loading,
       gameLoading,
+      error,
+      initialized,
       playerId,
       confirmationOpen,
       confirmationProps,
@@ -688,6 +704,38 @@ export const GameProvider = ({ children }) => {
 
   // Return null if essential data is missing
   if (!currentGame || !player) return null;
+
+  // Wrap the provider's children with loading and error states
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="bg-white p-8 rounded-lg shadow-md">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
+          <p className="text-gray-700">
+            {error.message || 'An error occurred while loading the game.'}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    console.log('GameProvider: Still loading...');
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+          <p className="mt-3 text-blue-700">Loading game...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <GameContext.Provider value={contextValue}>

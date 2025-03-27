@@ -8,6 +8,7 @@ import {
 import { Toaster } from 'react-hot-toast';
 import { GameProvider } from './contexts/GameContext';
 import GameHeader from './components/ui/GameHeader';
+import { useEffect } from 'react';
 
 // Pages
 import Home from './pages/Home';
@@ -24,6 +25,13 @@ import './index.css';
 import './App.css';
 
 const App = () => {
+  useEffect(() => {
+    console.log('App component mounted');
+    return () => console.log('App component unmounted');
+  }, []);
+
+  console.log('App rendering');
+
   return (
     <Router basename={import.meta.env.BASE_URL || '/'}>
       <GameProvider>
