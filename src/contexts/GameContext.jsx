@@ -296,9 +296,14 @@ export const GameProvider = ({ children }) => {
   const createGame = async (playerName) => {
     try {
       setLoading(true);
+      console.log('Creating new game for player:', playerName);
+
       const result = await gameAPI.createGame(playerName);
+      console.log('Game creation result:', result);
 
       if (!result.success) {
+        console.error('Game creation failed:', result.error);
+        toast.error('Failed to create game');
         return result;
       }
 
@@ -311,9 +316,15 @@ export const GameProvider = ({ children }) => {
       setCurrentGame(result.game);
       setPlayer(result.player);
 
+      console.log('Game created successfully:', {
+        gameId: result.gameId,
+        playerId: result.playerId,
+      });
+
       return result;
     } catch (error) {
       console.error('Error in createGame:', error);
+      toast.error('Failed to create game');
       return { success: false, error };
     } finally {
       setLoading(false);
@@ -361,10 +372,13 @@ export const GameProvider = ({ children }) => {
 
     try {
       setGameLoading(true);
+      console.log('Loading game:', gameId);
 
       // Get game-specific player ID if available
       const gameSpecificPlayerId = localStorage.getItem(`player_${gameId}`);
       const playerIdToUse = gameSpecificPlayerId || playerId;
+
+      console.log('Loading game with player ID:', playerIdToUse);
 
       // If we found a game-specific ID that's different, update state
       if (gameSpecificPlayerId && gameSpecificPlayerId !== playerId) {
@@ -377,12 +391,14 @@ export const GameProvider = ({ children }) => {
       }
 
       const result = await gameAPI.loadGame(gameId, playerIdToUse);
+      console.log('Game load result:', result);
 
       if (result.needsJoin) {
         return result;
       }
 
       if (!result.success) {
+        console.error('Failed to load game:', result.error);
         toast.error('Error loading game');
         return result;
       }
@@ -395,6 +411,7 @@ export const GameProvider = ({ children }) => {
 
       localStorage.setItem('deliWarsCurrentGame', gameId);
 
+      console.log('Game loaded successfully');
       return result;
     } catch (error) {
       console.error('Error loading game:', error);

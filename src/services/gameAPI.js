@@ -10,16 +10,11 @@ export const createGame = async (playerName) => {
     // If we don't have a userId from auth, use a generated one instead
     if (!userId) {
       console.log('No authenticated user ID found, using anonymous ID');
-
-      // Try to get from localStorage
       userId = localStorage.getItem('deliWarsPlayerId');
-
-      // If not in localStorage, generate a new one
       if (!userId) {
         userId = crypto.randomUUID();
         localStorage.setItem('deliWarsPlayerId', userId);
       }
-
       console.log('Using anonymous user ID:', userId);
     }
 
@@ -29,7 +24,7 @@ export const createGame = async (playerName) => {
       .insert({
         name: `${playerName}'s Game`,
         created_by: userId,
-        status: 'active',
+        status: 'pending', // Start as pending until initialization is complete
         current_hour: 24,
         max_hours: 24,
       })
@@ -74,17 +69,46 @@ export const createGame = async (playerName) => {
       return { success: false, error: playerError };
     }
 
-    // STEP 4: Initialize game data in background
-    supabase
-      .rpc('initialize_game_data', { game_id: game.id })
-      .then(() => console.log('Game data initialized'))
-      .catch((err) => console.error('Error initializing game data:', err));
+    // STEP 4: Initialize game data and wait for it
+    console.log('Initializing game data...');
+    const { error: initError } = await supabase.rpc('initialize_game_data', {
+      game_id: game.id,
+    });
 
+    if (initError) {
+      console.error('Error initializing game data:', initError);
+      return { success: false, error: initError };
+    }
+
+    // STEP 5: Set game to active
+    const { error: updateError } = await supabase
+      .from('games')
+      .update({ status: 'active' })
+      .eq('id', game.id);
+
+    if (updateError) {
+      console.error('Error updating game status:', updateError);
+      return { success: false, error: updateError };
+    }
+
+    // STEP 6: Get the final game state
+    const { data: finalGame, error: finalError } = await supabase
+      .from('games')
+      .select('*')
+      .eq('id', game.id)
+      .single();
+
+    if (finalError) {
+      console.error('Error getting final game state:', finalError);
+      return { success: false, error: finalError };
+    }
+
+    console.log('Game successfully created and initialized');
     return {
       success: true,
       gameId: game.id,
       playerId: player.id,
-      game,
+      game: finalGame,
       player,
     };
   } catch (error) {
