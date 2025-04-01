@@ -25,18 +25,8 @@ export const buyRecord = async (
   inventoryId
 ) => {
   try {
-    console.log('Buying record with params:', {
-      playerId,
-      gameId,
-      storeId,
-      productId,
-      quantity,
-      inventoryId,
-    });
-
     // If no productId is provided, this will fail
     if (!productId) {
-      console.error('Missing required productId for buy_record');
       return {
         success: false,
         error: {
@@ -56,8 +46,6 @@ export const buyRecord = async (
     });
 
     if (error) {
-      console.error('Error buying record:', error);
-
       // Check for unique constraint violation
       if (
         error.code === '23505' &&
@@ -97,7 +85,6 @@ export const buyRecord = async (
 
     return { success: true, data };
   } catch (err) {
-    console.error('Error buying record:', err);
     return {
       success: false,
       error: {
@@ -126,18 +113,8 @@ export const sellRecord = async (
   inventoryId
 ) => {
   try {
-    console.log('Selling record with params:', {
-      playerId,
-      gameId,
-      storeId,
-      productId,
-      quantity,
-      inventoryId,
-    });
-
     // Check if inventoryId is provided
     if (!inventoryId) {
-      console.error('Missing inventory ID for sell_record');
       return {
         success: false,
         error: {
@@ -157,13 +134,11 @@ export const sellRecord = async (
     });
 
     if (error) {
-      console.error('Error selling record:', error);
       return { success: false, error: error };
     }
 
     return { success: true, data };
   } catch (err) {
-    console.error('Error selling record:', err);
     return { success: false, error: { message: err.message } };
   }
 };
@@ -190,7 +165,6 @@ export const getSellPrices = async (storeId, gameId, productIds) => {
       .in('product_id', productIds);
 
     if (error) {
-      console.error('Error fetching sell prices:', error);
       return {};
     }
 
@@ -205,7 +179,6 @@ export const getSellPrices = async (storeId, gameId, productIds) => {
 
     return priceMap;
   } catch (error) {
-    console.error('Error in getSellPrices:', error);
     return {};
   }
 };
@@ -268,13 +241,11 @@ export const advanceGameHour = async (gameId) => {
       .single();
 
     if (getError) {
-      console.error('Error getting game state:', getError);
       return false;
     }
 
     // Check if the game has ended (current_hour is 0)
     if (game.current_hour <= 0) {
-      console.error('Game has already ended');
       return false;
     }
 
@@ -285,13 +256,11 @@ export const advanceGameHour = async (gameId) => {
       .eq('id', gameId);
 
     if (updateError) {
-      console.error('Error advancing game hour:', updateError);
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error('Error in advanceGameHour:', error);
     return false;
   }
 };
@@ -324,7 +293,6 @@ export const travelToBorough = async (
 
     return { success: true };
   } catch (err) {
-    console.error('Travel error:', err);
     return { success: false, error: err };
   }
 };
@@ -368,7 +336,6 @@ export const initializePlayer = async (gameId, userId, boroughId) => {
         .single();
 
       if (anyBoroughError || !anyBorough) {
-        console.error('No valid boroughs found');
         return null;
       }
 
@@ -392,7 +359,6 @@ export const initializePlayer = async (gameId, userId, boroughId) => {
       .single();
 
     if (playerError) {
-      console.error('Error creating player:', playerError);
       return null;
     }
 
@@ -401,7 +367,6 @@ export const initializePlayer = async (gameId, userId, boroughId) => {
 
     return player.id;
   } catch (e) {
-    console.error('Exception creating player:', e);
     return null;
   }
 };
@@ -442,13 +407,11 @@ export const getStoreInventory = async (storeId, gameId) => {
       .gt('quantity', 0);
 
     if (error) {
-      console.error('Error getting store inventory:', error);
       return { items: [], loading: false, error: 'Failed to load inventory' };
     }
 
     return { items: data || [], loading: false, error: null };
   } catch (e) {
-    console.error('Exception getting store inventory:', e);
     return { items: [], loading: false, error: 'An unexpected error occurred' };
   }
 };
@@ -461,12 +424,6 @@ export const getStoreInventory = async (storeId, gameId) => {
  */
 export const getBoroughStores = async (boroughId, gameId = null) => {
   try {
-    console.log(
-      `🔍 Getting stores for borough ${boroughId}${
-        gameId ? ` and game ${gameId}` : ''
-      }`
-    );
-
     // Simply get all stores in the borough without filtering by game inventory
     // This is the most reliable approach to ensure stores always show up
     const { data: allStores, error: storesError } = await supabase
@@ -475,14 +432,8 @@ export const getBoroughStores = async (boroughId, gameId = null) => {
       .eq('borough_id', boroughId);
 
     if (storesError) {
-      console.error('❌ Error fetching borough stores:', storesError);
       return [];
     }
-
-    console.log(
-      `✅ Found ${allStores?.length || 0} stores in borough ${boroughId}:`,
-      allStores
-    );
 
     // As a sanity check - if gameId is provided, also log the market inventory for these stores
     if (gameId && allStores?.length > 0) {
@@ -495,17 +446,10 @@ export const getBoroughStores = async (boroughId, gameId = null) => {
         .select('store_id, product_id')
         .eq('game_id', gameId)
         .in('store_id', storeIds);
-
-      console.log(
-        `ℹ️ Found ${
-          inventory?.length || 0
-        } inventory items for these stores in game ${gameId}`
-      );
     }
 
     return allStores || [];
   } catch (error) {
-    console.error('❌ Exception in getBoroughStores:', error);
     return [];
   }
 };
@@ -531,7 +475,6 @@ export const getTransportationMethods = async () => {
       .order('speed_factor', { ascending: true });
 
     if (error) {
-      console.error('Error getting transportation methods:', error);
       return [];
     }
 
@@ -541,7 +484,6 @@ export const getTransportationMethods = async () => {
 
     return cachedTransportMethods;
   } catch (error) {
-    console.error('Error in getTransportationMethods:', error);
     return [];
   }
 };
@@ -566,7 +508,6 @@ export const getBoroughDistances = async () => {
       .select('*');
 
     if (error) {
-      console.error('Error getting borough distances:', error);
       return [];
     }
 
@@ -576,7 +517,6 @@ export const getBoroughDistances = async () => {
 
     return cachedBoroughDistances;
   } catch (error) {
-    console.error('Error in getBoroughDistances:', error);
     return [];
   }
 };
@@ -589,10 +529,6 @@ export const getBoroughDistances = async () => {
  */
 export const getGameState = async (playerId, gameId) => {
   try {
-    console.log(
-      `🔍 Getting game state for player ${playerId} in game ${gameId}`
-    );
-
     // Get player state from player_game_state view - it already includes borough name
     const { data: playerState, error: playerStateError } = await supabase
       .from('player_game_state')
@@ -600,26 +536,13 @@ export const getGameState = async (playerId, gameId) => {
       .eq('player_id', playerId)
       .single();
 
-    if (playerStateError) {
-      console.error('❌ Error getting player state:', playerStateError);
-    }
-
-    console.log(`🧑 Player state (from view):`, playerState);
-
     // If the view doesn't return data, try querying the players table directly
     if (!playerState) {
-      console.log(`🔍 Player state not found in view, trying direct query`);
       const { data: directPlayerData, error: directError } = await supabase
         .from('players')
         .select('*, boroughs:current_borough_id (id, name)')
         .eq('id', playerId)
         .single();
-
-      if (directError) {
-        console.error('❌ Error getting player data directly:', directError);
-      } else {
-        console.log(`🧑 Direct player data:`, directPlayerData);
-      }
     }
 
     // No need to format player state - it already has current_borough
@@ -631,19 +554,11 @@ export const getGameState = async (playerId, gameId) => {
       .select('*')
       .eq('player_id', playerId);
 
-    if (inventoryError) {
-      console.error('Error getting player inventory:', inventoryError);
-    }
-
     // Get transportation options
     const { data: transportOptions, error: transportError } = await supabase
       .from('transportation_options')
       .select('*')
       .eq('player_id', playerId);
-
-    if (transportError) {
-      console.error('Error getting transportation options:', transportError);
-    }
 
     // Get game data
     const { data: game, error: gameError } = await supabase
@@ -651,12 +566,6 @@ export const getGameState = async (playerId, gameId) => {
       .select('*')
       .eq('id', gameId)
       .single();
-
-    if (gameError) {
-      console.error('Error getting game data:', gameError);
-    }
-
-    console.log(`🎮 Game data:`, game);
 
     // Get borough stores if player has a location
     let boroughStores = [];
@@ -678,14 +587,7 @@ export const getGameState = async (playerId, gameId) => {
     }
 
     if (boroughId) {
-      console.log(`🏙️ Getting stores for borough: ${boroughId}`);
       boroughStores = await getBoroughStores(boroughId, gameId);
-      console.log(
-        `📦 Retrieved ${boroughStores.length} stores for borough ${boroughId}:`,
-        boroughStores
-      );
-    } else {
-      console.log('❌ No borough ID found, cannot get stores');
     }
 
     const result = {
@@ -698,13 +600,8 @@ export const getGameState = async (playerId, gameId) => {
       error: null,
     };
 
-    console.log(
-      '✅ getGameState returning result with boroughStores:',
-      boroughStores
-    );
     return result;
   } catch (e) {
-    console.error('Error getting game state:', e);
     return {
       playerState: null,
       inventory: [],

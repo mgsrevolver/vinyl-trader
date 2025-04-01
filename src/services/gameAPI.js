@@ -9,13 +9,11 @@ export const createGame = async (playerName) => {
 
     // If we don't have a userId from auth, use a generated one instead
     if (!userId) {
-      console.log('No authenticated user ID found, using anonymous ID');
       userId = localStorage.getItem('deliWarsPlayerId');
       if (!userId) {
         userId = crypto.randomUUID();
         localStorage.setItem('deliWarsPlayerId', userId);
       }
-      console.log('Using anonymous user ID:', userId);
     }
 
     // STEP 1: Create the game
@@ -32,7 +30,6 @@ export const createGame = async (playerName) => {
       .single();
 
     if (gameError) {
-      console.error('Error creating game:', gameError);
       return { success: false, error: gameError };
     }
 
@@ -44,13 +41,10 @@ export const createGame = async (playerName) => {
       .single();
 
     if (boroughError) {
-      console.error('Error finding Downtown:', boroughError);
       return { success: false, error: boroughError };
     }
-    console.log('📍 Downtown borough found:', downtown);
 
     // STEP 3: Create the player
-    console.log('👤 Creating player with borough_id:', downtown.id);
     const { data: player, error: playerError } = await supabase
       .from('players')
       .insert({
@@ -66,23 +60,17 @@ export const createGame = async (playerName) => {
       .single();
 
     if (playerError) {
-      console.error('Error creating player:', playerError);
       await supabase.from('games').delete().eq('id', game.id);
       return { success: false, error: playerError };
     }
-
-    console.log('👤 Player created:', player);
 
     // Format player data with borough
     const playerWithBorough = {
       ...player,
       current_borough: player.boroughs?.name || 'Unknown Location',
     };
-    console.log('👤 Player with borough formatted:', playerWithBorough);
 
     // STEP 4: Initialize game data with timeout
-    console.log('Initializing game data...');
-
     // Create a promise with timeout for initialization
     const initializeWithTimeout = async (timeout = 15000) => {
       let timeoutId;
@@ -106,7 +94,6 @@ export const createGame = async (playerName) => {
 
         return result;
       } catch (error) {
-        console.warn('Game initialization issue:', error);
         // We'll continue even with initialization issues, as we can still play with partial data
         return { partialInit: true };
       } finally {
@@ -115,14 +102,6 @@ export const createGame = async (playerName) => {
     };
 
     const initResult = await initializeWithTimeout();
-
-    if (initResult.error) {
-      console.warn(
-        'Warning: Game initialization had errors but continuing:',
-        initResult.error
-      );
-      // We continue anyway - some games may work with partial initialization
-    }
 
     // STEP 5: Set game to active
     const { error: updateError } = await supabase
@@ -134,7 +113,6 @@ export const createGame = async (playerName) => {
       .eq('id', game.id);
 
     if (updateError) {
-      console.error('Error updating game status:', updateError);
       return { success: false, error: updateError };
     }
 
@@ -146,11 +124,9 @@ export const createGame = async (playerName) => {
       .single();
 
     if (finalError) {
-      console.error('Error getting final game state:', finalError);
       return { success: false, error: finalError };
     }
 
-    console.log('Game successfully created and initialized');
     return {
       success: true,
       gameId: game.id,
@@ -160,7 +136,6 @@ export const createGame = async (playerName) => {
       partialInit: initResult.partialInit,
     };
   } catch (error) {
-    console.error('Error in createGame:', error);
     return { success: false, error };
   }
 };
@@ -177,8 +152,6 @@ export const joinGame = async (gameId, userId, playerName = null) => {
         userId = crypto.randomUUID();
         localStorage.setItem('deliWarsPlayerId', userId);
       }
-
-      console.log('Using generated user ID for joining:', userId);
     }
 
     // Get default starting borough
@@ -256,8 +229,6 @@ export const joinGame = async (gameId, userId, playerName = null) => {
       .update({ username: username })
       .eq('id', newPlayerId);
 
-    if (usernameError) console.warn('Failed to set username:', usernameError);
-
     return {
       success: true,
       gameId,
@@ -266,7 +237,6 @@ export const joinGame = async (gameId, userId, playerName = null) => {
       playerName: username,
     };
   } catch (error) {
-    console.error('Error joining game:', error);
     return { success: false, error };
   }
 };
@@ -275,7 +245,6 @@ export const loadGame = async (gameId, playerIdToUse) => {
   try {
     // Ensure we have a valid playerIdToUse
     if (!playerIdToUse) {
-      console.error('No player ID provided to loadGame');
       return { success: false, needsJoin: true, game: null };
     }
 
@@ -303,21 +272,14 @@ export const loadGame = async (gameId, playerIdToUse) => {
       ]);
 
     if (playerResult.error) {
-      console.error('Player not found with ID:', playerIdToUse);
       return { success: false, needsJoin: true, game: gameResult.data };
     }
-
-    console.log('Player data from loadGame:', playerResult.data);
 
     // Check if we need to get the borough name separately if it's not in player data
     let boroughName = playerResult.data.boroughs?.name;
 
     // If borough name not found in boroughs relation, try to look it up
     if (!boroughName && playerResult.data.current_borough_id) {
-      console.log(
-        'Looking up borough name for ID:',
-        playerResult.data.current_borough_id
-      );
       try {
         const { data: borough } = await supabase
           .from('boroughs')
@@ -327,10 +289,9 @@ export const loadGame = async (gameId, playerIdToUse) => {
 
         if (borough) {
           boroughName = borough.name;
-          console.log('Found borough name:', boroughName);
         }
       } catch (err) {
-        console.error('Error looking up borough:', err);
+        // Failed to look up borough, continue with unknown
       }
     }
 
@@ -341,8 +302,6 @@ export const loadGame = async (gameId, playerIdToUse) => {
         boroughName || playerResult.data.current_borough || 'Unknown Location',
     };
 
-    console.log('Formatted player with borough:', playerWithBorough);
-
     return {
       success: true,
       game: gameResult.data,
@@ -351,7 +310,6 @@ export const loadGame = async (gameId, playerIdToUse) => {
       inventory: inventoryResult.data || [],
     };
   } catch (error) {
-    console.error('Error loading game:', error);
     return { success: false, error };
   }
 };
@@ -371,7 +329,6 @@ export const startGame = async (gameId) => {
     if (error) throw error;
     return true;
   } catch (error) {
-    console.error('Error starting game:', error);
     return false;
   }
 };
@@ -445,7 +402,6 @@ export const endPlayerTurn = async (playerId, gameId) => {
       gameOver,
     };
   } catch (error) {
-    console.error('Error ending turn:', error);
     return { success: false, error };
   }
 };
@@ -465,13 +421,11 @@ export const fetchPlayerWithBorough = async (playerId) => {
       .single();
 
     if (error) {
-      console.error('Error fetching player data:', error);
       return null;
     }
 
     return data;
   } catch (error) {
-    console.error('Error in fetchPlayerWithBorough:', error);
     return null;
   }
 };
@@ -499,13 +453,11 @@ export const fetchPlayerInventory = async (playerId) => {
       .eq('player_id', playerId);
 
     if (error) {
-      console.error('Error fetching player inventory:', error);
       return null;
     }
 
     return data;
   } catch (error) {
-    console.error('Error in fetchPlayerInventory:', error);
     return null;
   }
 };
@@ -519,13 +471,11 @@ export const getInventoryItem = async (inventoryItemId) => {
       .single();
 
     if (error) {
-      console.error('Error fetching inventory item:', error);
       return null;
     }
 
     return data;
   } catch (error) {
-    console.error('Error in getInventoryItem:', error);
     return null;
   }
 };
@@ -542,13 +492,11 @@ export const updatePlayerActions = async (playerId, actionsUsed) => {
       .single();
 
     if (error) {
-      console.error('Error updating actions used:', error);
       return null;
     }
 
     return data;
   } catch (error) {
-    console.error('Error in updatePlayerActions:', error);
     return null;
   }
 };
@@ -561,13 +509,11 @@ export const setPlayerOverflow = async (playerId, overflow) => {
       .eq('id', playerId);
 
     if (error) {
-      console.error('Error setting player overflow:', error);
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error('Error in setPlayerOverflow:', error);
     return false;
   }
 };
@@ -582,13 +528,11 @@ export const fetchGame = async (gameId) => {
       .single();
 
     if (error) {
-      console.error('Error fetching game:', error);
       return null;
     }
 
     return data;
   } catch (error) {
-    console.error('Error in fetchGame:', error);
     return null;
   }
 };
@@ -602,7 +546,6 @@ export const advanceGameHour = async (gameId, newHour, playerId) => {
       .eq('id', gameId);
 
     if (gameError) {
-      console.error('Error advancing game hour:', gameError);
       return false;
     }
 
@@ -625,13 +568,11 @@ export const advanceGameHour = async (gameId, newHour, playerId) => {
       .eq('id', playerId);
 
     if (playerError) {
-      console.error('Error resetting player actions:', playerError);
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error('Error in advanceGameHour:', error);
     return false;
   }
 };
@@ -648,13 +589,11 @@ export const getTravelInfo = async (playerId, transportationId, boroughId) => {
       .maybeSingle();
 
     if (error) {
-      console.error('Error getting travel info:', error);
       return null;
     }
 
     return data || { action_cost: 1, monetary_cost: 0 };
   } catch (error) {
-    console.error('Error in getTravelInfo:', error);
     return null;
   }
 };
@@ -670,13 +609,11 @@ export const movePlayer = async (playerId, boroughId, newCash) => {
       .eq('id', playerId);
 
     if (error) {
-      console.error('Error updating player location:', error);
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error('Error in movePlayer:', error);
     return false;
   }
 };

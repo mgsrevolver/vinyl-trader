@@ -49,7 +49,6 @@ export const GameProvider = ({ children }) => {
 
   // Generate or retrieve player ID
   useEffect(() => {
-    console.log('GameProvider: Initializing player ID');
     try {
       const currentGameId = localStorage.getItem('deliWarsCurrentGame');
       const gameSpecificPlayerId = currentGameId
@@ -79,7 +78,6 @@ export const GameProvider = ({ children }) => {
         }
       }
     } catch (err) {
-      console.error('Error initializing player ID:', err);
       setError(err);
     } finally {
       setInitialized(true);
@@ -89,10 +87,6 @@ export const GameProvider = ({ children }) => {
 
   // Check for stored game on mount
   useEffect(() => {
-    console.log('GameProvider: Checking stored game', {
-      playerId,
-      initialized,
-    });
     if (!initialized) return;
 
     const storedGameId = localStorage.getItem('deliWarsCurrentGame');
@@ -116,7 +110,6 @@ export const GameProvider = ({ children }) => {
       ]);
 
       if (!gameData || !playerData) {
-        console.error('Error fetching data');
         return false;
       }
 
@@ -133,7 +126,6 @@ export const GameProvider = ({ children }) => {
 
       return true;
     } catch (error) {
-      console.error('Error in fetchGameData:', error);
       return false;
     }
   }, [currentGame?.id, player?.id]);
@@ -156,7 +148,6 @@ export const GameProvider = ({ children }) => {
       setPlayer(playerWithBorough);
       return true;
     } catch (error) {
-      console.error('Error in refreshPlayerData:', error);
       return false;
     }
   }, [player?.id]);
@@ -170,7 +161,6 @@ export const GameProvider = ({ children }) => {
       setPlayerInventory(inventory || []);
       return true;
     } catch (error) {
-      console.error('Error refreshing player inventory:', error);
       return false;
     }
   }, [player?.id]);
@@ -305,13 +295,10 @@ export const GameProvider = ({ children }) => {
       localStorage.removeItem('deliWarsCurrentGame');
 
       setLoading(true);
-      console.log('Creating new game for player:', playerName);
 
       const result = await gameAPI.createGame(playerName);
-      console.log('Game creation result:', result);
 
       if (!result.success) {
-        console.error('Game creation failed:', result.error);
         toast.error('Failed to create game');
         return result;
       }
@@ -325,14 +312,8 @@ export const GameProvider = ({ children }) => {
       setCurrentGame(result.game);
       setPlayer(result.player);
 
-      console.log('Game created successfully:', {
-        gameId: result.gameId,
-        playerId: result.playerId,
-      });
-
       return result;
     } catch (error) {
-      console.error('Error in createGame:', error);
       toast.error('Failed to create game');
       return { success: false, error };
     } finally {
@@ -367,7 +348,6 @@ export const GameProvider = ({ children }) => {
 
       return result;
     } catch (error) {
-      console.error('Error joining game:', error);
       toast.error(`Error: ${error.message}`);
       return { success: false, error };
     } finally {
@@ -381,13 +361,10 @@ export const GameProvider = ({ children }) => {
 
     try {
       setGameLoading(true);
-      console.log('Loading game:', gameId);
 
       // Get game-specific player ID if available
       const gameSpecificPlayerId = localStorage.getItem(`player_${gameId}`);
       const playerIdToUse = gameSpecificPlayerId || playerId;
-
-      console.log('Loading game with player ID:', playerIdToUse);
 
       // If we found a game-specific ID that's different, update state
       if (gameSpecificPlayerId && gameSpecificPlayerId !== playerId) {
@@ -395,25 +372,19 @@ export const GameProvider = ({ children }) => {
       }
 
       if (!playerIdToUse) {
-        console.error('No player ID available for this game');
         return { success: false, needsJoin: true };
       }
 
       const result = await gameAPI.loadGame(gameId, playerIdToUse);
-      console.log('Game load result:', result);
 
       if (result.needsJoin) {
         return result;
       }
 
       if (!result.success) {
-        console.error('Failed to load game:', result.error);
         toast.error('Error loading game');
         return result;
       }
-
-      // IMPORTANT: Log the player object right before we update the state
-      console.log('Player before setting state:', result.player);
 
       // Update state - ENSURE borough info is maintained
       setCurrentGame(result.game);
@@ -432,18 +403,14 @@ export const GameProvider = ({ children }) => {
           'Unknown Location',
       };
 
-      console.log('Player after formatting:', playerWithBoroughData);
       setPlayer(playerWithBoroughData);
-
       setPlayers(result.allPlayers || []);
       setPlayerInventory(result.inventory || []);
 
       localStorage.setItem('deliWarsCurrentGame', gameId);
 
-      console.log('Game loaded successfully');
       return result;
     } catch (error) {
-      console.error('Error loading game:', error);
       toast.error(`Error: ${error.message}`);
       return { success: false, error };
     } finally {
@@ -475,7 +442,6 @@ export const GameProvider = ({ children }) => {
 
       return { success: true };
     } catch (error) {
-      console.error('Error starting game:', error);
       toast.error(`Error: ${error.message}`);
       return { success: false, error };
     } finally {
@@ -528,7 +494,6 @@ export const GameProvider = ({ children }) => {
         return { success: true };
       });
     } catch (error) {
-      console.error('Error traveling to borough:', error);
       return { success: false, error };
     } finally {
       setLoading(false);
@@ -566,7 +531,6 @@ export const GameProvider = ({ children }) => {
         return result;
       });
     } catch (error) {
-      console.error('Error in buyProduct:', error);
       toast.error(`Error: ${error.message}`);
       return { success: false, error };
     } finally {
@@ -613,7 +577,6 @@ export const GameProvider = ({ children }) => {
         }
       });
     } catch (error) {
-      console.error('Error in sellProduct:', error);
       toast.error(`Error: ${error.message}`);
       return { success: false, error };
     } finally {
@@ -649,7 +612,6 @@ export const GameProvider = ({ children }) => {
       await fetchGameData();
       return { success: true };
     } catch (error) {
-      console.error('Error ending turn:', error);
       toast.error(`Error: ${error.message}`);
       return { success: false, error };
     } finally {

@@ -73,14 +73,8 @@ const Game = () => {
   // CRITICAL: Add an immediate effect to respond to player data changes
   useEffect(() => {
     if (player) {
-      console.log('🔥 Player data changed in Game component:', player);
-
       // Aggressively set the borough name whenever player data changes
       if (player.boroughs?.name) {
-        console.log(
-          '🏙️ Setting borough from player.boroughs.name:',
-          player.boroughs.name
-        );
         setCurrentBoroughName(player.boroughs.name);
 
         // CRITICAL: When borough changes, we should reload stores for that borough
@@ -91,15 +85,10 @@ const Game = () => {
           lastBoroughId.current !== player.current_borough_id
         ) {
           lastBoroughId.current = player.current_borough_id;
-          console.log(
-            '🔄 Borough changed, reloading stores for:',
-            player.current_borough_id
-          );
 
           // Check cache first
           const cacheKey = `${player.current_borough_id}`;
           if (storeCache[cacheKey]) {
-            console.log('📦 Using cached stores:', storeCache[cacheKey]);
             setBoroughStores(storeCache[cacheKey]);
             return;
           }
@@ -112,14 +101,12 @@ const Game = () => {
                 player.current_borough_id,
                 currentGame.id
               );
-              console.log('📦 Directly loaded stores:', stores);
 
               // Cache the stores
               storeCache[cacheKey] = stores;
 
               setBoroughStores(stores);
             } catch (error) {
-              console.error('Failed to load stores:', error);
               // Fallback to empty array to prevent UI issues
               setBoroughStores([]);
             }
@@ -128,29 +115,15 @@ const Game = () => {
           loadStoresForBorough();
         }
       } else if (player.current_borough) {
-        console.log(
-          '🏙️ Setting borough from player.current_borough:',
-          player.current_borough
-        );
         setCurrentBoroughName(player.current_borough);
       } else if (player.current_borough_id) {
-        console.log(
-          '🏙️ Need to look up borough for ID:',
-          player.current_borough_id
-        );
         // Look up the borough name if needed
         getCurrentBoroughName(player.current_borough_id).then((name) => {
-          console.log('🏙️ Setting borough from lookup:', name);
           setCurrentBoroughName(name);
         });
       }
     }
   }, [player, currentGame?.id]);
-
-  // Add a debug effect for boroughStores
-  useEffect(() => {
-    console.log('🏪 Borough stores state changed:', boroughStores);
-  }, [boroughStores]);
 
   const loadGameData = async (forceRefresh = false) => {
     try {
@@ -162,15 +135,9 @@ const Game = () => {
       // First try to get player ID from context
       if (player?.id) {
         playerId = player.id;
-        console.log('Using player ID from context:', playerId);
-        console.log('Context player data:', player);
 
         // IMMEDIATELY SET BOROUGH NAME FROM CONTEXT if available - this is more reliable
         if (player.boroughs?.name) {
-          console.log(
-            '🏙️ Setting borough name directly from context boroughs:',
-            player.boroughs.name
-          );
           setCurrentBoroughName(player.boroughs.name);
 
           // If we already have all the data we need from context, we can avoid the full getGameState call
@@ -183,52 +150,37 @@ const Game = () => {
             // Just load the stores if needed
             const cacheKey = `${player.current_borough_id}`;
             if (storeCache[cacheKey]) {
-              console.log(
-                '📦 Using cached stores from loadGameData:',
-                storeCache[cacheKey]
-              );
               setBoroughStores(storeCache[cacheKey]);
               setLoadingGameState(false);
               return; // Skip the expensive getGameState call
             }
           }
         } else if (player.current_borough) {
-          console.log(
-            '🏙️ Setting borough name directly from context current_borough:',
-            player.current_borough
-          );
           setCurrentBoroughName(player.current_borough);
         }
       } else {
         // Fall back to localStorage
         const storedPlayerId = localStorage.getItem(`player_${gameId}`);
         if (!storedPlayerId) {
-          console.error('No player ID found in localStorage');
           toast.error('Could not find your player in this game');
           navigate('/');
           return;
         }
         playerId = storedPlayerId;
-        console.log('Using player ID from localStorage:', playerId);
       }
 
       // If we have a refresh flag, refresh the player data in context first
       if ((forceRefresh || location.state?.refresh) && refreshPlayerData) {
-        console.log('Forcing player data refresh');
         await refreshPlayerData();
       }
 
       // Now use our gameActions functions to get all the data we need
-      console.log('Loading full game state...');
       const gameStateData = await getGameState(playerId, gameId);
-      console.log('🔍 Game state loaded:', gameStateData);
 
       if (gameStateData && !gameStateData.error) {
         setGameState(gameStateData.game);
         setPlayerState(gameStateData.playerState);
         setBoroughStores(gameStateData.boroughStores);
-        console.log('🏪 Borough stores:', gameStateData.boroughStores);
-        console.log('🧑 Player state:', gameStateData.playerState);
 
         // If we got stores, cache them
         if (
@@ -252,7 +204,6 @@ const Game = () => {
               setPlayerActions(actionsData);
             }
           } catch (actionError) {
-            console.warn('Could not fetch player actions:', actionError);
             // Use default action values
             setPlayerActions({ actions_used: 0, actions_available: 4 });
           }
@@ -262,42 +213,26 @@ const Game = () => {
         if (!player?.boroughs?.name && !player?.current_borough) {
           // Update the current borough name - First check the context player data
           if (player && player.current_borough) {
-            console.log(
-              '🏙️ Setting borough name from context:',
-              player.current_borough
-            );
             setCurrentBoroughName(player.current_borough);
           }
           // Then check the player state from gameActions
           else if (gameStateData.playerState?.current_borough) {
-            console.log(
-              '🏙️ Setting borough name from playerState:',
-              gameStateData.playerState.current_borough
-            );
             setCurrentBoroughName(gameStateData.playerState.current_borough);
           }
           // If still not found, try to get borough name from the borough ID
           else if (gameStateData.playerState?.current_borough_id) {
-            console.log(
-              '🏙️ Looking up borough name from ID:',
-              gameStateData.playerState.current_borough_id
-            );
             const currentBorough = await getCurrentBoroughName(
               gameStateData.playerState.current_borough_id
             );
-            console.log('🏙️ Setting borough name via lookup:', currentBorough);
             setCurrentBoroughName(currentBorough || 'Unknown Location');
           } else {
-            console.log('❌ No borough information found');
             setCurrentBoroughName('Unknown Location');
           }
         }
       } else {
-        console.error('Error loading game state:', gameStateData?.error);
         toast.error('Failed to load game data. Please try again.');
       }
     } catch (error) {
-      console.error('Error in loadGameData:', error);
       toast.error('An unexpected error occurred loading game data.');
     } finally {
       setLoadingGameState(false);
@@ -307,7 +242,6 @@ const Game = () => {
   // Helper function to get borough name if it's not in the player state
   const getCurrentBoroughName = async (boroughId) => {
     if (!boroughId) return 'Unknown Location';
-    console.log('🔍 Looking up borough name for ID:', boroughId);
 
     try {
       const { data, error } = await supabase
@@ -317,13 +251,10 @@ const Game = () => {
         .single();
 
       if (error) {
-        console.error('❌ Error fetching borough name:', error);
         throw error;
       }
-      console.log('✅ Borough lookup result:', data);
       return data?.name || 'Unknown Location';
     } catch (err) {
-      console.error('❌ Error fetching borough name:', err);
       return 'Unknown Location';
     }
   };
@@ -345,7 +276,6 @@ const Game = () => {
       await loadGameData();
       toast.success('Turn completed! Game advanced to the next hour.');
     } catch (error) {
-      console.error('Error ending turn:', error);
       toast.error('An error occurred while ending your turn.');
     } finally {
       setSubmitting(false);

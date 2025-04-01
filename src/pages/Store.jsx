@@ -82,7 +82,6 @@ const Store = () => {
   const loadStoreData = async () => {
     try {
       setLoading(true);
-      console.log('Loading store data with:', { gameId, boroughId, storeId });
 
       // 1. Fetch the borough
       const { data: boroughData, error: boroughError } = await supabase
@@ -92,13 +91,11 @@ const Store = () => {
         .single();
 
       if (boroughError) {
-        console.error('Error fetching borough:', boroughError);
         setError('Could not load location information');
         return;
       }
 
       setBorough(boroughData);
-      console.log('Borough loaded:', boroughData);
 
       // 2. Fetch the specific store
       const { data: storeData, error: storeError } = await supabase
@@ -109,8 +106,6 @@ const Store = () => {
         .single();
 
       if (storeError) {
-        console.error('Error fetching store:', storeError);
-
         // If we can't find the specific store, try to get any store in this borough
         const { data: anyStore, error: anyStoreError } = await supabase
           .from('stores')
@@ -120,16 +115,13 @@ const Store = () => {
           .single();
 
         if (anyStoreError) {
-          console.error('Error fetching any store in borough:', anyStoreError);
           setError('No stores found in this location');
           return;
         }
 
         setStore(anyStore);
-        console.log('Using alternative store:', anyStore);
       } else {
         setStore(storeData);
-        console.log('Store loaded:', storeData);
       }
 
       // 3. Load the store inventory using the store we found
@@ -141,7 +133,6 @@ const Store = () => {
         );
 
         if (inventoryResult.error) {
-          console.error('Error loading inventory:', inventoryResult.error);
           setError('Could not load store inventory');
           return;
         }
@@ -165,10 +156,8 @@ const Store = () => {
         });
 
         setStoreInventory(expandedInventory);
-        console.log('Store inventory loaded:', expandedInventory);
       }
     } catch (error) {
-      console.error('Error loading store data:', error);
       setError('An unexpected error occurred');
     } finally {
       setLoading(false);
@@ -183,8 +172,6 @@ const Store = () => {
     if (pricesCalculated.current) return;
 
     try {
-      console.log('Calculating store prices...');
-
       // First get transaction history to determine where each item was purchased
       const { data: purchaseHistory } = await supabase
         .from('transactions')
@@ -192,8 +179,6 @@ const Store = () => {
         .eq('player_id', player.id)
         .eq('transaction_type', 'buy')
         .order('created_at', { ascending: false });
-
-      console.log('Purchase history:', purchaseHistory);
 
       // Create a map of where each product was purchased
       const purchaseMap = {};
@@ -235,24 +220,13 @@ const Store = () => {
         if (purchaseInfo && purchaseInfo.store_id === store.id) {
           // Sell for 75% of what was paid (enforced same-store discount)
           basePrice = purchaseInfo.price * 0.75;
-          console.log(
-            `Same store sell price for ${inventoryId}: ${basePrice} (75% of purchase price ${purchaseInfo.price})`
-          );
         } else if (marketItem) {
           // Different store - can potentially make a profit
           basePrice = marketItem.current_price * 0.75;
-          console.log(
-            `Different store sell price for ${inventoryId}: ${basePrice} (75% of market price ${marketItem.current_price})`
-          );
         } else {
           // Fallback to base price calculation
           basePrice = item.purchase_price || 20; // Default if no purchase price
           basePrice = basePrice * 0.75;
-          console.log(
-            `Fallback sell price for ${inventoryId}: ${basePrice} (75% of ${
-              item.purchase_price || 20
-            })`
-          );
         }
 
         // Apply condition factor
@@ -267,18 +241,13 @@ const Store = () => {
 
         // Store price by INVENTORY ID (not product ID) so each copy has its own price
         priceMap[inventoryId] = basePrice * conditionFactor;
-
-        console.log(
-          `Final sell price for ${inventoryId} with condition (${item.condition}): ${priceMap[inventoryId]}`
-        );
       });
 
       // Set prices and mark as calculated
       setInventoryStorePrices(priceMap);
       pricesCalculated.current = true;
-      console.log('Store sell prices calculated:', priceMap);
     } catch (error) {
-      console.error('Error fetching store prices:', error);
+      // Error handling is silent
     }
   }, [store?.id, player?.id, gameId, playerInventory]);
 
@@ -294,11 +263,6 @@ const Store = () => {
     }
 
     try {
-      console.log('Attempting to buy record:', {
-        productId,
-        inventoryId,
-      });
-
       // Find the record being purchased - ONLY by exact inventory ID
       let recordToBuy = storeInventory.find(
         (item) => item.id === inventoryId || item.displayId === inventoryId
@@ -307,17 +271,6 @@ const Store = () => {
       // If we couldn't find the exact inventory item, don't fall back to product_id
       if (!recordToBuy) {
         toast.error('Exact record not found. Please try again.');
-        console.error('Could not find exact inventory item:', {
-          inventoryId,
-          productId,
-          availableIds: storeInventory.map((item) => ({
-            id: item.id,
-            displayId: item.displayId,
-            product_id: item.product_id,
-            price: item.current_price,
-            condition: item.condition,
-          })),
-        });
         return;
       }
 
@@ -325,15 +278,6 @@ const Store = () => {
       const productIdToUse = recordToBuy.product_id || productId;
       const recordPrice = recordToBuy.current_price;
       const recordCondition = recordToBuy.condition || 'Good';
-
-      console.log('FOUND RECORD TO BUY:', {
-        recordToBuy: JSON.stringify(recordToBuy),
-        productIdToUse,
-        recordPrice,
-        displayPrice: recordToBuy.current_price,
-        condition: recordCondition,
-        fullRecord: recordToBuy,
-      });
 
       // Check if player has enough cash
       if (player.cash < recordPrice) {
@@ -388,7 +332,6 @@ const Store = () => {
         }
       }
     } catch (error) {
-      console.error('Error buying record:', error);
       toast.error('An unexpected error occurred');
     }
   };
@@ -397,16 +340,8 @@ const Store = () => {
     if (!player || !store) return;
 
     try {
-      console.log('Selling record with params:', {
-        productId,
-        quantity,
-        inventoryId,
-        storeId: store.id,
-      });
-
       if (!inventoryId) {
         toast.error('Cannot sell: Missing inventory ID for this record');
-        console.error('Missing inventory ID for sell operation');
         return;
       }
 
@@ -432,26 +367,12 @@ const Store = () => {
       const isSameStore = purchaseHistory?.[0]?.store_id === store.id;
       const originalPrice = purchaseHistory?.[0]?.price;
 
-      console.log('Sell record details:', {
-        inventoryItem,
-        isSameStore,
-        originalPrice,
-        storeId: store.id,
-        sellPrice: inventoryStorePrices[inventoryId],
-        condition: inventoryItem.condition,
-      });
-
       // Check to make sure same-store selling is at a loss
       if (
         isSameStore &&
         originalPrice &&
         inventoryStorePrices[inventoryId] > originalPrice
       ) {
-        console.error('PRICING ERROR: Sell value > Original purchase price', {
-          sellPrice: inventoryStorePrices[inventoryId],
-          originalPrice,
-          storeName: store.name,
-        });
         toast.error('Cannot sell for more than you paid at the same store!');
         return;
       }
@@ -481,7 +402,6 @@ const Store = () => {
         toast.error(errorMessage);
       }
     } catch (error) {
-      console.error('Error selling record:', error);
       toast.error('Failed to complete sale');
     }
   };
@@ -648,14 +568,6 @@ const Store = () => {
                         estimated_current_price: item.current_price,
                         current_price: item.current_price,
                       };
-
-                      // Log each item's transformation to help debugging
-                      console.log(`Store item ${index}:`, {
-                        id: item.id,
-                        displayId: transformedItem.displayId,
-                        condition: item.condition,
-                        price: item.current_price,
-                      });
 
                       return (
                         <SlimProductCard
