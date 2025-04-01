@@ -59,110 +59,59 @@ const Store = () => {
   // Convert to useCallback to prevent recreation - MOVED THIS FUNCTION ABOVE THE USEEFFECT THAT REFERENCES IT
   const loadInventoryStorePrices = useCallback(async () => {
     if (!store || !playerInventory?.length) return;
-
-    // Skip if we've already calculated prices
     if (pricesCalculated.current) return;
 
     try {
       setLoading(true);
+      console.log('Starting price calculation');
 
-      // Create an array of product IDs from inventory
-      const productIds = playerInventory.map((item) => item.product_id);
+      // ULTRA SIMPLE APPROACH - One item at a time
+      const prices = {};
 
-      // Use Promise.all to run queries in parallel
-      const [purchaseHistoryResponse, marketInventoryResponse] =
-        await Promise.all([
-          // Get transaction history
-          supabase
-            .from('transactions')
-            .select('*')
-            .eq('player_id', player.id)
-            .eq('transaction_type', 'buy')
-            .in('product_id', productIds)
-            .order('created_at', { ascending: false }),
+      // Process one record at a time
+      for (const item of playerInventory) {
+        console.log(`Getting price for inventory item: ${item.id}`);
 
-          // Get market prices from current store for these products
-          supabase
-            .from('market_inventory')
-            .select('product_id, current_price')
-            .eq('store_id', store.id)
-            .eq('game_id', gameId)
-            .in('product_id', productIds),
-        ]);
+        const response = await supabase.rpc('get_sell_price', {
+          p_player_id: player.id,
+          p_store_id: store.id,
+          p_inventory_id: item.id,
+        });
 
-      const purchaseHistory = purchaseHistoryResponse.data || [];
-      const marketData = marketInventoryResponse.data || [];
-
-      // Create a map of where each product was purchased (only the most recent purchase)
-      const purchaseMap = {};
-      purchaseHistory.forEach((transaction) => {
-        // Only store the first (most recent) transaction for each product
-        if (!purchaseMap[transaction.product_id]) {
-          purchaseMap[transaction.product_id] = {
-            store_id: transaction.store_id,
-            price: transaction.price,
-          };
-        }
-      });
-
-      // Create price map with INVENTORY ID as key
-      const priceMap = {};
-
-      // Calculate prices for each inventory item - ensuring deterministic pricing
-      playerInventory.forEach((item) => {
-        const productId = item.product_id;
-        const inventoryId = item.id; // Unique per inventory item
-        const purchaseInfo = purchaseMap[productId];
-        const marketItem = marketData.find((d) => d.product_id === productId);
-
-        // Apply condition factor consistently in all cases
-        const conditionFactor =
-          item.condition === 'Mint'
-            ? 1.5
-            : item.condition === 'Good'
-            ? 1.0
-            : item.condition === 'Fair'
-            ? 0.7
-            : 0.5;
-
-        // First check if this item has a purchase price from its record
-        // This ensures consistent pricing for the same item
-        if (item.purchase_price) {
-          // Same store rule: always sell at 15% loss if same store
-          if (purchaseInfo && purchaseInfo.store_id === store.id) {
-            // Fixed 15% loss at same store where purchased
-            priceMap[inventoryId] = item.purchase_price * 0.85;
-          } else {
-            // Different store - use condition-based pricing
-            priceMap[inventoryId] = item.purchase_price * conditionFactor;
-          }
+        if (response.error) {
+          console.error(`ERROR for ${item.id}:`, response.error);
         } else {
-          // Fallback calculation method if purchase_price not available
-          let basePrice;
-
-          // If this is the same store where the item was purchased
-          if (purchaseInfo && purchaseInfo.store_id === store.id) {
-            // Sell for 75% of what was paid (enforced same-store discount)
-            basePrice = purchaseInfo.price * 0.75;
-          } else if (marketItem) {
-            // Different store - can potentially make a profit
-            basePrice = marketItem.current_price * 0.75;
-          } else {
-            // Fallback to base price calculation
-            basePrice = 20; // Default if no purchase price
-            basePrice = basePrice * 0.75;
-          }
-
-          // Store price by INVENTORY ID (not product ID) so each copy has its own price
-          priceMap[inventoryId] = basePrice * conditionFactor;
+          console.log(`SUCCESS for ${item.id}: $${response.data}`);
+          prices[item.id] = response.data;
         }
-      });
+      }
 
-      // Set prices and mark as calculated
-      setInventoryStorePrices(priceMap);
+      // If we got ANY prices, use them
+      if (Object.keys(prices).length > 0) {
+        console.log('SUCCESS: Using database prices:', prices);
+        setInventoryStorePrices(prices);
+      } else {
+        console.log('FALLBACK: All database calls failed, using basic pricing');
+
+        // Fall back to basic pricing
+        const basicPrices = {};
+        playerInventory.forEach((item) => {
+          basicPrices[item.id] =
+            (item.purchase_price || 10) *
+            (item.condition === 'Mint'
+              ? 1.5
+              : item.condition === 'Good'
+              ? 1.0
+              : item.condition === 'Fair'
+              ? 0.7
+              : 0.5);
+        });
+        setInventoryStorePrices(basicPrices);
+      }
+
       pricesCalculated.current = true;
-    } catch (error) {
-      // Error handling is silent
+    } catch (err) {
+      console.error('CRITICAL ERROR:', err);
     } finally {
       setLoading(false);
     }
