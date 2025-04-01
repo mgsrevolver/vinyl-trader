@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseNoCache, clearSupabaseCache } from '../lib/supabase';
 
 // Cache for frequently accessed data
 const gameDataCache = {
@@ -521,23 +521,36 @@ export const endPlayerTurn = async (playerId, gameId) => {
 // PLAYER DATA
 export const fetchPlayerWithBorough = async (playerId) => {
   try {
-    // Always fetch fresh player data to get the most up-to-date cash amount
-    const { data, error } = await supabase
+    // Clear cache to ensure fresh data
+    if (gameDataCache.players[playerId]) {
+      delete gameDataCache.players[playerId];
+    }
+
+    // Clear supabase cache too for good measure
+    clearSupabaseCache();
+
+    // Use no-cache client explicitly for player data
+    const { data, error } = await supabaseNoCache
       .from('players')
       .select('*, boroughs:current_borough_id (id, name)')
       .eq('id', playerId)
-      .single();
+      .maybeSingle();
 
-    if (error) return null;
+    if (error || !data) {
+      console.error('Error fetching player data:', error);
+      return null;
+    }
 
-    // Cache the results
+    // Store fresh data in local cache
     gameDataCache.players[playerId] = {
       data,
       timestamp: Date.now(),
     };
 
+    console.log('Fetched fresh player data:', data);
     return data;
-  } catch {
+  } catch (err) {
+    console.error('Exception in fetchPlayerWithBorough:', err);
     return null;
   }
 };

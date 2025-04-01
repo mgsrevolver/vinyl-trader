@@ -33,6 +33,24 @@ const Inventory = () => {
   const [sortField, setSortField] = useState('artist');
   const [sortDirection, setSortDirection] = useState('asc');
   const [filteredInventory, setFilteredInventory] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Refresh data when component mounts
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        await refreshPlayerData();
+        await refreshPlayerInventory();
+      } catch (error) {
+        console.error('Error refreshing data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [refreshPlayerData, refreshPlayerInventory]);
 
   // Initialize with the player's inventory
   useEffect(() => {
@@ -220,206 +238,222 @@ const Inventory = () => {
           <h1 className="text-2xl font-bold font-records">INVENTORY</h1>
         </div>
 
-        {/* Search bar */}
-        <div className="relative mb-4">
-          <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search your records..."
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-
-        {/* Financial Summary */}
-        <div
-          style={{
-            margin: '16px 0',
-            backgroundColor: '#f9fafb',
-            padding: '16px',
-            borderRadius: '8px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-          }}
-        >
-          {/* Net Worth (main number) */}
-          <h2
-            style={{
-              fontSize: '22px',
-              fontWeight: 'bold',
-              marginBottom: '4px',
-            }}
-          >
-            Net Worth (Score)
-          </h2>
-          <div
-            style={{
-              fontSize: '28px',
-              fontWeight: 'bold',
-              color: '#1e40af',
-              marginBottom: '16px',
-              display: 'flex',
-              alignItems: 'center',
-            }}
-          >
-            <FaWallet style={{ marginRight: '8px' }} />${Math.round(netWorth)}
+        {isLoading ? (
+          <div className="text-center py-8">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+            <p>Loading inventory data...</p>
           </div>
-
-          {/* Cash + Records + Loan breakdown */}
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <div style={{ flex: 1, paddingRight: '8px' }}>
-              <h3
-                style={{
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  color: '#4b5563',
-                }}
-              >
-                Cash
-              </h3>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  fontSize: '18px',
-                  color: '#047857',
-                }}
-              >
-                <FaMoneyBillWave
-                  style={{ marginRight: '6px', fontSize: '14px' }}
-                />
-                ${Math.round(cashAmount)}
-              </div>
-            </div>
-
-            <div
-              style={{
-                flex: 1,
-                paddingLeft: '8px',
-                paddingRight: '8px',
-                borderLeft: '1px solid #e5e7eb',
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  color: '#4b5563',
-                }}
-              >
-                Records
-              </h3>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  fontSize: '18px',
-                  color: '#7c3aed',
-                }}
-              >
-                <FaCompactDisc
-                  style={{ marginRight: '6px', fontSize: '14px' }}
-                />
-                ${Math.round(totalInventoryValue)}
-              </div>
-            </div>
-
-            <div
-              style={{
-                flex: 1,
-                paddingLeft: '8px',
-                borderLeft: '1px solid #e5e7eb',
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  color: '#4b5563',
-                }}
-              >
-                Loan
-              </h3>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  fontSize: '18px',
-                  color: '#dc2626',
-                }}
-              >
-                <FaMoneyBillWave
-                  style={{ marginRight: '6px', fontSize: '14px' }}
-                />
-                -${Math.round(loanAmount)}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Sort options - horizontal scrollable buttons */}
-        <div
-          style={{
-            display: 'flex',
-            overflowX: 'auto',
-            paddingBottom: '8px',
-            marginBottom: '16px',
-            WebkitOverflowScrolling: 'touch',
-          }}
-        >
-          {['Artist', 'Name', 'Year', 'Price', 'Profit', 'Qty', 'Rarity'].map(
-            (field) => (
-              <button
-                key={field.toLowerCase()}
-                onClick={() => handleSort(field.toLowerCase())}
-                style={{
-                  whiteSpace: 'nowrap',
-                  padding: '8px 16px',
-                  marginRight: '8px',
-                  borderRadius: '8px',
-                  border: '1px solid #d1d5db',
-                  display: 'flex',
-                  alignItems: 'center',
-                  backgroundColor:
-                    sortField === field.toLowerCase() ? '#dbeafe' : 'white',
-                  cursor: 'pointer',
-                }}
-              >
-                {field}{' '}
-                {sortField === field.toLowerCase() ? (
-                  sortDirection === 'asc' ? (
-                    <FaSortUp style={{ marginLeft: '4px' }} />
-                  ) : (
-                    <FaSortDown style={{ marginLeft: '4px' }} />
-                  )
-                ) : (
-                  <FaSort style={{ marginLeft: '4px', opacity: 0.5 }} />
-                )}
-              </button>
-            )
-          )}
-        </div>
-
-        {/* Inventory list - using SlimProductCard */}
-        <div className="mt-4">
-          {filteredInventory.length === 0 ? (
-            <div className="bg-white rounded-lg shadow p-6 text-center">
-              <p className="text-gray-500 italic">
-                {searchTerm
-                  ? 'No records match your search'
-                  : 'Your inventory is empty'}
-              </p>
-            </div>
-          ) : (
-            filteredInventory.map((item) => (
-              <SlimProductCard
-                key={item.uniqueId}
-                item={item}
-                actionType="none"
+        ) : (
+          <>
+            {/* Search bar */}
+            <div className="relative mb-4">
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search your records..."
+                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
-            ))
-          )}
-        </div>
+            </div>
+
+            {/* Financial Summary */}
+            <div
+              style={{
+                margin: '16px 0',
+                backgroundColor: '#f9fafb',
+                padding: '16px',
+                borderRadius: '8px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+              }}
+            >
+              {/* Net Worth (main number) */}
+              <h2
+                style={{
+                  fontSize: '22px',
+                  fontWeight: 'bold',
+                  marginBottom: '4px',
+                }}
+              >
+                Net Worth (Score)
+              </h2>
+              <div
+                style={{
+                  fontSize: '28px',
+                  fontWeight: 'bold',
+                  color: '#1e40af',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <FaWallet style={{ marginRight: '8px' }} />$
+                {Math.round(netWorth)}
+              </div>
+
+              {/* Cash + Records + Loan breakdown */}
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ flex: 1, paddingRight: '8px' }}>
+                  <h3
+                    style={{
+                      fontSize: '16px',
+                      fontWeight: 'bold',
+                      color: '#4b5563',
+                    }}
+                  >
+                    Cash
+                  </h3>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      fontSize: '18px',
+                      color: '#047857',
+                    }}
+                  >
+                    <FaMoneyBillWave
+                      style={{ marginRight: '6px', fontSize: '14px' }}
+                    />
+                    ${Math.round(cashAmount)}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    flex: 1,
+                    paddingLeft: '8px',
+                    paddingRight: '8px',
+                    borderLeft: '1px solid #e5e7eb',
+                  }}
+                >
+                  <h3
+                    style={{
+                      fontSize: '16px',
+                      fontWeight: 'bold',
+                      color: '#4b5563',
+                    }}
+                  >
+                    Records
+                  </h3>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      fontSize: '18px',
+                      color: '#7c3aed',
+                    }}
+                  >
+                    <FaCompactDisc
+                      style={{ marginRight: '6px', fontSize: '14px' }}
+                    />
+                    ${Math.round(totalInventoryValue)}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    flex: 1,
+                    paddingLeft: '8px',
+                    borderLeft: '1px solid #e5e7eb',
+                  }}
+                >
+                  <h3
+                    style={{
+                      fontSize: '16px',
+                      fontWeight: 'bold',
+                      color: '#4b5563',
+                    }}
+                  >
+                    Loan
+                  </h3>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      fontSize: '18px',
+                      color: '#dc2626',
+                    }}
+                  >
+                    <FaMoneyBillWave
+                      style={{ marginRight: '6px', fontSize: '14px' }}
+                    />
+                    -${Math.round(loanAmount)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Sort options - horizontal scrollable buttons */}
+            <div
+              style={{
+                display: 'flex',
+                overflowX: 'auto',
+                paddingBottom: '8px',
+                marginBottom: '16px',
+                WebkitOverflowScrolling: 'touch',
+              }}
+            >
+              {[
+                'Artist',
+                'Name',
+                'Year',
+                'Price',
+                'Profit',
+                'Qty',
+                'Rarity',
+              ].map((field) => (
+                <button
+                  key={field.toLowerCase()}
+                  onClick={() => handleSort(field.toLowerCase())}
+                  style={{
+                    whiteSpace: 'nowrap',
+                    padding: '8px 16px',
+                    marginRight: '8px',
+                    borderRadius: '8px',
+                    border: '1px solid #d1d5db',
+                    display: 'flex',
+                    alignItems: 'center',
+                    backgroundColor:
+                      sortField === field.toLowerCase() ? '#dbeafe' : 'white',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {field}{' '}
+                  {sortField === field.toLowerCase() ? (
+                    sortDirection === 'asc' ? (
+                      <FaSortUp style={{ marginLeft: '4px' }} />
+                    ) : (
+                      <FaSortDown style={{ marginLeft: '4px' }} />
+                    )
+                  ) : (
+                    <FaSort style={{ marginLeft: '4px', opacity: 0.5 }} />
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Inventory list - using SlimProductCard */}
+            <div className="mt-4">
+              {filteredInventory.length === 0 ? (
+                <div className="bg-white rounded-lg shadow p-6 text-center">
+                  <p className="text-gray-500 italic">
+                    {searchTerm
+                      ? 'No records match your search'
+                      : 'Your inventory is empty'}
+                  </p>
+                </div>
+              ) : (
+                filteredInventory.map((item) => (
+                  <SlimProductCard
+                    key={item.uniqueId}
+                    item={item}
+                    actionType="none"
+                  />
+                ))
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

@@ -1,162 +1,152 @@
-import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import { FaCoins, FaWarehouse, FaClock, FaBolt } from 'react-icons/fa';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useGame } from '../../contexts/GameContext';
-import { gameHourToTimeString, getHoursRemaining } from '../../lib/timeUtils';
-import toast from 'react-hot-toast';
+import { FaCoins, FaWarehouse, FaBolt, FaClock, FaSync } from 'react-icons/fa';
+import { useNavigate, useParams } from 'react-router-dom';
+import { clearSupabaseCache } from '../../lib/supabase';
 
+// Custom hook to force rerenders
+const useForceUpdate = () => {
+  const [, setTick] = useState(0);
+  return useCallback(() => {
+    setTick((tick) => tick + 1);
+  }, []);
+};
+
+// Simple header component that shows game stats
 const GameHeader = () => {
   const {
-    currentGame,
     player,
+    getActionsRemaining,
+    loading,
     playerInventory,
-    fetchGameData,
-    getActionsRemaining, // New function we'll add to GameContext
+    refreshPlayerData,
+    refreshPlayerInventory,
   } = useGame();
-  const previousHourRef = useRef(null);
-  const [isActionAnimating, setIsActionAnimating] = useState(false);
-  const [isHourAnimating, setIsHourAnimating] = useState(false);
-  const previousActionsRef = useRef(null);
-  const [floatingTexts, setFloatingTexts] = useState([]);
+  const [actionsRemaining, setActionsRemaining] = useState(4);
+  const [lastRefresh, setLastRefresh] = useState(Date.now());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const navigate = useNavigate();
+  const { gameId } = useParams();
+  const forceUpdate = useForceUpdate();
 
-  // Add an effect to refresh data periodically
+  // Force refresh every 1 second to catch any state changes
   useEffect(() => {
-    // Initial fetch when component mounts
-    fetchGameData && fetchGameData();
+    const interval = setInterval(() => {
+      setLastRefresh(Date.now());
+      forceUpdate(); // Force rerender independent of state
 
-    // Set up an interval to refresh data
-    const intervalId = setInterval(() => {
-      fetchGameData && fetchGameData();
-    }, 5000); // Check every 5 seconds
-
-    // Clean up interval when component unmounts
-    return () => clearInterval(intervalId);
-  }, [fetchGameData]);
-
-  // Update the hour change effect
-  useEffect(() => {
-    if (
-      previousHourRef.current !== null &&
-      currentGame?.current_hour &&
-      previousHourRef.current !== currentGame.current_hour
-    ) {
-      // Just trigger animation, remove toast
-      setIsHourAnimating(true);
-      setTimeout(() => setIsHourAnimating(false), 1000);
-    }
-
-    if (currentGame?.current_hour) {
-      previousHourRef.current = currentGame.current_hour;
-    }
-  }, [currentGame?.current_hour]);
-
-  // Add effect to detect actions changes and create floating text
-  useEffect(() => {
-    const currentActions = getActionsRemaining ? getActionsRemaining() : 4;
-
-    if (
-      previousActionsRef.current !== null &&
-      previousActionsRef.current > currentActions // Only show animation when actions decrease
-    ) {
-      setIsActionAnimating(true);
-
-      // Add a new floating text with unique ID
-      const newFloat = {
-        id: Date.now(),
-        value: -1,
-      };
-      setFloatingTexts((prev) => [...prev, newFloat]);
-
-      // Update timeout to match new animation duration (1200ms instead of 800ms)
-      const timeoutId = setTimeout(() => {
-        setFloatingTexts((prev) =>
-          prev.filter((item) => item.id !== newFloat.id)
+      // Extra aggressive refresh of player data every 2 seconds
+      if (refreshPlayerData && Math.random() < 0.5) {
+        // 50% chance each second (avg every 2s)
+        refreshPlayerData().catch((err) =>
+          console.error('Failed to refresh player data:', err)
         );
-      }, 1200);
+      }
+    }, 1000); // Poll every second
 
-      setTimeout(() => setIsActionAnimating(false), 1000);
+    return () => clearInterval(interval);
+  }, [refreshPlayerData, forceUpdate]);
+
+  // Update actions remaining when player changes
+  useEffect(() => {
+    if (player) {
+      setActionsRemaining(getActionsRemaining ? getActionsRemaining() : 4);
     }
+  }, [player, getActionsRemaining, lastRefresh]);
 
-    previousActionsRef.current = currentActions;
-  }, [getActionsRemaining]);
+  // Manual refresh function
+  const handleRefresh = async (e) => {
+    e.stopPropagation(); // Don't trigger the inventory navigation
 
-  // Format money as whole dollars only
-  const formatMoney = (amount) => {
-    return `$${Math.round(parseFloat(amount || 0))}`;
+    if (isRefreshing) return;
+
+    setIsRefreshing(true);
+    try {
+      // Clear all caches
+      clearSupabaseCache();
+
+      // Refresh data
+      if (refreshPlayerData) await refreshPlayerData();
+      if (refreshPlayerInventory) await refreshPlayerInventory();
+
+      // Force UI update
+      forceUpdate();
+    } catch (err) {
+      console.error('Manual refresh failed:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
-  // Calculate total inventory
-  const inventoryCount =
-    playerInventory?.reduce((acc, item) => acc + (item.quantity || 0), 0) || 0;
+  // Make sure we have a valid cash value - never show $0 if player isn't loaded yet
+  const displayCash = player ? (player.cash || 0).toFixed(2) : '...';
 
-  if (!currentGame || !player) return null;
+  // Handle navigation to inventory
+  const goToInventory = () => {
+    if (gameId) {
+      navigate(`/game/${gameId}/inventory`);
+    }
+  };
 
-  // Get the formatted time and hours remaining
-  const timeDisplay = gameHourToTimeString(currentGame.current_hour);
-  const hoursRemaining = getHoursRemaining(currentGame.current_hour);
-
-  // Get actions remaining directly from the context
-  const actionsRemaining = getActionsRemaining ? getActionsRemaining() : 4;
-
-  // Only create inventory link if we have a game ID
-  const inventoryLink = currentGame?.id
-    ? `/game/${currentGame.id}/inventory`
-    : '';
+  // Display inventory count from playerInventory if available
+  const inventoryCount = playerInventory
+    ? playerInventory.reduce((sum, item) => sum + (item.quantity || 0), 0)
+    : player?.inventory_count || 0;
 
   return (
-    <Link
-      to={inventoryLink}
+    <div
       className="status-bar top-bar"
-      style={{
-        display: 'block',
-        textDecoration: 'none',
-        color: 'inherit',
-        cursor: 'pointer',
-      }}
+      onClick={goToInventory}
+      style={{ cursor: 'pointer' }}
     >
       <div className="status-content">
-        {/* Clock - with animation */}
-        <div
-          className={`status-stat ${isHourAnimating ? 'action-change' : ''}`}
-        >
-          <FaClock />
-          <span>
-            {timeDisplay.replace(':00', '')} ({hoursRemaining} hrs left)
-          </span>
-        </div>
-
-        {/* Cash - second item */}
         <div className="status-stat">
           <FaCoins />
-          <span>{formatMoney(player.cash)}</span>
+          <span>${displayCash}</span>
         </div>
 
-        {/* Inventory - third item */}
         <div className="status-stat">
           <FaWarehouse />
           <span>
-            {inventoryCount}/{player.inventory_capacity}
+            {inventoryCount}/{player?.inventory_capacity || 10}
           </span>
         </div>
 
-        {/* Actions Remaining - with floating animation */}
-        <div
-          className={`status-stat ${isActionAnimating ? 'action-change' : ''}`}
-          style={{ position: 'relative' }}
-        >
+        <div className="status-stat">
           <FaBolt />
           <span>{actionsRemaining} actions</span>
-
-          {/* Floating texts container */}
-          {floatingTexts.map((float) => (
-            <div key={float.id} className="floating-action">
-              <FaBolt className="floating-bolt" />
-              {float.value}
-            </div>
-          ))}
         </div>
+
+        <div className="status-stat">
+          <FaClock />
+          <span>
+            {player?.current_hour || 12}PM ({player?.current_hour || 24}h)
+          </span>
+        </div>
+
+        <button
+          onClick={handleRefresh}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'white',
+            padding: '4px',
+            cursor: 'pointer',
+            position: 'absolute',
+            right: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          title="Refresh data"
+        >
+          <FaSync
+            className={isRefreshing ? 'animate-spin' : ''}
+            style={{ opacity: isRefreshing ? 0.7 : 1 }}
+          />
+        </button>
       </div>
-    </Link>
+    </div>
   );
 };
 

@@ -47,6 +47,19 @@ export const GameProvider = ({ children }) => {
   });
   const [pendingAction, setPendingAction] = useState(null);
 
+  // Clear cache on mount
+  useEffect(() => {
+    try {
+      // Clear all caches when component mounts to ensure fresh data
+      if (gameAPI.clearCaches) {
+        gameAPI.clearCaches();
+        console.log('Game caches cleared on startup');
+      }
+    } catch (err) {
+      console.error('Error clearing caches:', err);
+    }
+  }, []);
+
   // Generate or retrieve player ID
   useEffect(() => {
     try {
@@ -509,8 +522,50 @@ export const GameProvider = ({ children }) => {
         return { success: false, error: new Error('Game or player not found') };
       }
 
+      // Get product price first to display immediate feedback
+      const { data: productData } = await supabase
+        .from('market_inventory')
+        .select('current_price')
+        .eq('product_id', productId)
+        .eq('store_id', storeId)
+        .eq('game_id', currentGame.id)
+        .single();
+
+      const price = productData?.current_price || 0;
+
+      if (price <= 0) {
+        return {
+          success: false,
+          error: new Error('Price not available or invalid'),
+        };
+      }
+
+      // Check if player has enough cash
+      if (player.cash < price * quantity) {
+        toast.error(
+          `Not enough cash. You need $${price * quantity} but have $${
+            player.cash
+          }`
+        );
+        return {
+          success: false,
+          error: new Error('Not enough cash'),
+        };
+      }
+
       // Assume buying costs 1 action
       const actionCost = 1;
+
+      // IMPORTANT: Update local state IMMEDIATELY for UI responsiveness
+      const newCash = Math.max(0, player.cash - price * quantity);
+      setPlayer((prevPlayer) => ({
+        ...prevPlayer,
+        cash: newCash,
+        inventory_count: (prevPlayer.inventory_count || 0) + quantity,
+      }));
+
+      // Add a slight delay so UI can update before we start server actions
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       return await attemptAction(actionCost, async () => {
         const result = await buyRecord(
@@ -522,15 +577,34 @@ export const GameProvider = ({ children }) => {
         );
 
         if (result.success) {
+          // IMPORTANT: Double update to make sure UI reflects the purchase
+          setPlayer((prevPlayer) => ({
+            ...prevPlayer,
+            cash: newCash,
+            inventory_count: (prevPlayer.inventory_count || 0) + quantity,
+          }));
+
+          // Explicitly refresh player data to get actual server state
+          await refreshPlayerData();
+
+          // Then refresh inventory to show new purchase
+          await refreshPlayerInventory();
+
+          // Finally, a full data refresh to ensure everything is in sync
           await fetchGameData();
+
           toast.success('Purchase successful!');
         } else {
+          // Revert the optimistic update if purchase failed
+          await refreshPlayerData();
           toast.error(result.message || 'Purchase failed');
         }
 
         return result;
       });
     } catch (error) {
+      // Ensure we refresh player data even on error
+      await refreshPlayerData();
       toast.error(`Error: ${error.message}`);
       return { success: false, error };
     } finally {
@@ -585,8 +659,15 @@ export const GameProvider = ({ children }) => {
             }));
           }
 
-          // Then fetch all game data to ensure everything is in sync
+          // Explicitly refresh player data (for cash update)
+          await refreshPlayerData();
+
+          // Then refresh inventory to update after sale
+          await refreshPlayerInventory();
+
+          // Finally, a full data refresh to ensure everything is in sync
           await fetchGameData();
+
           toast.success('Sale successful!');
           return { success: true };
         } else {

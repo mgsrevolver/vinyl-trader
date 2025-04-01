@@ -10,12 +10,66 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-// Initialize Supabase with minimal config
+// Initialize Supabase with minimal config and no query cache
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: false, // Don't persist session in Edge runtime
   },
+  global: {
+    // Disable query caching to ensure we always get fresh data
+    headers: {
+      'Cache-Control': 'no-cache',
+    },
+  },
+  db: {
+    // Disable statement cache for RLS policies
+    schema: 'public',
+  },
+  realtime: {
+    // Improve performance by limiting channels
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
 });
+
+// Create an alternate client specifically for bypassing cache on player data
+export const supabaseNoCache = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: false,
+  },
+  global: {
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0',
+    },
+  },
+});
+
+// Helper function to clear supabase cache
+export const clearSupabaseCache = () => {
+  try {
+    // Clear localStorage cache that might be used by Supabase
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.includes('supabase') || key.includes('supa'))) {
+        keysToRemove.push(key);
+      }
+    }
+
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+    console.log(
+      `Cleared ${keysToRemove.length} Supabase-related cache entries`
+    );
+
+    return true;
+  } catch (error) {
+    console.error('Error clearing Supabase cache:', error);
+    return false;
+  }
+};
 
 // Add connection status check
 export const checkConnection = async () => {
