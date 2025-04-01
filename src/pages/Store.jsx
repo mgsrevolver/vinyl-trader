@@ -324,12 +324,14 @@ const Store = () => {
       // Make sure we have the product ID from the record
       const productIdToUse = recordToBuy.product_id || productId;
       const recordPrice = recordToBuy.current_price;
+      const recordCondition = recordToBuy.condition || 'Good';
 
       console.log('FOUND RECORD TO BUY:', {
         recordToBuy: JSON.stringify(recordToBuy),
         productIdToUse,
         recordPrice,
         displayPrice: recordToBuy.current_price,
+        condition: recordCondition,
         fullRecord: recordToBuy,
       });
 
@@ -337,6 +339,21 @@ const Store = () => {
       if (player.cash < recordPrice) {
         toast.error(
           `Not enough cash. This record costs $${recordPrice.toFixed(2)}.`
+        );
+        return;
+      }
+
+      // Check if player already owns this record with the same condition
+      const alreadyOwnsWithSameCondition = playerInventory.some(
+        (item) =>
+          item.product_id === productIdToUse &&
+          item.condition === recordCondition
+      );
+
+      if (alreadyOwnsWithSameCondition) {
+        // Handle the duplicate condition case
+        toast.error(
+          `You already own this record in ${recordCondition} condition. Due to inventory system limitations, you can't own duplicates of the same record with the same condition. Try finding a different condition copy.`
         );
         return;
       }
@@ -361,7 +378,14 @@ const Store = () => {
         await loadStoreData();
         await refreshPlayerInventory();
       } else {
-        toast.error(result.error?.message || 'Purchase failed');
+        // Special handling for the duplicate key error
+        if (result.error?.code === '23505') {
+          toast.error(
+            `You already own this record in ${recordCondition} condition. Try a different condition.`
+          );
+        } else {
+          toast.error(result.error?.message || 'Purchase failed');
+        }
       }
     } catch (error) {
       console.error('Error buying record:', error);

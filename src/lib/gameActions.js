@@ -57,9 +57,28 @@ export const buyRecord = async (
 
     if (error) {
       console.error('Error buying record:', error);
+
+      // Check for unique constraint violation
+      if (
+        error.code === '23505' &&
+        error.details?.includes(
+          'player_inventory_player_id_product_id_condition_key'
+        )
+      ) {
+        return {
+          success: false,
+          error: {
+            code: '23505',
+            message:
+              'You already own this record with this condition. Due to inventory system limitations, you can own only one copy of a record in each condition.',
+          },
+        };
+      }
+
       return {
         success: false,
         error: {
+          code: error.code,
           message: error.message || 'Transaction failed',
         },
       };
