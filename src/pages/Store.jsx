@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   FaArrowLeft,
@@ -49,6 +49,9 @@ const Store = () => {
   const [listView, setListView] = useState(true);
   const [inventoryStorePrices, setInventoryStorePrices] = useState({});
 
+  // Add a ref to track when prices have been calculated
+  const pricesCalculated = useRef(false);
+
   useEffect(() => {
     if (gameId && boroughId && storeId) {
       loadStoreData();
@@ -58,11 +61,23 @@ const Store = () => {
     }
   }, [gameId, boroughId, storeId]);
 
+  // Optimize this effect to prevent multiple recalculations
   useEffect(() => {
-    if (!buyMode && playerInventory?.length > 0 && store) {
+    // Only load prices if we're in sell mode AND we haven't calculated yet or inventory changed
+    if (
+      !buyMode &&
+      playerInventory?.length > 0 &&
+      store &&
+      !pricesCalculated.current
+    ) {
       loadInventoryStorePrices();
     }
   }, [buyMode, playerInventory, store]);
+
+  // When buying mode changes, reset the prices calculated flag
+  useEffect(() => {
+    pricesCalculated.current = false;
+  }, [buyMode]);
 
   const loadStoreData = async () => {
     try {
@@ -160,10 +175,16 @@ const Store = () => {
     }
   };
 
-  const loadInventoryStorePrices = async () => {
+  // Convert to useCallback to prevent recreation
+  const loadInventoryStorePrices = useCallback(async () => {
     if (!store || !playerInventory?.length) return;
 
+    // Skip if we've already calculated prices
+    if (pricesCalculated.current) return;
+
     try {
+      console.log('Calculating store prices...');
+
       // First get transaction history to determine where each item was purchased
       const { data: purchaseHistory } = await supabase
         .from('transactions')
@@ -252,12 +273,14 @@ const Store = () => {
         );
       });
 
+      // Set prices and mark as calculated
       setInventoryStorePrices(priceMap);
+      pricesCalculated.current = true;
       console.log('Store sell prices calculated:', priceMap);
     } catch (error) {
       console.error('Error fetching store prices:', error);
     }
-  };
+  }, [store?.id, player?.id, gameId, playerInventory]);
 
   const handleBuy = async (productId, quantity = 1, inventoryId) => {
     if (!player) return;
