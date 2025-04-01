@@ -82,30 +82,31 @@ const Store = () => {
   const loadStoreData = async () => {
     try {
       setLoading(true);
+      setError(null);
 
-      // 1. Fetch the borough
-      const { data: boroughData, error: boroughError } = await supabase
-        .from('boroughs')
-        .select('*')
-        .eq('id', boroughId)
-        .single();
+      // Use Promise.all to fetch data in parallel
+      const [boroughResponse, storeResponse] = await Promise.all([
+        // 1. Fetch the borough
+        supabase.from('boroughs').select('*').eq('id', boroughId).single(),
 
-      if (boroughError) {
+        // 2. Fetch the specific store
+        supabase
+          .from('stores')
+          .select('*')
+          .eq('id', storeId)
+          .eq('borough_id', boroughId)
+          .single(),
+      ]);
+
+      if (boroughResponse.error) {
         setError('Could not load location information');
         return;
       }
 
-      setBorough(boroughData);
+      setBorough(boroughResponse.data);
 
-      // 2. Fetch the specific store
-      const { data: storeData, error: storeError } = await supabase
-        .from('stores')
-        .select('*')
-        .eq('id', storeId)
-        .eq('borough_id', boroughId)
-        .single();
-
-      if (storeError) {
+      let currentStore;
+      if (storeResponse.error) {
         // If we can't find the specific store, try to get any store in this borough
         const { data: anyStore, error: anyStoreError } = await supabase
           .from('stores')
@@ -119,13 +120,14 @@ const Store = () => {
           return;
         }
 
+        currentStore = anyStore;
         setStore(anyStore);
       } else {
-        setStore(storeData);
+        currentStore = storeResponse.data;
+        setStore(storeResponse.data);
       }
 
       // 3. Load the store inventory using the store we found
-      const currentStore = storeData || store;
       if (currentStore) {
         const inventoryResult = await getStoreInventory(
           currentStore.id,
@@ -137,21 +139,30 @@ const Store = () => {
           return;
         }
 
-        // Explode inventory items with quantity > 1 into individual items
-        let expandedInventory = [];
-        (inventoryResult.items || []).forEach((item) => {
-          // Create individual cards for each copy of the record
-          for (let i = 0; i < item.quantity; i++) {
+        // Process inventory items in a more efficient way
+        const expandedInventory = [];
+
+        inventoryResult.items.forEach((item) => {
+          // For better performance, only expand items where quantity > 1
+          if (item.quantity <= 1) {
             expandedInventory.push({
               ...item,
-              // Create a display-only unique ID for React keys
-              displayId: `${item.id}-${i}`,
-              // Keep the original ID for database operations
+              displayId: `${item.id}-0`,
               id: item.id,
-              // Set quantity to 1 to display as individual items
               originalQuantity: item.quantity,
               quantity: 1,
             });
+          } else {
+            // Create individual cards for each copy of the record with quantity > 1
+            for (let i = 0; i < item.quantity; i++) {
+              expandedInventory.push({
+                ...item,
+                displayId: `${item.id}-${i}`,
+                id: item.id,
+                originalQuantity: item.quantity,
+                quantity: 1,
+              });
+            }
           }
         });
 
@@ -172,17 +183,38 @@ const Store = () => {
     if (pricesCalculated.current) return;
 
     try {
-      // First get transaction history to determine where each item was purchased
-      const { data: purchaseHistory } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('player_id', player.id)
-        .eq('transaction_type', 'buy')
-        .order('created_at', { ascending: false });
+      setLoading(true);
 
-      // Create a map of where each product was purchased
+      // Create an array of product IDs from inventory
+      const productIds = playerInventory.map((item) => item.product_id);
+
+      // Use Promise.all to run queries in parallel
+      const [purchaseHistoryResponse, marketInventoryResponse] =
+        await Promise.all([
+          // Get transaction history
+          supabase
+            .from('transactions')
+            .select('*')
+            .eq('player_id', player.id)
+            .eq('transaction_type', 'buy')
+            .in('product_id', productIds)
+            .order('created_at', { ascending: false }),
+
+          // Get market prices from current store for these products
+          supabase
+            .from('market_inventory')
+            .select('product_id, current_price')
+            .eq('store_id', store.id)
+            .eq('game_id', gameId)
+            .in('product_id', productIds),
+        ]);
+
+      const purchaseHistory = purchaseHistoryResponse.data || [];
+      const marketData = marketInventoryResponse.data || [];
+
+      // Create a map of where each product was purchased (only the most recent purchase)
       const purchaseMap = {};
-      purchaseHistory?.forEach((transaction) => {
+      purchaseHistory.forEach((transaction) => {
         // Only store the first (most recent) transaction for each product
         if (!purchaseMap[transaction.product_id]) {
           purchaseMap[transaction.product_id] = {
@@ -192,26 +224,15 @@ const Store = () => {
         }
       });
 
-      // Get all product IDs from player inventory
-      const productIds = playerInventory.map((item) => item.product_id);
-
-      // Get market prices from current store
-      const { data } = await supabase
-        .from('market_inventory')
-        .select('product_id, current_price')
-        .eq('store_id', store.id)
-        .eq('game_id', gameId)
-        .in('product_id', productIds);
-
-      // Create proper price map with same-store logic - USING INVENTORY ID as key
+      // Create price map with INVENTORY ID as key
       const priceMap = {};
 
-      // For each inventory item
+      // Calculate prices for each inventory item
       playerInventory.forEach((item) => {
         const productId = item.product_id;
         const inventoryId = item.id; // Unique per inventory item
         const purchaseInfo = purchaseMap[productId];
-        const marketItem = data?.find((d) => d.product_id === productId);
+        const marketItem = marketData.find((d) => d.product_id === productId);
 
         // Base price before condition factor
         let basePrice;
@@ -248,6 +269,8 @@ const Store = () => {
       pricesCalculated.current = true;
     } catch (error) {
       // Error handling is silent
+    } finally {
+      setLoading(false);
     }
   }, [store?.id, player?.id, gameId, playerInventory]);
 
@@ -302,6 +325,9 @@ const Store = () => {
         return;
       }
 
+      // Optimistically update UI before making the actual request
+      setLoading(true);
+
       // IMPORTANT: Always buy with quantity=1 since the database function ignores quantity
       // and always inserts with quantity=1
       const result = await buyRecord(
@@ -318,8 +344,19 @@ const Store = () => {
             recordToBuy.products?.name || 'Record'
           }" for $${recordPrice.toFixed(2)}`
         );
-        // Refresh both store AND player inventory
-        await loadStoreData();
+
+        // Optimistically update the store inventory
+        const updatedInventory = storeInventory.filter(
+          (item) => item.displayId !== recordToBuy.displayId
+        );
+        setStoreInventory(updatedInventory);
+
+        // If in swipe mode, update the current index if needed
+        if (!listView && currentIndex >= updatedInventory.length) {
+          setCurrentIndex(Math.max(0, updatedInventory.length - 1));
+        }
+
+        // Refresh player inventory without reloading everything
         await refreshPlayerInventory();
       } else {
         // Special handling for the duplicate key error
@@ -333,6 +370,8 @@ const Store = () => {
       }
     } catch (error) {
       toast.error('An unexpected error occurred');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -354,6 +393,9 @@ const Store = () => {
         return;
       }
 
+      // Set loading state
+      setLoading(true);
+
       // Check where this item was originally purchased
       const { data: purchaseHistory } = await supabase
         .from('transactions')
@@ -374,6 +416,7 @@ const Store = () => {
         inventoryStorePrices[inventoryId] > originalPrice
       ) {
         toast.error('Cannot sell for more than you paid at the same store!');
+        setLoading(false);
         return;
       }
 
@@ -390,10 +433,8 @@ const Store = () => {
         toast.success(
           `Record sold for $${inventoryStorePrices[inventoryId].toFixed(2)}!`
         );
-        // Refresh both store AND player inventory
-        await loadStoreData();
 
-        // Make sure we refresh the player inventory
+        // Optimistically update player inventory
         if (refreshPlayerInventory) {
           await refreshPlayerInventory();
         }
@@ -403,6 +444,8 @@ const Store = () => {
       }
     } catch (error) {
       toast.error('Failed to complete sale');
+    } finally {
+      setLoading(false);
     }
   };
 
