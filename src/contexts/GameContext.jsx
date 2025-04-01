@@ -33,7 +33,7 @@ export const GameProvider = ({ children }) => {
   const [playerId, setPlayerId] = useState(null);
 
   // UI state
-  const [loading, setLoading] = useState(true); // Start with loading true
+  const [loading, setLoading] = useState(false); // Start with loading false since we'll set it when needed
   const [gameLoading, setGameLoading] = useState(false);
   const [error, setError] = useState(null);
   const [initialized, setInitialized] = useState(false);
@@ -97,9 +97,10 @@ export const GameProvider = ({ children }) => {
 
     const storedGameId = localStorage.getItem('deliWarsCurrentGame');
     if (storedGameId && playerId) {
-      loadGame(storedGameId);
-    } else {
-      setLoading(false);
+      setLoading(true); // Set loading true before loading game
+      loadGame(storedGameId).finally(() => {
+        setLoading(false); // Set loading false after game load attempt
+      });
     }
   }, [playerId, initialized]);
 
@@ -403,9 +404,29 @@ export const GameProvider = ({ children }) => {
         return result;
       }
 
-      // Update state
+      // IMPORTANT: Log the player object right before we update the state
+      console.log('Player before setting state:', result.player);
+
+      // Update state - ENSURE borough info is maintained
       setCurrentGame(result.game);
-      setPlayer(result.player);
+
+      // Explicitly ensure the player object has all necessary borough data properties
+      const playerWithBoroughData = {
+        ...result.player,
+        // Make sure both property paths exist for the borough name
+        boroughs: result.player.boroughs || {
+          id: result.player.current_borough_id,
+          name: result.player.current_borough || 'Unknown Location',
+        },
+        current_borough:
+          result.player.current_borough ||
+          result.player.boroughs?.name ||
+          'Unknown Location',
+      };
+
+      console.log('Player after formatting:', playerWithBoroughData);
+      setPlayer(playerWithBoroughData);
+
       setPlayers(result.allPlayers || []);
       setPlayerInventory(result.inventory || []);
 
@@ -673,7 +694,7 @@ export const GameProvider = ({ children }) => {
       player,
       playerInventory,
       players,
-      loading: gameLoading,
+      loading: loading || gameLoading, // Combine both loading states
       error,
       initialized,
       createGame,
@@ -701,6 +722,7 @@ export const GameProvider = ({ children }) => {
       player,
       playerInventory,
       players,
+      loading,
       gameLoading,
       error,
       initialized,
@@ -719,50 +741,7 @@ export const GameProvider = ({ children }) => {
     ]
   );
 
-  // Return null if essential data is missing
-  if (!currentGame || !player) {
-    // Only show loading state if we're actually loading
-    if (loading) {
-      console.log('GameProvider: Still loading...');
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
-            <p className="mt-3 text-blue-700">Loading game...</p>
-          </div>
-        </div>
-      );
-    }
-
-    // If we're not loading and don't have game data, just render children
-    // This allows the home page to render without a game
-    return (
-      <GameContext.Provider value={contextValue}>
-        {children}
-      </GameContext.Provider>
-    );
-  }
-
-  // Wrap the provider's children with loading and error states
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="bg-white p-8 rounded-lg shadow-md">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
-          <p className="text-gray-700">
-            {error.message || 'An error occurred while loading the game.'}
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Reload Page
-          </button>
-        </div>
-      </div>
-    );
-  }
-
+  // Return the provider with all children, let components handle their own loading states
   return (
     <GameContext.Provider value={contextValue}>
       {children}

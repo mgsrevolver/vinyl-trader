@@ -39,7 +39,7 @@ export const createGame = async (playerName) => {
     // STEP 2: Get Downtown borough
     const { data: downtown, error: boroughError } = await supabase
       .from('boroughs')
-      .select('id')
+      .select('id, name')
       .eq('name', 'Downtown')
       .single();
 
@@ -47,8 +47,10 @@ export const createGame = async (playerName) => {
       console.error('Error finding Downtown:', boroughError);
       return { success: false, error: boroughError };
     }
+    console.log('📍 Downtown borough found:', downtown);
 
     // STEP 3: Create the player
+    console.log('👤 Creating player with borough_id:', downtown.id);
     const { data: player, error: playerError } = await supabase
       .from('players')
       .insert({
@@ -60,7 +62,7 @@ export const createGame = async (playerName) => {
         loan_amount: 100,
         inventory_capacity: 10,
       })
-      .select()
+      .select('*, boroughs:current_borough_id (id, name)')
       .single();
 
     if (playerError) {
@@ -68,6 +70,15 @@ export const createGame = async (playerName) => {
       await supabase.from('games').delete().eq('id', game.id);
       return { success: false, error: playerError };
     }
+
+    console.log('👤 Player created:', player);
+
+    // Format player data with borough
+    const playerWithBorough = {
+      ...player,
+      current_borough: player.boroughs?.name || 'Unknown Location',
+    };
+    console.log('👤 Player with borough formatted:', playerWithBorough);
 
     // STEP 4: Initialize game data and wait for it
     console.log('Initializing game data...');
@@ -83,7 +94,10 @@ export const createGame = async (playerName) => {
     // STEP 5: Set game to active
     const { error: updateError } = await supabase
       .from('games')
-      .update({ status: 'active' })
+      .update({
+        status: 'active',
+        started_at: new Date().toISOString(),
+      })
       .eq('id', game.id);
 
     if (updateError) {
@@ -109,7 +123,7 @@ export const createGame = async (playerName) => {
       gameId: game.id,
       playerId: player.id,
       game: finalGame,
-      player,
+      player: playerWithBorough,
     };
   } catch (error) {
     console.error('Error in createGame:', error);
@@ -259,11 +273,41 @@ export const loadGame = async (gameId, playerIdToUse) => {
       return { success: false, needsJoin: true, game: gameResult.data };
     }
 
-    // Format player data
+    console.log('Player data from loadGame:', playerResult.data);
+
+    // Check if we need to get the borough name separately if it's not in player data
+    let boroughName = playerResult.data.boroughs?.name;
+
+    // If borough name not found in boroughs relation, try to look it up
+    if (!boroughName && playerResult.data.current_borough_id) {
+      console.log(
+        'Looking up borough name for ID:',
+        playerResult.data.current_borough_id
+      );
+      try {
+        const { data: borough } = await supabase
+          .from('boroughs')
+          .select('name')
+          .eq('id', playerResult.data.current_borough_id)
+          .single();
+
+        if (borough) {
+          boroughName = borough.name;
+          console.log('Found borough name:', boroughName);
+        }
+      } catch (err) {
+        console.error('Error looking up borough:', err);
+      }
+    }
+
+    // Format player data with borough name
     const playerWithBorough = {
       ...playerResult.data,
-      current_borough: playerResult.data.boroughs?.name || 'Unknown Location',
+      current_borough:
+        boroughName || playerResult.data.current_borough || 'Unknown Location',
     };
+
+    console.log('Formatted player with borough:', playerWithBorough);
 
     return {
       success: true,

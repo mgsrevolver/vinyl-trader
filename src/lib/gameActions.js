@@ -319,15 +319,29 @@ export const travelToBorough = async (
  */
 export const initializePlayer = async (gameId, userId, boroughId) => {
   try {
-    // Verify the borough exists
-    const { data: boroughCheck, error: boroughError } = await supabase
+    // Get Downtown borough first
+    const { data: downtown, error: downtownError } = await supabase
       .from('boroughs')
-      .select('id')
-      .eq('id', boroughId)
+      .select('id, name')
+      .eq('name', 'Downtown')
       .single();
 
-    // If borough doesn't exist, get any valid borough
-    if (boroughError || !boroughCheck) {
+    // If Downtown not found or boroughId provided, verify the borough exists
+    let targetBoroughId = downtown?.id;
+    if (!targetBoroughId && boroughId) {
+      const { data: boroughCheck, error: boroughError } = await supabase
+        .from('boroughs')
+        .select('id')
+        .eq('id', boroughId)
+        .single();
+
+      if (!boroughError && boroughCheck) {
+        targetBoroughId = boroughId;
+      }
+    }
+
+    // If still no valid borough, get any valid borough
+    if (!targetBoroughId) {
       const { data: anyBorough, error: anyBoroughError } = await supabase
         .from('boroughs')
         .select('id')
@@ -335,13 +349,14 @@ export const initializePlayer = async (gameId, userId, boroughId) => {
         .single();
 
       if (anyBoroughError || !anyBorough) {
+        console.error('No valid boroughs found');
         return null;
       }
 
-      boroughId = anyBorough.id;
+      targetBoroughId = anyBorough.id;
     }
 
-    // Create the player
+    // Create the player with the determined borough
     const { data: player, error: playerError } = await supabase
       .from('players')
       .insert({
@@ -352,7 +367,7 @@ export const initializePlayer = async (gameId, userId, boroughId) => {
         loan_interest_rate: 50.0,
         inventory_capacity: 10,
         carrier_type: 'Backpack',
-        current_borough_id: boroughId,
+        current_borough_id: targetBoroughId,
       })
       .select('id')
       .single();
@@ -422,22 +437,31 @@ export const getStoreInventory = async (storeId, gameId) => {
 /**
  * Get the stores in a borough - OPTIMIZED VERSION
  * @param {string} boroughId - UUID of the borough
+ * @param {string} gameId - UUID of the game (optional)
  * @returns {Promise<Array>} - Stores in the borough
  */
-export const getBoroughStores = async (boroughId) => {
+export const getBoroughStores = async (boroughId, gameId = null) => {
   try {
-    // Optimized query - get only needed fields and use a more direct approach
-    const { data, error } = await supabase
+    console.log(`Getting stores for borough ${boroughId} and game ${gameId}`);
+
+    // First, get all stores in the borough
+    const { data: allBoroughStores, error: storesError } = await supabase
       .from('stores')
       .select('id, name, specialty_genre, open_hour, close_hour')
       .eq('borough_id', boroughId);
 
-    if (error) {
-      console.error('Error fetching borough stores:', error);
+    if (storesError) {
+      console.error('Error fetching borough stores:', storesError);
       return [];
     }
 
-    return data || [];
+    console.log(
+      `Found ${allBoroughStores?.length || 0} stores in borough ${boroughId}`
+    );
+
+    // Always return all stores in the borough, even if they don't have inventory yet
+    // This ensures players can see stores immediately after game creation
+    return allBoroughStores || [];
   } catch (error) {
     console.error('Exception in getBoroughStores:', error);
     return [];
@@ -523,7 +547,11 @@ export const getBoroughDistances = async () => {
  */
 export const getGameState = async (playerId, gameId) => {
   try {
-    // Get player state from player_game_state view
+    console.log(
+      `🔍 Getting game state for player ${playerId} in game ${gameId}`
+    );
+
+    // Get player state from player_game_state view - it already includes borough name
     const { data: playerState, error: playerStateError } = await supabase
       .from('player_game_state')
       .select('*')
@@ -531,8 +559,29 @@ export const getGameState = async (playerId, gameId) => {
       .single();
 
     if (playerStateError) {
-      console.error('Error getting player state:', playerStateError);
+      console.error('❌ Error getting player state:', playerStateError);
     }
+
+    console.log(`🧑 Player state (from view):`, playerState);
+
+    // If the view doesn't return data, try querying the players table directly
+    if (!playerState) {
+      console.log(`🔍 Player state not found in view, trying direct query`);
+      const { data: directPlayerData, error: directError } = await supabase
+        .from('players')
+        .select('*, boroughs:current_borough_id (id, name)')
+        .eq('id', playerId)
+        .single();
+
+      if (directError) {
+        console.error('❌ Error getting player data directly:', directError);
+      } else {
+        console.log(`🧑 Direct player data:`, directPlayerData);
+      }
+    }
+
+    // No need to format player state - it already has current_borough
+    const formattedPlayerState = playerState || null;
 
     // Get player inventory
     const { data: inventory, error: inventoryError } = await supabase
@@ -565,14 +614,43 @@ export const getGameState = async (playerId, gameId) => {
       console.error('Error getting game data:', gameError);
     }
 
+    console.log(`🎮 Game data:`, game);
+
     // Get borough stores if player has a location
     let boroughStores = [];
     if (playerState?.current_borough_id) {
-      boroughStores = await getBoroughStores(playerState.current_borough_id);
+      console.log(
+        `🏙️ Getting stores for borough: ${playerState.current_borough_id}`
+      );
+      boroughStores = await getBoroughStores(
+        playerState.current_borough_id,
+        gameId
+      );
+    } else {
+      console.log(
+        '❌ No current_borough_id in player state, cannot get stores'
+      );
+
+      // Try to look up the player's location as a fallback
+      const { data: fallbackPlayer } = await supabase
+        .from('players')
+        .select('current_borough_id')
+        .eq('id', playerId)
+        .single();
+
+      if (fallbackPlayer?.current_borough_id) {
+        console.log(
+          `🔍 Found fallback borough ID: ${fallbackPlayer.current_borough_id}`
+        );
+        boroughStores = await getBoroughStores(
+          fallbackPlayer.current_borough_id,
+          gameId
+        );
+      }
     }
 
     return {
-      playerState,
+      playerState: formattedPlayerState,
       inventory: inventory || [],
       transportOptions: transportOptions || [],
       game,

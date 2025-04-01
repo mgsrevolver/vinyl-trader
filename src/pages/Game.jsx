@@ -30,6 +30,7 @@ const Game = () => {
     getActionsRemaining,
     useActions,
     advanceGameHour,
+    loading: contextLoading,
   } = useGame();
 
   // State management
@@ -62,6 +63,38 @@ const Game = () => {
     }
   }, [gameId, playerId, location]);
 
+  // CRITICAL: Add an immediate effect to respond to player data changes
+  useEffect(() => {
+    if (player) {
+      console.log('🔥 Player data changed in Game component:', player);
+
+      // Aggressively set the borough name whenever player data changes
+      if (player.boroughs?.name) {
+        console.log(
+          '🏙️ Setting borough from player.boroughs.name:',
+          player.boroughs.name
+        );
+        setCurrentBoroughName(player.boroughs.name);
+      } else if (player.current_borough) {
+        console.log(
+          '🏙️ Setting borough from player.current_borough:',
+          player.current_borough
+        );
+        setCurrentBoroughName(player.current_borough);
+      } else if (player.current_borough_id) {
+        console.log(
+          '🏙️ Need to look up borough for ID:',
+          player.current_borough_id
+        );
+        // Look up the borough name if needed
+        getCurrentBoroughName(player.current_borough_id).then((name) => {
+          console.log('🏙️ Setting borough from lookup:', name);
+          setCurrentBoroughName(name);
+        });
+      }
+    }
+  }, [player]);
+
   const loadGameData = async (forceRefresh = false) => {
     try {
       setLoadingGameState(true);
@@ -73,6 +106,22 @@ const Game = () => {
       if (player?.id) {
         playerId = player.id;
         console.log('Using player ID from context:', playerId);
+        console.log('Context player data:', player);
+
+        // IMMEDIATELY SET BOROUGH NAME FROM CONTEXT if available - this is more reliable
+        if (player.boroughs?.name) {
+          console.log(
+            '🏙️ Setting borough name directly from context boroughs:',
+            player.boroughs.name
+          );
+          setCurrentBoroughName(player.boroughs.name);
+        } else if (player.current_borough) {
+          console.log(
+            '🏙️ Setting borough name directly from context current_borough:',
+            player.current_borough
+          );
+          setCurrentBoroughName(player.current_borough);
+        }
       } else {
         // Fall back to localStorage
         const storedPlayerId = localStorage.getItem(`player_${gameId}`);
@@ -94,11 +143,14 @@ const Game = () => {
 
       // Now use our gameActions functions to get all the data we need
       const gameStateData = await getGameState(playerId, gameId);
+      console.log('🔍 Game state loaded:', gameStateData);
 
       if (gameStateData && !gameStateData.error) {
         setGameState(gameStateData.game);
         setPlayerState(gameStateData.playerState);
         setBoroughStores(gameStateData.boroughStores);
+        console.log('🏪 Borough stores:', gameStateData.boroughStores);
+        console.log('🧑 Player state:', gameStateData.playerState);
 
         // Fetch player actions for the current hour
         if (gameStateData.game && gameStateData.game.current_hour) {
@@ -119,35 +171,39 @@ const Game = () => {
           }
         }
 
-        // Update the current borough name - First check the context player data
-        if (player && player.current_borough) {
-          console.log(
-            'Setting borough name from context:',
-            player.current_borough
-          );
-          setCurrentBoroughName(player.current_borough);
-        }
-        // Then check the player state from gameActions
-        else if (
-          gameStateData.playerState &&
-          gameStateData.playerState.current_borough
-        ) {
-          console.log(
-            'Setting borough name from playerState:',
-            gameStateData.playerState.current_borough
-          );
-          setCurrentBoroughName(gameStateData.playerState.current_borough);
-        }
-        // If still not found, try to get borough name from the borough ID
-        else if (gameStateData.playerState?.current_borough_id) {
-          const currentBorough = await getCurrentBoroughName(
-            gameStateData.playerState.current_borough_id
-          );
-          console.log('Setting borough name via lookup:', currentBorough);
-          setCurrentBoroughName(currentBorough || 'Unknown Location');
-        } else {
-          console.log('No borough information found');
-          setCurrentBoroughName('Unknown Location');
+        // Only update borough name if we didn't already set it from context
+        if (!player?.boroughs?.name && !player?.current_borough) {
+          // Update the current borough name - First check the context player data
+          if (player && player.current_borough) {
+            console.log(
+              '🏙️ Setting borough name from context:',
+              player.current_borough
+            );
+            setCurrentBoroughName(player.current_borough);
+          }
+          // Then check the player state from gameActions
+          else if (gameStateData.playerState?.current_borough) {
+            console.log(
+              '🏙️ Setting borough name from playerState:',
+              gameStateData.playerState.current_borough
+            );
+            setCurrentBoroughName(gameStateData.playerState.current_borough);
+          }
+          // If still not found, try to get borough name from the borough ID
+          else if (gameStateData.playerState?.current_borough_id) {
+            console.log(
+              '🏙️ Looking up borough name from ID:',
+              gameStateData.playerState.current_borough_id
+            );
+            const currentBorough = await getCurrentBoroughName(
+              gameStateData.playerState.current_borough_id
+            );
+            console.log('🏙️ Setting borough name via lookup:', currentBorough);
+            setCurrentBoroughName(currentBorough || 'Unknown Location');
+          } else {
+            console.log('❌ No borough information found');
+            setCurrentBoroughName('Unknown Location');
+          }
         }
       } else {
         console.error('Error loading game state:', gameStateData?.error);
@@ -164,6 +220,7 @@ const Game = () => {
   // Helper function to get borough name if it's not in the player state
   const getCurrentBoroughName = async (boroughId) => {
     if (!boroughId) return 'Unknown Location';
+    console.log('🔍 Looking up borough name for ID:', boroughId);
 
     try {
       const { data, error } = await supabase
@@ -172,10 +229,14 @@ const Game = () => {
         .eq('id', boroughId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error fetching borough name:', error);
+        throw error;
+      }
+      console.log('✅ Borough lookup result:', data);
       return data?.name || 'Unknown Location';
     } catch (err) {
-      console.error('Error fetching borough name:', err);
+      console.error('❌ Error fetching borough name:', err);
       return 'Unknown Location';
     }
   };
@@ -276,12 +337,13 @@ const Game = () => {
     }
   };
 
-  if (loadingGameState || !gameState || !playerState) {
+  // If we're loading from context or don't have essential data, show loading screen
+  if (contextLoading || !currentGame || !player) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <FaSpinner className="animate-spin text-4xl mx-auto text-blue-600 mb-3" />
-          <p className="text-blue-900 font-semibold">Loading game data...</p>
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+          <p className="mt-3 text-blue-700">Loading game data...</p>
         </div>
       </div>
     );
@@ -294,7 +356,12 @@ const Game = () => {
         <div className="header-row">
           <div className="flex items-center">
             <h1 className="text-3xl font-bold font-records">
-              {currentBoroughName || 'Unknown Location'}
+              {
+                player?.boroughs?.name ||
+                  player?.current_borough ||
+                  currentBoroughName ||
+                  'Downtown' /* Default to Downtown rather than Unknown Location */
+              }
             </h1>
           </div>
 
