@@ -51,11 +51,9 @@ const Home = () => {
         // Navigate to the game
         navigate(`/game/${gameId}`);
       } else {
-        console.error('Failed to create game:', error);
         toast.error('Failed to create game');
       }
     } catch (error) {
-      console.error('Error starting game:', error);
       toast.error('An error occurred');
     } finally {
       setLoading(false);

@@ -352,7 +352,7 @@ const Game = () => {
     ) {
       // Navigate back to home
       navigate('/');
-      toast.info('You have left the game');
+      toast('You have left the game');
     }
   };
 
