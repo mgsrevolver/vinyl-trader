@@ -59,10 +59,12 @@ const LocationMarker = memo(
 
 // TransportOption component - memoized
 const TransportOption = memo(
-  ({ transport, isSelected, onSelect, travelDetails }) => (
+  ({ transport, isSelected, onSelect, travelDetails, disabled }) => (
     <div
-      onClick={onSelect}
-      className={`transport-option ${isSelected ? 'selected' : ''}`}
+      onClick={disabled ? undefined : onSelect}
+      className={`transport-option ${isSelected ? 'selected' : ''} ${
+        disabled ? 'disabled' : ''
+      }`}
       style={{
         padding: '10px 5px',
         display: 'flex',
@@ -70,10 +72,17 @@ const TransportOption = memo(
         gap: '6px',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: isSelected ? '#e5f2ff' : '#f5f8ff',
+        backgroundColor: disabled
+          ? '#f0f0f0'
+          : isSelected
+          ? '#e5f2ff'
+          : '#f5f8ff',
         borderRadius: '8px',
         border: isSelected ? '2px solid #3b82f6' : '1px solid #ddd',
         transition: 'all 0.2s ease',
+        opacity: disabled ? 0.6 : 1,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        position: 'relative',
       }}
     >
       {/* Row 1: Icon and Name */}
@@ -86,11 +95,16 @@ const TransportOption = memo(
           marginBottom: '2px',
         }}
       >
-        <span style={{ fontSize: '20px' }}>{transport.icon}</span>
+        <span
+          style={{ fontSize: '20px', color: disabled ? '#999' : 'inherit' }}
+        >
+          {transport.icon}
+        </span>
         <span
           style={{
             fontSize: '16px',
             fontWeight: isSelected ? 'bold' : 'normal',
+            color: disabled ? '#999' : 'inherit',
           }}
         >
           {transport.name}
@@ -104,6 +118,7 @@ const TransportOption = memo(
           alignItems: 'center',
           justifyContent: 'center',
           fontSize: '14px',
+          color: disabled ? '#999' : 'inherit',
         }}
       >
         <FaCoins style={{ marginRight: '4px' }} />
@@ -117,6 +132,7 @@ const TransportOption = memo(
           alignItems: 'center',
           justifyContent: 'center',
           fontSize: '14px',
+          color: disabled ? '#999' : 'inherit',
         }}
       >
         <FaBolt style={{ marginRight: '4px' }} />
@@ -130,6 +146,7 @@ const TransportOption = memo(
           alignItems: 'center',
           justifyContent: 'center',
           fontSize: '14px',
+          color: disabled ? '#999' : 'inherit',
         }}
       >
         <FaWarehouse style={{ marginRight: '4px' }} />
@@ -138,6 +155,30 @@ const TransportOption = memo(
           {transport.capacity_modifier}
         </span>
       </div>
+
+      {/* Unavailable overlay for Staten Island */}
+      {disabled && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(255,255,255,0.7)',
+            borderRadius: '8px',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            color: '#666',
+            zIndex: 1,
+          }}
+        >
+          Unavailable
+        </div>
+      )}
     </div>
   )
 );
@@ -397,6 +438,42 @@ const TravelScreen = () => {
     [boroughDistances, transportOptions]
   );
 
+  // Automatically select taxi when Staten Island is involved
+  useEffect(() => {
+    if (!selectedNeighborhood || !transportOptions.length) return;
+
+    // Check if travel involves Staten Island
+    const currentNeighborhoodName = neighborhoods
+      .find((n) => n.id === player?.current_borough_id)
+      ?.name?.toLowerCase();
+
+    const selectedNeighborhoodName = selectedNeighborhood?.name?.toLowerCase();
+
+    const involvesStatenIsland =
+      currentNeighborhoodName === 'staten island' ||
+      selectedNeighborhoodName === 'staten island';
+
+    if (involvesStatenIsland) {
+      // Find and auto-select the taxi option
+      const taxiOption = transportOptions.find((t) =>
+        t.name.toLowerCase().includes('taxi')
+      );
+
+      if (taxiOption) {
+        setSelectedTransport(taxiOption);
+      }
+    } else if (!selectedTransport) {
+      // For non-Staten Island travel, select the first option if none selected
+      setSelectedTransport(transportOptions[0]);
+    }
+  }, [
+    selectedNeighborhood,
+    transportOptions,
+    neighborhoods,
+    player?.current_borough_id,
+    selectedTransport,
+  ]);
+
   // Loading state
   if (dataLoading || !player) {
     return (
@@ -462,7 +539,13 @@ const TravelScreen = () => {
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onClick={(e) => e.stopPropagation()}
-              style={{ maxHeight: '80vh', overflow: 'auto' }}
+              style={{
+                maxHeight: '80vh',
+                overflow: 'auto',
+                backgroundColor: 'white', // Ensure background is white
+                zIndex: 100, // Higher z-index to ensure it's on top
+                position: 'relative', // Position relative for proper stacking
+              }}
             >
               <div className="drawer-handle"></div>
 
@@ -506,6 +589,30 @@ const TravelScreen = () => {
                   marginBottom: '16px',
                 }}
               >
+                {/* Staten Island warning message */}
+                {(selectedNeighborhood?.name?.toLowerCase() ===
+                  'staten island' ||
+                  neighborhoods
+                    .find((n) => n.id === player.current_borough_id)
+                    ?.name?.toLowerCase() === 'staten island') && (
+                  <div
+                    style={{
+                      gridColumn: '1 / -1',
+                      textAlign: 'center',
+                      marginBottom: '10px',
+                      padding: '8px',
+                      backgroundColor: '#fffbea',
+                      border: '1px solid #fbd38d',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      color: '#723b13',
+                    }}
+                  >
+                    <strong>Note:</strong> Staten Island is only accessible by
+                    taxi.
+                  </div>
+                )}
+
                 {transportOptions.map((transport) => {
                   const travelDetails = getTravelDetails(
                     player.current_borough_id,
@@ -513,20 +620,55 @@ const TravelScreen = () => {
                     transport.id
                   );
 
+                  // Check if travel involves Staten Island
+                  const currentNeighborhoodName = neighborhoods
+                    .find((n) => n.id === player.current_borough_id)
+                    ?.name?.toLowerCase();
+
+                  const selectedNeighborhoodName =
+                    selectedNeighborhood?.name?.toLowerCase();
+
+                  const involvesStatenIsland =
+                    currentNeighborhoodName === 'staten island' ||
+                    selectedNeighborhoodName === 'staten island';
+
+                  // Instead of hiding non-taxi options for Staten Island, disable them
+                  const isDisabled =
+                    involvesStatenIsland &&
+                    !transport.name.toLowerCase().includes('taxi');
+
+                  // Highlight taxi for Staten Island
+                  const isStatenIslandTaxi =
+                    involvesStatenIsland &&
+                    transport.name.toLowerCase().includes('taxi');
+
                   return (
                     <TransportOption
                       key={transport.id}
                       transport={transport}
-                      isSelected={selectedTransport?.id === transport.id}
+                      isSelected={
+                        selectedTransport?.id === transport.id ||
+                        isStatenIslandTaxi
+                      }
                       onSelect={() => setSelectedTransport(transport)}
                       travelDetails={travelDetails}
+                      disabled={isDisabled}
                     />
                   );
                 })}
               </div>
 
               {/* Travel button */}
-              <div style={{ padding: '0 10px 16px 10px' }}>
+              <div
+                style={{
+                  padding: '10px 10px 16px 10px',
+                  position: 'sticky',
+                  bottom: 0,
+                  backgroundColor: 'white',
+                  borderTop: '1px solid #eee',
+                  marginTop: '10px',
+                }}
+              >
                 <Button
                   onClick={handleTravel}
                   disabled={isLoading || !selectedTransport}
@@ -535,9 +677,19 @@ const TravelScreen = () => {
                   style={{
                     fontSize: '18px',
                     fontWeight: 'bold',
-                    padding: '12px',
-                    backgroundColor: !selectedTransport ? '#ccc' : '#3b82f6',
+                    padding: '14px',
+                    backgroundColor: !selectedTransport
+                      ? '#ccc'
+                      : selectedTransport.name.toLowerCase().includes('taxi') &&
+                        (selectedNeighborhood?.name?.toLowerCase() ===
+                          'staten island' ||
+                          neighborhoods
+                            .find((n) => n.id === player.current_borough_id)
+                            ?.name?.toLowerCase() === 'staten island')
+                      ? '#f59e0b'
+                      : '#3b82f6',
                     color: 'white',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                   }}
                 >
                   {isLoading ? (
