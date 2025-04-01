@@ -80,15 +80,48 @@ export const createGame = async (playerName) => {
     };
     console.log('👤 Player with borough formatted:', playerWithBorough);
 
-    // STEP 4: Initialize game data and wait for it
+    // STEP 4: Initialize game data with timeout
     console.log('Initializing game data...');
-    const { error: initError } = await supabase.rpc('initialize_game_data', {
-      game_id: game.id,
-    });
 
-    if (initError) {
-      console.error('Error initializing game data:', initError);
-      return { success: false, error: initError };
+    // Create a promise with timeout for initialization
+    const initializeWithTimeout = async (timeout = 15000) => {
+      let timeoutId;
+
+      try {
+        const initPromise = supabase.rpc('initialize_game_data', {
+          game_id: game.id,
+        });
+
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => {
+            reject(new Error('Game initialization timed out'));
+          }, timeout);
+        });
+
+        // Race between initialization and timeout
+        const result = await Promise.race([initPromise, timeoutPromise]);
+
+        // Clear timeout if initialization completed
+        clearTimeout(timeoutId);
+
+        return result;
+      } catch (error) {
+        console.warn('Game initialization issue:', error);
+        // We'll continue even with initialization issues, as we can still play with partial data
+        return { partialInit: true };
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
+    };
+
+    const initResult = await initializeWithTimeout();
+
+    if (initResult.error) {
+      console.warn(
+        'Warning: Game initialization had errors but continuing:',
+        initResult.error
+      );
+      // We continue anyway - some games may work with partial initialization
     }
 
     // STEP 5: Set game to active
@@ -124,6 +157,7 @@ export const createGame = async (playerName) => {
       playerId: player.id,
       game: finalGame,
       player: playerWithBorough,
+      partialInit: initResult.partialInit,
     };
   } catch (error) {
     console.error('Error in createGame:', error);

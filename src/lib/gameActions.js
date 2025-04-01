@@ -442,28 +442,51 @@ export const getStoreInventory = async (storeId, gameId) => {
  */
 export const getBoroughStores = async (boroughId, gameId = null) => {
   try {
-    console.log(`Getting stores for borough ${boroughId} and game ${gameId}`);
+    console.log(
+      `🔍 Getting stores for borough ${boroughId}${
+        gameId ? ` and game ${gameId}` : ''
+      }`
+    );
 
-    // First, get all stores in the borough
-    const { data: allBoroughStores, error: storesError } = await supabase
+    // Simply get all stores in the borough without filtering by game inventory
+    // This is the most reliable approach to ensure stores always show up
+    const { data: allStores, error: storesError } = await supabase
       .from('stores')
       .select('id, name, specialty_genre, open_hour, close_hour')
       .eq('borough_id', boroughId);
 
     if (storesError) {
-      console.error('Error fetching borough stores:', storesError);
+      console.error('❌ Error fetching borough stores:', storesError);
       return [];
     }
 
     console.log(
-      `Found ${allBoroughStores?.length || 0} stores in borough ${boroughId}`
+      `✅ Found ${allStores?.length || 0} stores in borough ${boroughId}:`,
+      allStores
     );
 
-    // Always return all stores in the borough, even if they don't have inventory yet
-    // This ensures players can see stores immediately after game creation
-    return allBoroughStores || [];
+    // As a sanity check - if gameId is provided, also log the market inventory for these stores
+    if (gameId && allStores?.length > 0) {
+      // Get store IDs for checking inventory
+      const storeIds = allStores.map((store) => store.id);
+
+      // Check if these stores have any inventory for this game (just for logging)
+      const { data: inventory } = await supabase
+        .from('market_inventory')
+        .select('store_id, product_id')
+        .eq('game_id', gameId)
+        .in('store_id', storeIds);
+
+      console.log(
+        `ℹ️ Found ${
+          inventory?.length || 0
+        } inventory items for these stores in game ${gameId}`
+      );
+    }
+
+    return allStores || [];
   } catch (error) {
-    console.error('Exception in getBoroughStores:', error);
+    console.error('❌ Exception in getBoroughStores:', error);
     return [];
   }
 };
@@ -618,19 +641,11 @@ export const getGameState = async (playerId, gameId) => {
 
     // Get borough stores if player has a location
     let boroughStores = [];
-    if (playerState?.current_borough_id) {
-      console.log(
-        `🏙️ Getting stores for borough: ${playerState.current_borough_id}`
-      );
-      boroughStores = await getBoroughStores(
-        playerState.current_borough_id,
-        gameId
-      );
-    } else {
-      console.log(
-        '❌ No current_borough_id in player state, cannot get stores'
-      );
+    let boroughId = null;
 
+    if (playerState?.current_borough_id) {
+      boroughId = playerState.current_borough_id;
+    } else {
       // Try to look up the player's location as a fallback
       const { data: fallbackPlayer } = await supabase
         .from('players')
@@ -639,17 +654,22 @@ export const getGameState = async (playerId, gameId) => {
         .single();
 
       if (fallbackPlayer?.current_borough_id) {
-        console.log(
-          `🔍 Found fallback borough ID: ${fallbackPlayer.current_borough_id}`
-        );
-        boroughStores = await getBoroughStores(
-          fallbackPlayer.current_borough_id,
-          gameId
-        );
+        boroughId = fallbackPlayer.current_borough_id;
       }
     }
 
-    return {
+    if (boroughId) {
+      console.log(`🏙️ Getting stores for borough: ${boroughId}`);
+      boroughStores = await getBoroughStores(boroughId, gameId);
+      console.log(
+        `📦 Retrieved ${boroughStores.length} stores for borough ${boroughId}:`,
+        boroughStores
+      );
+    } else {
+      console.log('❌ No borough ID found, cannot get stores');
+    }
+
+    const result = {
       playerState: formattedPlayerState,
       inventory: inventory || [],
       transportOptions: transportOptions || [],
@@ -658,6 +678,12 @@ export const getGameState = async (playerId, gameId) => {
       loading: false,
       error: null,
     };
+
+    console.log(
+      '✅ getGameState returning result with boroughStores:',
+      boroughStores
+    );
+    return result;
   } catch (e) {
     console.error('Error getting game state:', e);
     return {

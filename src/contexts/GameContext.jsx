@@ -296,6 +296,14 @@ export const GameProvider = ({ children }) => {
   // Create game
   const createGame = async (playerName) => {
     try {
+      // Clear any existing game data first to prevent conflicts
+      setCurrentGame(null);
+      setPlayer(null);
+      setPlayerInventory([]);
+
+      // Remove any stored game ID to prevent the useEffect from trying to load it
+      localStorage.removeItem('deliWarsCurrentGame');
+
       setLoading(true);
       console.log('Creating new game for player:', playerName);
 

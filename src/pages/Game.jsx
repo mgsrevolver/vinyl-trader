@@ -1,5 +1,5 @@
 // src/pages/Game.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   FaMapMarkedAlt,
@@ -17,6 +17,10 @@ import {
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
 import StoreCard from '../components/ui/StoreCard';
+import React from 'react';
+
+// Add this outside the component for memoization of store data
+const storeCache = {};
 
 const Game = () => {
   const { gameId } = useParams();
@@ -45,6 +49,9 @@ const Game = () => {
     actions_used: 0,
     actions_available: 4,
   });
+
+  // Create the lastBoroughId ref at the top level of the component
+  const lastBoroughId = useRef(null);
 
   useEffect(() => {
     if (playerId) {
@@ -75,6 +82,51 @@ const Game = () => {
           player.boroughs.name
         );
         setCurrentBoroughName(player.boroughs.name);
+
+        // CRITICAL: When borough changes, we should reload stores for that borough
+        // BUT only if we haven't already loaded stores for this borough
+        if (
+          player.current_borough_id &&
+          currentGame?.id &&
+          lastBoroughId.current !== player.current_borough_id
+        ) {
+          lastBoroughId.current = player.current_borough_id;
+          console.log(
+            '🔄 Borough changed, reloading stores for:',
+            player.current_borough_id
+          );
+
+          // Check cache first
+          const cacheKey = `${player.current_borough_id}`;
+          if (storeCache[cacheKey]) {
+            console.log('📦 Using cached stores:', storeCache[cacheKey]);
+            setBoroughStores(storeCache[cacheKey]);
+            return;
+          }
+
+          // Directly call getBoroughStores when we know the borough has changed
+          const loadStoresForBorough = async () => {
+            try {
+              const { getBoroughStores } = await import('../lib/gameActions');
+              const stores = await getBoroughStores(
+                player.current_borough_id,
+                currentGame.id
+              );
+              console.log('📦 Directly loaded stores:', stores);
+
+              // Cache the stores
+              storeCache[cacheKey] = stores;
+
+              setBoroughStores(stores);
+            } catch (error) {
+              console.error('Failed to load stores:', error);
+              // Fallback to empty array to prevent UI issues
+              setBoroughStores([]);
+            }
+          };
+
+          loadStoresForBorough();
+        }
       } else if (player.current_borough) {
         console.log(
           '🏙️ Setting borough from player.current_borough:',
@@ -93,7 +145,12 @@ const Game = () => {
         });
       }
     }
-  }, [player]);
+  }, [player, currentGame?.id]);
+
+  // Add a debug effect for boroughStores
+  useEffect(() => {
+    console.log('🏪 Borough stores state changed:', boroughStores);
+  }, [boroughStores]);
 
   const loadGameData = async (forceRefresh = false) => {
     try {
@@ -115,6 +172,26 @@ const Game = () => {
             player.boroughs.name
           );
           setCurrentBoroughName(player.boroughs.name);
+
+          // If we already have all the data we need from context, we can avoid the full getGameState call
+          if (
+            !forceRefresh &&
+            currentGame &&
+            player &&
+            player.current_borough_id
+          ) {
+            // Just load the stores if needed
+            const cacheKey = `${player.current_borough_id}`;
+            if (storeCache[cacheKey]) {
+              console.log(
+                '📦 Using cached stores from loadGameData:',
+                storeCache[cacheKey]
+              );
+              setBoroughStores(storeCache[cacheKey]);
+              setLoadingGameState(false);
+              return; // Skip the expensive getGameState call
+            }
+          }
         } else if (player.current_borough) {
           console.log(
             '🏙️ Setting borough name directly from context current_borough:',
@@ -142,6 +219,7 @@ const Game = () => {
       }
 
       // Now use our gameActions functions to get all the data we need
+      console.log('Loading full game state...');
       const gameStateData = await getGameState(playerId, gameId);
       console.log('🔍 Game state loaded:', gameStateData);
 
@@ -151,6 +229,15 @@ const Game = () => {
         setBoroughStores(gameStateData.boroughStores);
         console.log('🏪 Borough stores:', gameStateData.boroughStores);
         console.log('🧑 Player state:', gameStateData.playerState);
+
+        // If we got stores, cache them
+        if (
+          gameStateData.boroughStores?.length > 0 &&
+          gameStateData.playerState?.current_borough_id
+        ) {
+          const cacheKey = `${gameStateData.playerState.current_borough_id}`;
+          storeCache[cacheKey] = gameStateData.boroughStores;
+        }
 
         // Fetch player actions for the current hour
         if (gameStateData.game && gameStateData.game.current_hour) {
@@ -266,12 +353,18 @@ const Game = () => {
   };
 
   const goToStore = async (storeId) => {
-    if (!playerState) {
+    // First try to use playerState, but fall back to player from context if needed
+    const playerData = playerState || player;
+
+    if (!playerData) {
       toast.error('Player information not loaded yet');
       return;
     }
 
-    if (!playerState.current_borough_id) {
+    // Use current_borough_id from either playerState or player context
+    const boroughId = playerData.current_borough_id;
+
+    if (!boroughId) {
       toast.error('Unable to determine your current location');
       return;
     }
@@ -285,9 +378,7 @@ const Game = () => {
 
       if (success) {
         // Navigate to store
-        navigate(
-          `/store/${gameId}/${playerState.current_borough_id}/${storeId}`
-        );
+        navigate(`/store/${gameId}/${boroughId}/${storeId}`);
       } else {
         toast.error('Failed to use action');
       }
@@ -302,9 +393,7 @@ const Game = () => {
         if (success) {
           // After advancing hour, use action and navigate
           await useActions(1);
-          navigate(
-            `/store/${gameId}/${playerState.current_borough_id}/${storeId}`
-          );
+          navigate(`/store/${gameId}/${boroughId}/${storeId}`);
         } else {
           toast.error("Couldn't advance to next hour");
         }
