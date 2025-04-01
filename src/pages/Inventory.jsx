@@ -24,6 +24,7 @@ const Inventory = () => {
     playerInventory,
     player,
     refreshPlayerInventory,
+    refreshPlayerData,
     getNetWorth,
     getInventoryValue,
   } = useGame();
@@ -133,10 +134,16 @@ const Inventory = () => {
   };
 
   // Handle selling a record
-  const handleSell = async (productId, quantity = 1) => {
+  const handleSell = async (productId, quantity = 1, inventoryId) => {
     if (!player) return;
 
     try {
+      // Check if we have a valid inventory ID
+      if (!inventoryId) {
+        toast.error('Cannot sell: Missing inventory ID for this record');
+        return;
+      }
+
       // We're not in a store, so we'll just use the user's current borough
       // In a real implementation, you might want to show a modal to select a store
       const result = await sellRecord(
@@ -144,15 +151,24 @@ const Inventory = () => {
         gameId,
         null, // No specific store
         productId,
-        quantity
+        quantity,
+        inventoryId // Pass the inventory ID to properly identify the record
       );
 
-      if (result) {
+      if (result && result.success) {
         toast.success('Record sold successfully!');
-        // Refresh inventory
-        refreshPlayerInventory && refreshPlayerInventory();
+
+        // Refresh inventory first to remove the sold item
+        if (refreshPlayerInventory) {
+          await refreshPlayerInventory();
+        }
+
+        // Also refresh player data to update cash balance
+        if (refreshPlayerData) {
+          await refreshPlayerData();
+        }
       } else {
-        toast.error('Failed to sell record');
+        toast.error(result?.error?.message || 'Failed to sell record');
       }
     } catch (error) {
       console.error('Error selling record:', error);

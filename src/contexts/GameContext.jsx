@@ -568,7 +568,25 @@ export const GameProvider = ({ children }) => {
         );
 
         if (result && result.success) {
-          await fetchGameData(); // Refresh data if successful
+          // First, immediately update the local inventory state to remove the sold item
+          setPlayerInventory((prev) =>
+            prev.filter((item) => item.id !== inventoryItemId)
+          );
+
+          // Update the player's cash immediately if we know the sale price
+          // This reduces the need for a separate API call just for the cash update
+          const sellPrice =
+            playerInventory.find((item) => item.id === inventoryItemId)
+              ?.estimated_current_price * 0.75;
+          if (sellPrice && player.cash !== undefined) {
+            setPlayer((prev) => ({
+              ...prev,
+              cash: prev.cash + sellPrice,
+            }));
+          }
+
+          // Then fetch all game data to ensure everything is in sync
+          await fetchGameData();
           toast.success('Sale successful!');
           return { success: true };
         } else {

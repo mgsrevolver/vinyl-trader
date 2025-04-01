@@ -35,6 +35,18 @@ const TRANSPORT_ICONS = {
   taxi: <FaTaxi />,
 };
 
+// Add caching for data that rarely changes
+const cacheData = {
+  neighborhoods: { data: null, timestamp: 0 },
+  transportMethods: { data: null, timestamp: 0 },
+  boroughDistances: { data: null, timestamp: 0 },
+  // Cache store data by borough ID
+  stores: {},
+};
+
+// Cache timeout (5 minutes)
+const CACHE_TIMEOUT = 5 * 60 * 1000;
+
 // LocationMarker component - memoized
 const LocationMarker = memo(
   ({ neighborhood, isCurrentLocation, isSelected, onSelect }) => (
@@ -216,83 +228,162 @@ const TravelScreen = () => {
     return `${displayHour}${period}`;
   }, []);
 
-  // Load data once - optimized to fetch everything in parallel
+  // Load data once - optimized with caching
   useEffect(() => {
     let isMounted = true;
 
     const loadTravelData = async () => {
       try {
         setDataLoading(true);
+        const now = Date.now();
+        const fetchPromises = [];
+        const fetchResults = {};
 
-        // Load all data in parallel
-        const [neighborhoodResponse, transportResponse, distanceResponse] =
-          await Promise.all([
-            supabase.from('boroughs').select('*'),
+        // Check if neighborhoods need to be fetched
+        if (
+          !cacheData.neighborhoods.data ||
+          now - cacheData.neighborhoods.timestamp > CACHE_TIMEOUT
+        ) {
+          fetchPromises.push(
+            supabase
+              .from('boroughs')
+              .select('*')
+              .then((result) => {
+                fetchResults.neighborhoods = result;
+              })
+          );
+        }
+
+        // Check if transportation methods need to be fetched
+        if (
+          !cacheData.transportMethods.data ||
+          now - cacheData.transportMethods.timestamp > CACHE_TIMEOUT
+        ) {
+          fetchPromises.push(
             supabase
               .from('transportation_methods')
               .select('*')
-              .order('speed_factor', { ascending: true }),
-            supabase.from('borough_distances').select('*'),
-          ]);
+              .order('speed_factor', { ascending: true })
+              .then((result) => {
+                fetchResults.transportMethods = result;
+              })
+          );
+        }
+
+        // Check if borough distances need to be fetched
+        if (
+          !cacheData.boroughDistances.data ||
+          now - cacheData.boroughDistances.timestamp > CACHE_TIMEOUT
+        ) {
+          fetchPromises.push(
+            supabase
+              .from('borough_distances')
+              .select('*')
+              .then((result) => {
+                fetchResults.boroughDistances = result;
+              })
+          );
+        }
+
+        // Run all fetches in parallel
+        if (fetchPromises.length > 0) {
+          await Promise.all(fetchPromises);
+        }
 
         if (!isMounted) return;
 
         // Process neighborhoods
-        if (neighborhoodResponse.data) {
-          const neighborhoodsWithCoords = neighborhoodResponse.data.map(
-            (hood) => {
-              const boroughKey = hood.name.toLowerCase();
-              const coords = boroughCoordinates[boroughKey] || { x: 50, y: 50 };
-              return {
-                ...hood,
-                x_coordinate: coords.x,
-                y_coordinate: coords.y,
-              };
-            }
-          );
+        const neighborhoodData =
+          fetchResults.neighborhoods?.data || cacheData.neighborhoods.data;
+        if (neighborhoodData) {
+          const neighborhoodsWithCoords = neighborhoodData.map((hood) => {
+            const boroughKey = hood.name.toLowerCase();
+            const coords = boroughCoordinates[boroughKey] || { x: 50, y: 50 };
+            return {
+              ...hood,
+              x_coordinate: coords.x,
+              y_coordinate: coords.y,
+            };
+          });
           setNeighborhoods(neighborhoodsWithCoords);
+
+          // Update cache
+          if (fetchResults.neighborhoods) {
+            cacheData.neighborhoods.data = neighborhoodData;
+            cacheData.neighborhoods.timestamp = now;
+          }
         }
 
         // Process transportation methods
-        if (transportResponse.data) {
-          // Create a map to deduplicate by name
-          const transportMap = new Map();
-          transportResponse.data.forEach((method) => {
-            const type = method.name.toLowerCase();
-            // Skip bike options
-            if (type.includes('bike')) return;
+        const transportData =
+          fetchResults.transportMethods?.data ||
+          cacheData.transportMethods.data;
+        if (transportData) {
+          // Pre-filter to only include the three types we need (walk, subway, taxi)
+          const transportTypes = ['walk', 'subway', 'taxi'];
 
-            if (!transportMap.has(type)) {
-              transportMap.set(type, method);
+          // Get the best option for each type
+          const bestTransportByType = {};
+
+          transportData.forEach((method) => {
+            const lowerName = method.name.toLowerCase();
+
+            // Skip bikes as specified
+            if (lowerName.includes('bike')) return;
+
+            // Determine the type
+            let type = null;
+            if (lowerName.includes('walk')) type = 'walk';
+            else if (lowerName.includes('subway')) type = 'subway';
+            else if (lowerName.includes('taxi')) type = 'taxi';
+            else return; // Skip if not one of our needed types
+
+            // Keep the best option based on speed_factor
+            if (
+              !bestTransportByType[type] ||
+              method.speed_factor > bestTransportByType[type].speed_factor
+            ) {
+              bestTransportByType[type] = method;
             }
           });
 
-          // Add icons
-          const transportWithIcons = Array.from(transportMap.values()).map(
-            (method) => {
-              const type = method.name.toLowerCase();
-              let icon = TRANSPORT_ICONS.walk;
+          // Convert back to array and add icons
+          const transportWithIcons = transportTypes
+            .filter((type) => bestTransportByType[type])
+            .map((type) => {
+              const method = bestTransportByType[type];
+              return {
+                ...method,
+                icon: TRANSPORT_ICONS[type],
+              };
+            });
 
-              if (type.includes('subway')) icon = TRANSPORT_ICONS.subway;
-              else if (type.includes('taxi')) icon = TRANSPORT_ICONS.taxi;
+          setTransportOptions(transportWithIcons);
 
-              return { ...method, icon };
-            }
-          );
+          // Pre-select first transport option
+          if (transportWithIcons.length > 0) {
+            setSelectedTransport(transportWithIcons[0]);
+          }
 
-          // Limit to 3 options
-          const limitedTransports = transportWithIcons.slice(0, 3);
-          setTransportOptions(limitedTransports);
-
-          // Pre-select first transport
-          if (limitedTransports.length > 0) {
-            setSelectedTransport(limitedTransports[0]);
+          // Update cache
+          if (fetchResults.transportMethods) {
+            cacheData.transportMethods.data = transportData;
+            cacheData.transportMethods.timestamp = now;
           }
         }
 
         // Set borough distances
-        if (distanceResponse.data) {
-          setBoroughDistances(distanceResponse.data);
+        const distanceData =
+          fetchResults.boroughDistances?.data ||
+          cacheData.boroughDistances.data;
+        if (distanceData) {
+          setBoroughDistances(distanceData);
+
+          // Update cache
+          if (fetchResults.boroughDistances) {
+            cacheData.boroughDistances.data = distanceData;
+            cacheData.boroughDistances.timestamp = now;
+          }
         }
       } catch (err) {
         if (isMounted) toast.error('Failed to load travel data');
@@ -307,7 +398,7 @@ const TravelScreen = () => {
     };
   }, []);
 
-  // Load stores for selected neighborhood - optimized
+  // Load stores for selected neighborhood - optimized with caching
   useEffect(() => {
     if (!selectedNeighborhood) {
       setNeighborhoodStores([]);
@@ -317,13 +408,34 @@ const TravelScreen = () => {
     let isMounted = true;
     const fetchStores = async () => {
       try {
+        const boroughId = selectedNeighborhood.id;
+        const now = Date.now();
+
+        // Check if we have cached data for this borough
+        if (
+          cacheData.stores[boroughId] &&
+          now - cacheData.stores[boroughId].timestamp < CACHE_TIMEOUT
+        ) {
+          setNeighborhoodStores(cacheData.stores[boroughId].data);
+          return;
+        }
+
+        // If not cached, fetch stores
         const { data, error } = await supabase
           .from('stores')
           .select('id, name, specialty_genre, open_hour, close_hour')
-          .eq('borough_id', selectedNeighborhood.id);
+          .eq('borough_id', boroughId);
 
         if (error) throw error;
-        if (isMounted) setNeighborhoodStores(data || []);
+
+        // Update state and cache
+        if (isMounted) {
+          setNeighborhoodStores(data || []);
+          cacheData.stores[boroughId] = {
+            data: data || [],
+            timestamp: now,
+          };
+        }
       } catch (err) {
         if (isMounted) setNeighborhoodStores([]);
       }
@@ -474,6 +586,22 @@ const TravelScreen = () => {
     selectedTransport,
   ]);
 
+  // Determine if Staten Island is involved - memoized to reduce recalculations
+  const involvesStatenIsland = useMemo(() => {
+    if (!selectedNeighborhood || !neighborhoods.length || !player) return false;
+
+    const currentNeighborhoodName = neighborhoods
+      .find((n) => n.id === player.current_borough_id)
+      ?.name?.toLowerCase();
+
+    const selectedNeighborhoodName = selectedNeighborhood?.name?.toLowerCase();
+
+    return (
+      currentNeighborhoodName === 'staten island' ||
+      selectedNeighborhoodName === 'staten island'
+    );
+  }, [selectedNeighborhood, neighborhoods, player]);
+
   // Loading state
   if (dataLoading || !player) {
     return (
@@ -590,11 +718,7 @@ const TravelScreen = () => {
                 }}
               >
                 {/* Staten Island warning message */}
-                {(selectedNeighborhood?.name?.toLowerCase() ===
-                  'staten island' ||
-                  neighborhoods
-                    .find((n) => n.id === player.current_borough_id)
-                    ?.name?.toLowerCase() === 'staten island') && (
+                {involvesStatenIsland && (
                   <div
                     style={{
                       gridColumn: '1 / -1',
@@ -620,19 +744,7 @@ const TravelScreen = () => {
                     transport.id
                   );
 
-                  // Check if travel involves Staten Island
-                  const currentNeighborhoodName = neighborhoods
-                    .find((n) => n.id === player.current_borough_id)
-                    ?.name?.toLowerCase();
-
-                  const selectedNeighborhoodName =
-                    selectedNeighborhood?.name?.toLowerCase();
-
-                  const involvesStatenIsland =
-                    currentNeighborhoodName === 'staten island' ||
-                    selectedNeighborhoodName === 'staten island';
-
-                  // Instead of hiding non-taxi options for Staten Island, disable them
+                  // Instead of recalculating this for each transport option, use our memo
                   const isDisabled =
                     involvesStatenIsland &&
                     !transport.name.toLowerCase().includes('taxi');
@@ -681,11 +793,7 @@ const TravelScreen = () => {
                     backgroundColor: !selectedTransport
                       ? '#ccc'
                       : selectedTransport.name.toLowerCase().includes('taxi') &&
-                        (selectedNeighborhood?.name?.toLowerCase() ===
-                          'staten island' ||
-                          neighborhoods
-                            .find((n) => n.id === player.current_borough_id)
-                            ?.name?.toLowerCase() === 'staten island')
+                        involvesStatenIsland
                       ? '#f59e0b'
                       : '#3b82f6',
                     color: 'white',

@@ -30,6 +30,7 @@ const Store = () => {
     player,
     playerInventory,
     refreshPlayerInventory,
+    refreshPlayerData,
     loading: gameLoading,
   } = useGame();
 
@@ -464,15 +465,14 @@ const Store = () => {
         // Show success message with the pre-calculated price
         toast.success(`${recordName} sold for $${sellPrice.toFixed(2)}!`);
 
-        // Optimistically update the UI by removing the sold item from the inventory list
-        // This ensures the UI updates even before refreshPlayerInventory completes
-        const updatedPlayerInventory = playerInventory.filter(
-          (item) => item.id !== inventoryId
-        );
-
-        // Now refresh player inventory in the background
+        // Immediately update the player inventory state to remove the sold item
         if (refreshPlayerInventory) {
           await refreshPlayerInventory();
+        }
+
+        // IMPORTANT: Also refresh player data to update cash balance
+        if (refreshPlayerData) {
+          await refreshPlayerData();
         }
       } else {
         const errorMessage = result.error?.message || 'Failed to sell record';
