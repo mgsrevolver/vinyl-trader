@@ -3,48 +3,44 @@ import { supabase } from '../lib/supabase';
 // GAME MANAGEMENT
 export const createGame = async (playerName) => {
   try {
-    // Try to get the authenticated user ID
+    // Get or create user ID
     const { data: userData } = await supabase.auth.getUser();
-    let userId = userData?.user?.id;
+    let userId = userData?.user?.id || localStorage.getItem('deliWarsPlayerId');
 
-    // If we don't have a userId from auth, use a generated one instead
     if (!userId) {
-      userId = localStorage.getItem('deliWarsPlayerId');
-      if (!userId) {
-        userId = crypto.randomUUID();
-        localStorage.setItem('deliWarsPlayerId', userId);
-      }
+      userId = crypto.randomUUID();
+      localStorage.setItem('deliWarsPlayerId', userId);
     }
 
-    // STEP 1: Create the game
-    const { data: game, error: gameError } = await supabase
-      .from('games')
-      .insert({
-        name: `${playerName}'s Game`,
-        created_by: userId,
-        status: 'waiting', // Start as waiting until initialization is complete
-        current_hour: 24,
-        max_hours: 24,
-      })
-      .select()
-      .single();
+    // Create game and get Downtown borough in parallel
+    const [gameResult, boroughResult] = await Promise.all([
+      supabase
+        .from('games')
+        .insert({
+          name: `${playerName}'s Game`,
+          created_by: userId,
+          status: 'waiting',
+          current_hour: 24,
+          max_hours: 24,
+        })
+        .select()
+        .single(),
 
-    if (gameError) {
-      return { success: false, error: gameError };
-    }
+      supabase
+        .from('boroughs')
+        .select('id, name')
+        .eq('name', 'Downtown')
+        .single(),
+    ]);
 
-    // STEP 2: Get Downtown borough
-    const { data: downtown, error: boroughError } = await supabase
-      .from('boroughs')
-      .select('id, name')
-      .eq('name', 'Downtown')
-      .single();
+    if (gameResult.error) return { success: false, error: gameResult.error };
+    if (boroughResult.error)
+      return { success: false, error: boroughResult.error };
 
-    if (boroughError) {
-      return { success: false, error: boroughError };
-    }
+    const game = gameResult.data;
+    const downtown = boroughResult.data;
 
-    // STEP 3: Create the player
+    // Create player
     const { data: player, error: playerError } = await supabase
       .from('players')
       .insert({
@@ -64,47 +60,16 @@ export const createGame = async (playerName) => {
       return { success: false, error: playerError };
     }
 
-    // Format player data with borough
     const playerWithBorough = {
       ...player,
       current_borough: player.boroughs?.name || 'Unknown Location',
     };
 
-    // STEP 4: Initialize game data with timeout
-    // Create a promise with timeout for initialization
-    const initializeWithTimeout = async (timeout = 15000) => {
-      let timeoutId;
+    // Initialize game data with timeout
+    const initResult = await initializeWithTimeout(game.id);
 
-      try {
-        const initPromise = supabase.rpc('initialize_game_data', {
-          game_id: game.id,
-        });
-
-        const timeoutPromise = new Promise((_, reject) => {
-          timeoutId = setTimeout(() => {
-            reject(new Error('Game initialization timed out'));
-          }, timeout);
-        });
-
-        // Race between initialization and timeout
-        const result = await Promise.race([initPromise, timeoutPromise]);
-
-        // Clear timeout if initialization completed
-        clearTimeout(timeoutId);
-
-        return result;
-      } catch (error) {
-        // We'll continue even with initialization issues, as we can still play with partial data
-        return { partialInit: true };
-      } finally {
-        if (timeoutId) clearTimeout(timeoutId);
-      }
-    };
-
-    const initResult = await initializeWithTimeout();
-
-    // STEP 5: Set game to active
-    const { error: updateError } = await supabase
+    // Set game to active
+    await supabase
       .from('games')
       .update({
         status: 'active',
@@ -112,68 +77,68 @@ export const createGame = async (playerName) => {
       })
       .eq('id', game.id);
 
-    if (updateError) {
-      return { success: false, error: updateError };
-    }
-
-    // STEP 6: Get the final game state
-    const { data: finalGame, error: finalError } = await supabase
+    // Get final game state
+    const { data: finalGame } = await supabase
       .from('games')
       .select('*')
       .eq('id', game.id)
       .single();
 
-    if (finalError) {
-      return { success: false, error: finalError };
-    }
-
     return {
       success: true,
       gameId: game.id,
       playerId: player.id,
-      game: finalGame,
+      game: finalGame || game,
       player: playerWithBorough,
-      partialInit: initResult.partialInit,
+      partialInit: initResult?.partialInit,
     };
   } catch (error) {
     return { success: false, error };
   }
 };
 
+// Helper for game initialization with timeout
+const initializeWithTimeout = async (gameId, timeout = 15000) => {
+  let timeoutId;
+  try {
+    const initPromise = supabase.rpc('initialize_game_data', {
+      game_id: gameId,
+    });
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(
+        () => reject(new Error('Game initialization timed out')),
+        timeout
+      );
+    });
+
+    const result = await Promise.race([initPromise, timeoutPromise]);
+    return result;
+  } catch (error) {
+    return { partialInit: true };
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
+
 export const joinGame = async (gameId, userId, playerName = null) => {
   try {
-    // Ensure we have a valid userId
+    // Get or create user ID
     if (!userId) {
-      // Try to get from localStorage
       userId = localStorage.getItem('deliWarsPlayerId');
-
-      // If not in localStorage, generate a new one
       if (!userId) {
         userId = crypto.randomUUID();
         localStorage.setItem('deliWarsPlayerId', userId);
       }
     }
 
-    // Get default starting borough
-    let defaultBoroughId = null;
-    const { data: borough } = await supabase
-      .from('boroughs')
-      .select('id')
-      .limit(1)
-      .single();
+    // Check game and get default borough in parallel
+    const [gameResult, boroughResult] = await Promise.all([
+      supabase.from('games').select('*').eq('id', gameId).single(),
+      supabase.from('boroughs').select('id').limit(1).single(),
+    ]);
 
-    if (borough) {
-      defaultBoroughId = borough.id;
-    }
-
-    // Check if game exists
-    const { data: game, error: gameError } = await supabase
-      .from('games')
-      .select('*')
-      .eq('id', gameId)
-      .single();
-
-    if (gameError) throw gameError;
+    if (gameResult.error) throw gameResult.error;
+    const game = gameResult.data;
 
     if (game.status === 'completed') {
       throw new Error('This game has already ended');
@@ -188,7 +153,6 @@ export const joinGame = async (gameId, userId, playerName = null) => {
       .maybeSingle();
 
     if (existingPlayer) {
-      // Already in game, just return the player
       return {
         success: true,
         gameId,
@@ -199,10 +163,10 @@ export const joinGame = async (gameId, userId, playerName = null) => {
       };
     }
 
-    // Use provided player name or generate one
+    // Create new player
+    const defaultBoroughId = boroughResult.data?.id;
     const username = playerName || 'Player';
 
-    // Initialize player through the gameActions.js utility
     const { initializePlayer } = await import('../lib/gameActions');
     const newPlayerId = await initializePlayer(
       gameId,
@@ -214,17 +178,14 @@ export const joinGame = async (gameId, userId, playerName = null) => {
       throw new Error('Failed to initialize player');
     }
 
-    // Fetch the created player data
-    const { data: playerData, error: playerFetchError } = await supabase
+    // Get player data and update username
+    const { data: playerData } = await supabase
       .from('players')
       .select('*')
       .eq('id', newPlayerId)
       .single();
 
-    if (playerFetchError) throw playerFetchError;
-
-    // Update username separately
-    const { error: usernameError } = await supabase
+    await supabase
       .from('players')
       .update({ username: username })
       .eq('id', newPlayerId);
@@ -243,28 +204,20 @@ export const joinGame = async (gameId, userId, playerName = null) => {
 
 export const loadGame = async (gameId, playerIdToUse) => {
   try {
-    // Ensure we have a valid playerIdToUse
     if (!playerIdToUse) {
       return { success: false, needsJoin: true, game: null };
     }
 
-    // Load data in parallel for better performance
+    // Load data in parallel
     const [gameResult, playerResult, allPlayersResult, inventoryResult] =
       await Promise.all([
-        // Game data
         supabase.from('games').select('*').eq('id', gameId).single(),
-
-        // Player data with borough information
         supabase
           .from('players')
           .select('*, boroughs:current_borough_id (id, name)')
           .eq('id', playerIdToUse)
           .single(),
-
-        // All players in game
         supabase.from('players').select('*').eq('game_id', gameId),
-
-        // Player inventory
         supabase
           .from('player_inventory')
           .select(`*, products:product_id (name, description)`)
@@ -275,10 +228,8 @@ export const loadGame = async (gameId, playerIdToUse) => {
       return { success: false, needsJoin: true, game: gameResult.data };
     }
 
-    // Check if we need to get the borough name separately if it's not in player data
+    // Get borough name if missing
     let boroughName = playerResult.data.boroughs?.name;
-
-    // If borough name not found in boroughs relation, try to look it up
     if (!boroughName && playerResult.data.current_borough_id) {
       try {
         const { data: borough } = await supabase
@@ -287,15 +238,13 @@ export const loadGame = async (gameId, playerIdToUse) => {
           .eq('id', playerResult.data.current_borough_id)
           .single();
 
-        if (borough) {
-          boroughName = borough.name;
-        }
+        boroughName = borough?.name;
       } catch (err) {
-        // Failed to look up borough, continue with unknown
+        // Continue with unknown
       }
     }
 
-    // Format player data with borough name
+    // Format player data
     const playerWithBorough = {
       ...playerResult.data,
       current_borough:
@@ -316,7 +265,6 @@ export const loadGame = async (gameId, playerIdToUse) => {
 
 export const startGame = async (gameId) => {
   try {
-    // Update game status
     const { error } = await supabase
       .from('games')
       .update({
@@ -326,53 +274,51 @@ export const startGame = async (gameId) => {
       })
       .eq('id', gameId);
 
-    if (error) throw error;
-    return true;
-  } catch (error) {
+    return !error;
+  } catch {
     return false;
   }
 };
 
 export const endPlayerTurn = async (playerId, gameId) => {
   try {
-    // Check if all players have completed their turns
-    const { data: activePlayers, error: playersError } = await supabase
-      .from('players')
-      .select('id, turn_completed')
-      .eq('game_id', gameId);
+    // Get players and mark current player's turn complete in parallel
+    const [playersResult, markResult] = await Promise.all([
+      supabase
+        .from('players')
+        .select('id, turn_completed')
+        .eq('game_id', gameId),
+      supabase
+        .from('players')
+        .update({ turn_completed: true })
+        .eq('id', playerId),
+    ]);
 
-    if (playersError) throw playersError;
+    if (playersResult.error || markResult.error)
+      throw new Error('Failed to process turn');
 
-    // Mark this player's turn as completed
-    const { error: updateError } = await supabase
-      .from('players')
-      .update({ turn_completed: true })
-      .eq('id', playerId);
-
-    if (updateError) throw updateError;
-
-    // Check if all players have completed their turn
-    const allCompleted = activePlayers.every(
+    // Check if all players done
+    const allCompleted = playersResult.data.every(
       (p) => p.id === playerId || p.turn_completed === true
     );
 
-    let nextHour = null;
-    let gameOver = false;
+    if (!allCompleted) {
+      return { success: true, allCompleted: false };
+    }
 
-    if (allCompleted) {
-      // Get current game state
-      const { data: gameData } = await supabase
-        .from('games')
-        .select('current_hour')
-        .eq('id', gameId)
-        .single();
+    // Update game if all players done
+    const { data: gameData } = await supabase
+      .from('games')
+      .select('current_hour')
+      .eq('id', gameId)
+      .single();
 
-      // Decrease hours remaining
-      nextHour = gameData.current_hour - 1;
-      gameOver = nextHour <= 0;
+    const nextHour = gameData.current_hour - 1;
+    const gameOver = nextHour <= 0;
 
-      // Update game status
-      const { data: updatedGame, error: gameError } = await supabase
+    // Update game and reset player turns
+    await Promise.all([
+      supabase
         .from('games')
         .update({
           current_hour: nextHour,
@@ -380,24 +326,17 @@ export const endPlayerTurn = async (playerId, gameId) => {
           status: gameOver ? 'completed' : 'active',
           ended_at: gameOver ? new Date().toISOString() : null,
         })
-        .eq('id', gameId)
-        .select()
-        .single();
+        .eq('id', gameId),
 
-      if (gameError) throw gameError;
-
-      // Reset all players' turn_completed flags
-      const { error: resetError } = await supabase
+      supabase
         .from('players')
         .update({ turn_completed: false })
-        .eq('game_id', gameId);
-
-      if (resetError) throw resetError;
-    }
+        .eq('game_id', gameId),
+    ]);
 
     return {
       success: true,
-      allCompleted,
+      allCompleted: true,
       nextHour,
       gameOver,
     };
@@ -411,21 +350,12 @@ export const fetchPlayerWithBorough = async (playerId) => {
   try {
     const { data, error } = await supabase
       .from('players')
-      .select(
-        `
-        *,
-        boroughs:current_borough_id (id, name)
-      `
-      )
+      .select('*, boroughs:current_borough_id (id, name)')
       .eq('id', playerId)
       .single();
 
-    if (error) {
-      return null;
-    }
-
-    return data;
-  } catch (error) {
+    return error ? null : data;
+  } catch {
     return null;
   }
 };
@@ -438,26 +368,14 @@ export const fetchPlayerInventory = async (playerId) => {
         `
         *,
         products:product_id (
-          id,
-          name,
-          artist,
-          genre,
-          year,
-          rarity,
-          description,
-          image_url,
-          base_price
+          id, name, artist, genre, year, rarity, description, image_url, base_price
         )
       `
       )
       .eq('player_id', playerId);
 
-    if (error) {
-      return null;
-    }
-
-    return data;
-  } catch (error) {
+    return error ? null : data;
+  } catch {
     return null;
   }
 };
@@ -470,12 +388,8 @@ export const getInventoryItem = async (inventoryItemId) => {
       .eq('id', inventoryItemId)
       .single();
 
-    if (error) {
-      return null;
-    }
-
-    return data;
-  } catch (error) {
+    return error ? null : data;
+  } catch {
     return null;
   }
 };
@@ -484,19 +398,13 @@ export const updatePlayerActions = async (playerId, actionsUsed) => {
   try {
     const { data, error } = await supabase
       .from('players')
-      .update({
-        actions_used_this_hour: actionsUsed,
-      })
+      .update({ actions_used_this_hour: actionsUsed })
       .eq('id', playerId)
       .select()
       .single();
 
-    if (error) {
-      return null;
-    }
-
-    return data;
-  } catch (error) {
+    return error ? null : data;
+  } catch {
     return null;
   }
 };
@@ -508,12 +416,8 @@ export const setPlayerOverflow = async (playerId, overflow) => {
       .update({ actions_overflow: overflow })
       .eq('id', playerId);
 
-    if (error) {
-      return false;
-    }
-
-    return true;
-  } catch (error) {
+    return !error;
+  } catch {
     return false;
   }
 };
@@ -527,52 +431,41 @@ export const fetchGame = async (gameId) => {
       .eq('id', gameId)
       .single();
 
-    if (error) {
-      return null;
-    }
-
-    return data;
-  } catch (error) {
+    return error ? null : data;
+  } catch {
     return null;
   }
 };
 
 export const advanceGameHour = async (gameId, newHour, playerId) => {
   try {
-    // Update game hour
-    const { error: gameError } = await supabase
-      .from('games')
-      .update({ current_hour: newHour })
-      .eq('id', gameId);
+    // Run operations in parallel
+    const [gameResult, playerResult] = await Promise.all([
+      // Update game hour
+      supabase.from('games').update({ current_hour: newHour }).eq('id', gameId),
 
-    if (gameError) {
-      return false;
-    }
+      // Get player overflow
+      supabase
+        .from('players')
+        .select('actions_overflow')
+        .eq('id', playerId)
+        .single(),
+    ]);
 
-    // Get any overflow actions from previous hour
-    const { data: playerData } = await supabase
-      .from('players')
-      .select('actions_overflow')
-      .eq('id', playerId)
-      .single();
+    if (gameResult.error) return false;
 
-    const overflowActions = playerData?.actions_overflow || 0;
-
-    // Reset player's actions but apply overflow
+    // Apply overflow
+    const overflowActions = playerResult.data?.actions_overflow || 0;
     const { error: playerError } = await supabase
       .from('players')
       .update({
         actions_used_this_hour: overflowActions,
-        actions_overflow: 0, // Reset overflow after applying it
+        actions_overflow: 0,
       })
       .eq('id', playerId);
 
-    if (playerError) {
-      return false;
-    }
-
-    return true;
-  } catch (error) {
+    return !playerError;
+  } catch {
     return false;
   }
 };
@@ -588,12 +481,9 @@ export const getTravelInfo = async (playerId, transportationId, boroughId) => {
       .eq('to_borough_id', boroughId)
       .maybeSingle();
 
-    if (error) {
-      return null;
-    }
-
+    if (error) return null;
     return data || { action_cost: 1, monetary_cost: 0 };
-  } catch (error) {
+  } catch {
     return null;
   }
 };
@@ -608,12 +498,8 @@ export const movePlayer = async (playerId, boroughId, newCash) => {
       })
       .eq('id', playerId);
 
-    if (error) {
-      return false;
-    }
-
-    return true;
-  } catch (error) {
+    return !error;
+  } catch {
     return false;
   }
 };

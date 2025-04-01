@@ -25,28 +25,23 @@ export const buyRecord = async (
   inventoryId
 ) => {
   try {
-    // If no productId is provided, this will fail
     if (!productId) {
       return {
         success: false,
-        error: {
-          message: 'Missing required product ID',
-        },
+        error: { message: 'Missing required product ID' },
       };
     }
 
-    // Call the buy_record function with the parameters it expects
     const { data, error } = await supabase.rpc('buy_record', {
       p_player_id: playerId,
       p_game_id: gameId,
       p_product_id: productId,
       p_quantity: quantity,
       p_store_id: storeId,
-      // The database function doesn't have an inventory_id parameter
     });
 
     if (error) {
-      // Check for unique constraint violation
+      // Special handling for unique constraint error
       if (
         error.code === '23505' &&
         error.details?.includes(
@@ -72,7 +67,7 @@ export const buyRecord = async (
       };
     }
 
-    // If we get a false response, it typically means insufficient funds or inventory
+    // False response means insufficient funds or inventory
     if (data === false) {
       return {
         success: false,
@@ -87,9 +82,7 @@ export const buyRecord = async (
   } catch (err) {
     return {
       success: false,
-      error: {
-        message: err.message || 'An unexpected error occurred',
-      },
+      error: { message: err.message || 'An unexpected error occurred' },
     };
   }
 };
@@ -113,7 +106,6 @@ export const sellRecord = async (
   inventoryId
 ) => {
   try {
-    // Check if inventoryId is provided
     if (!inventoryId) {
       return {
         success: false,
@@ -123,7 +115,6 @@ export const sellRecord = async (
       };
     }
 
-    // Call the database function to sell the record
     const { data, error } = await supabase.rpc('sell_record', {
       p_player_id: playerId,
       p_game_id: gameId,
@@ -133,11 +124,7 @@ export const sellRecord = async (
       p_inventory_id: inventoryId,
     });
 
-    if (error) {
-      return { success: false, error: error };
-    }
-
-    return { success: true, data };
+    return error ? { success: false, error } : { success: true, data };
   } catch (err) {
     return { success: false, error: { message: err.message } };
   }
@@ -152,11 +139,8 @@ export const sellRecord = async (
  */
 export const getSellPrices = async (storeId, gameId, productIds) => {
   try {
-    if (!productIds || productIds.length === 0) {
-      return {};
-    }
+    if (!productIds?.length) return {};
 
-    // Fetch all market prices for these products at this store
     const { data, error } = await supabase
       .from('market_inventory')
       .select('product_id, current_price')
@@ -164,21 +148,17 @@ export const getSellPrices = async (storeId, gameId, productIds) => {
       .eq('game_id', gameId)
       .in('product_id', productIds);
 
-    if (error) {
-      return {};
-    }
+    if (error) return {};
 
-    // Apply 75% margin - this is core business logic
+    // Apply 75% margin
     const STORE_MARGIN = 0.75;
-
-    // Create a map of product ID to adjusted sell price
     const priceMap = {};
     data.forEach((item) => {
       priceMap[item.product_id] = item.current_price * STORE_MARGIN;
     });
 
     return priceMap;
-  } catch (error) {
+  } catch {
     return {};
   }
 };
@@ -200,7 +180,7 @@ export const getPlayerActions = async (playerId, gameId, currentHour) => {
       .eq('hour', currentHour)
       .limit(1);
 
-    if (error || !data || data.length === 0) {
+    if (error || !data?.length) {
       // Create a new player_actions row if needed
       try {
         const { data: newRow } = await supabase
@@ -240,27 +220,16 @@ export const advanceGameHour = async (gameId) => {
       .eq('id', gameId)
       .single();
 
-    if (getError) {
-      return false;
-    }
+    if (getError || game.current_hour <= 0) return false;
 
-    // Check if the game has ended (current_hour is 0)
-    if (game.current_hour <= 0) {
-      return false;
-    }
-
-    // Decrement the hour (counts down from max_hours to 0)
+    // Decrement the hour
     const { error: updateError } = await supabase
       .from('games')
       .update({ current_hour: game.current_hour - 1 })
       .eq('id', gameId);
 
-    if (updateError) {
-      return false;
-    }
-
-    return true;
-  } catch (error) {
+    return !updateError;
+  } catch {
     return false;
   }
 };
@@ -280,18 +249,15 @@ export const travelToBorough = async (
   transportationId
 ) => {
   try {
-    // Skip all action cost calculations - GameContext already does this
-    // Simply update the player's location
+    // Update the player's location
     const { error: locationError } = await supabase
       .from('players')
       .update({ current_borough_id: toBoroughId })
       .eq('id', playerId);
 
-    if (locationError) {
-      return { success: false, error: locationError };
-    }
-
-    return { success: true };
+    return locationError
+      ? { success: false, error: locationError }
+      : { success: true };
   } catch (err) {
     return { success: false, error: err };
   }
@@ -306,43 +272,33 @@ export const travelToBorough = async (
  */
 export const initializePlayer = async (gameId, userId, boroughId) => {
   try {
-    // Get Downtown borough first
-    const { data: downtown, error: downtownError } = await supabase
-      .from('boroughs')
-      .select('id, name')
-      .eq('name', 'Downtown')
-      .single();
+    // If no specific borough provided, find a default one
+    let targetBoroughId = boroughId;
 
-    // If Downtown not found or boroughId provided, verify the borough exists
-    let targetBoroughId = downtown?.id;
-    if (!targetBoroughId && boroughId) {
-      const { data: boroughCheck, error: boroughError } = await supabase
-        .from('boroughs')
-        .select('id')
-        .eq('id', boroughId)
-        .single();
-
-      if (!boroughError && boroughCheck) {
-        targetBoroughId = boroughId;
-      }
-    }
-
-    // If still no valid borough, get any valid borough
     if (!targetBoroughId) {
-      const { data: anyBorough, error: anyBoroughError } = await supabase
+      // Try to get Downtown first
+      const { data: downtown } = await supabase
         .from('boroughs')
         .select('id')
-        .limit(1)
+        .eq('name', 'Downtown')
         .single();
 
-      if (anyBoroughError || !anyBorough) {
-        return null;
-      }
+      if (downtown) {
+        targetBoroughId = downtown.id;
+      } else {
+        // Fall back to any borough
+        const { data: anyBorough } = await supabase
+          .from('boroughs')
+          .select('id')
+          .limit(1)
+          .single();
 
-      targetBoroughId = anyBorough.id;
+        if (!anyBorough) return null;
+        targetBoroughId = anyBorough.id;
+      }
     }
 
-    // Create the player with the determined borough
+    // Create the player
     const { data: player, error: playerError } = await supabase
       .from('players')
       .insert({
@@ -358,15 +314,13 @@ export const initializePlayer = async (gameId, userId, boroughId) => {
       .select('id')
       .single();
 
-    if (playerError) {
-      return null;
-    }
+    if (playerError) return null;
 
     // Initialize player actions for the first hour
     await getPlayerActions(player.id, gameId, 1);
 
     return player.id;
-  } catch (e) {
+  } catch {
     return null;
   }
 };
@@ -383,23 +337,8 @@ export const getStoreInventory = async (storeId, gameId) => {
       .from('market_inventory')
       .select(
         `
-        id,
-        quantity,
-        current_price,
-        condition,
-        quality_rating,
-        base_markup,
-        product_id,
-        products (
-          id,
-          name,
-          artist,
-          genre,
-          year,
-          rarity,
-          description,
-          image_url
-        )
+        id, quantity, current_price, condition, quality_rating, base_markup, product_id,
+        products (id, name, artist, genre, year, rarity, description, image_url)
       `
       )
       .eq('store_id', storeId)
@@ -411,10 +350,15 @@ export const getStoreInventory = async (storeId, gameId) => {
     }
 
     return { items: data || [], loading: false, error: null };
-  } catch (e) {
+  } catch {
     return { items: [], loading: false, error: 'An unexpected error occurred' };
   }
 };
+
+// Caches for frequently used data
+const storeCache = {};
+const transportCache = { data: null, timestamp: 0 };
+const distanceCache = { data: null, timestamp: 0 };
 
 /**
  * Get the stores in a borough - OPTIMIZED VERSION
@@ -423,49 +367,37 @@ export const getStoreInventory = async (storeId, gameId) => {
  * @returns {Promise<Array>} - Stores in the borough
  */
 export const getBoroughStores = async (boroughId, gameId = null) => {
+  // Check cache first
+  const cacheKey = `${boroughId}`;
+  if (storeCache[cacheKey]) return storeCache[cacheKey];
+
   try {
-    // Simply get all stores in the borough without filtering by game inventory
-    // This is the most reliable approach to ensure stores always show up
-    const { data: allStores, error: storesError } = await supabase
+    const { data: allStores, error } = await supabase
       .from('stores')
       .select('id, name, specialty_genre, open_hour, close_hour')
       .eq('borough_id', boroughId);
 
-    if (storesError) {
-      return [];
-    }
+    if (error) return [];
 
-    // As a sanity check - if gameId is provided, also log the market inventory for these stores
-    if (gameId && allStores?.length > 0) {
-      // Get store IDs for checking inventory
-      const storeIds = allStores.map((store) => store.id);
-
-      // Check if these stores have any inventory for this game (just for logging)
-      const { data: inventory } = await supabase
-        .from('market_inventory')
-        .select('store_id, product_id')
-        .eq('game_id', gameId)
-        .in('store_id', storeIds);
-    }
+    // Cache the result
+    storeCache[cacheKey] = allStores || [];
 
     return allStores || [];
-  } catch (error) {
+  } catch {
     return [];
   }
 };
 
 /**
  * Get all transportation methods - OPTIMIZED VERSION
- * Cache the result since it rarely changes
  */
-let cachedTransportMethods = null;
-let transportCacheTime = 0;
-
 export const getTransportationMethods = async () => {
-  // Return cached data if available and not too old (10 minutes)
   const now = Date.now();
-  if (cachedTransportMethods && now - transportCacheTime < 600000) {
-    return cachedTransportMethods;
+  const CACHE_TIME = 10 * 60 * 1000; // 10 minutes
+
+  // Return cached data if valid
+  if (transportCache.data && now - transportCache.timestamp < CACHE_TIME) {
+    return transportCache.data;
   }
 
   try {
@@ -474,32 +406,28 @@ export const getTransportationMethods = async () => {
       .select('*')
       .order('speed_factor', { ascending: true });
 
-    if (error) {
-      return [];
-    }
+    if (error) return [];
 
-    // Cache the result
-    cachedTransportMethods = data || [];
-    transportCacheTime = now;
+    // Update cache
+    transportCache.data = data || [];
+    transportCache.timestamp = now;
 
-    return cachedTransportMethods;
-  } catch (error) {
+    return transportCache.data;
+  } catch {
     return [];
   }
 };
 
 /**
  * Get all borough distances - OPTIMIZED VERSION
- * Cache the result since it rarely changes
  */
-let cachedBoroughDistances = null;
-let distancesCacheTime = 0;
-
 export const getBoroughDistances = async () => {
-  // Return cached data if available and not too old (10 minutes)
   const now = Date.now();
-  if (cachedBoroughDistances && now - distancesCacheTime < 600000) {
-    return cachedBoroughDistances;
+  const CACHE_TIME = 10 * 60 * 1000; // 10 minutes
+
+  // Return cached data if valid
+  if (distanceCache.data && now - distanceCache.timestamp < CACHE_TIME) {
+    return distanceCache.data;
   }
 
   try {
@@ -507,16 +435,14 @@ export const getBoroughDistances = async () => {
       .from('borough_distances')
       .select('*');
 
-    if (error) {
-      return [];
-    }
+    if (error) return [];
 
-    // Cache the result
-    cachedBoroughDistances = data || [];
-    distancesCacheTime = now;
+    // Update cache
+    distanceCache.data = data || [];
+    distanceCache.timestamp = now;
 
-    return cachedBoroughDistances;
-  } catch (error) {
+    return distanceCache.data;
+  } catch {
     return [];
   }
 };
@@ -529,79 +455,60 @@ export const getBoroughDistances = async () => {
  */
 export const getGameState = async (playerId, gameId) => {
   try {
-    // Get player state from player_game_state view - it already includes borough name
-    const { data: playerState, error: playerStateError } = await supabase
-      .from('player_game_state')
-      .select('*')
-      .eq('player_id', playerId)
-      .single();
+    // Get data in parallel for better performance
+    const [playerStateResult, inventoryResult, transportResult, gameResult] =
+      await Promise.all([
+        // Get player state
+        supabase
+          .from('player_game_state')
+          .select('*')
+          .eq('player_id', playerId)
+          .single(),
+        // Get inventory
+        supabase
+          .from('player_inventory_view')
+          .select('*')
+          .eq('player_id', playerId),
+        // Get transportation
+        supabase
+          .from('transportation_options')
+          .select('*')
+          .eq('player_id', playerId),
+        // Get game
+        supabase.from('games').select('*').eq('id', gameId).single(),
+      ]);
 
-    // If the view doesn't return data, try querying the players table directly
-    if (!playerState) {
-      const { data: directPlayerData, error: directError } = await supabase
-        .from('players')
-        .select('*, boroughs:current_borough_id (id, name)')
-        .eq('id', playerId)
-        .single();
-    }
-
-    // No need to format player state - it already has current_borough
-    const formattedPlayerState = playerState || null;
-
-    // Get player inventory
-    const { data: inventory, error: inventoryError } = await supabase
-      .from('player_inventory_view')
-      .select('*')
-      .eq('player_id', playerId);
-
-    // Get transportation options
-    const { data: transportOptions, error: transportError } = await supabase
-      .from('transportation_options')
-      .select('*')
-      .eq('player_id', playerId);
-
-    // Get game data
-    const { data: game, error: gameError } = await supabase
-      .from('games')
-      .select('*')
-      .eq('id', gameId)
-      .single();
-
-    // Get borough stores if player has a location
+    const playerState = playerStateResult.data;
     let boroughStores = [];
-    let boroughId = null;
 
-    if (playerState?.current_borough_id) {
-      boroughId = playerState.current_borough_id;
-    } else {
-      // Try to look up the player's location as a fallback
+    // Get player's current borough ID, from either player_game_state or direct query
+    let boroughId = playerState?.current_borough_id;
+
+    if (!boroughId) {
       const { data: fallbackPlayer } = await supabase
         .from('players')
         .select('current_borough_id')
         .eq('id', playerId)
         .single();
 
-      if (fallbackPlayer?.current_borough_id) {
-        boroughId = fallbackPlayer.current_borough_id;
-      }
+      boroughId = fallbackPlayer?.current_borough_id;
     }
 
+    // Get the stores for player's current borough
     if (boroughId) {
       boroughStores = await getBoroughStores(boroughId, gameId);
     }
 
-    const result = {
-      playerState: formattedPlayerState,
-      inventory: inventory || [],
-      transportOptions: transportOptions || [],
-      game,
+    return {
+      playerState: playerState || null,
+      inventory: inventoryResult.data || [],
+      transportOptions: transportResult.data || [],
+      game: gameResult.data,
       boroughStores,
       loading: false,
       error: null,
     };
-
-    return result;
-  } catch (e) {
+  } catch {
     return {
       playerState: null,
       inventory: [],

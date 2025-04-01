@@ -10,8 +10,6 @@ import {
   FaBicycle,
   FaSubway,
   FaTaxi,
-  FaDollarSign,
-  FaClock,
   FaCoins,
   FaWarehouse,
   FaBolt,
@@ -20,17 +18,8 @@ import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useGame } from '../contexts/GameContext';
 import Button from '../components/ui/Button';
-import {
-  getTransportationMethods,
-  getBoroughDistances,
-  getBoroughStores,
-  getPlayerActions,
-} from '../lib/gameActions';
 
-// You'll need to add an NYC map image to your public/assets folder
-// This image should be a simplified map of NYC showing the boroughs
-
-// NYC borough coordinates (this can be static)
+// NYC borough coordinates (static)
 const boroughCoordinates = {
   downtown: { x: 20, y: 62 },
   uptown: { x: 65, y: 25 },
@@ -40,7 +29,15 @@ const boroughCoordinates = {
   'staten island': { x: 5, y: 82 },
 };
 
-// Memo-ized components for better performance
+// Pre-define transport icons for better performance
+const TRANSPORT_ICONS = {
+  walk: <FaWalking />,
+  bike: <FaBicycle />,
+  subway: <FaSubway />,
+  taxi: <FaTaxi />,
+};
+
+// LocationMarker component - memoized
 const LocationMarker = memo(
   ({ neighborhood, isCurrentLocation, isSelected, onSelect }) => (
     <div
@@ -62,6 +59,7 @@ const LocationMarker = memo(
   )
 );
 
+// TransportOption component - memoized
 const TransportOption = memo(
   ({ transport, isSelected, onSelect, travelDetails }) => (
     <div
@@ -101,7 +99,7 @@ const TransportOption = memo(
         <span>${Math.round(parseFloat(travelDetails.cost))}</span>
       </div>
 
-      {/* Row 3: Actions - Replace clock with lightning bolt */}
+      {/* Row 3: Actions */}
       <div
         style={{
           display: 'flex',
@@ -133,12 +131,21 @@ const TransportOption = memo(
   )
 );
 
+// Optimize store row to avoid rerenders
+const StoreInfo = memo(({ store, formatTime }) => (
+  <div className="text-xs text-center font-sans">
+    {store.name} • {store.specialty_genre || 'Various'} •{' '}
+    {formatTime(store.open_hour)}-{formatTime(store.close_hour)}
+  </div>
+));
+
 const TravelScreen = () => {
   const { gameId } = useParams();
   const navigate = useNavigate();
-  const { currentGame, player, loading, travelToNeighborhood } = useGame();
+  const { currentGame, player, travelToNeighborhood } = useGame();
   const drawerRef = useRef(null);
 
+  // State
   const [neighborhoods, setNeighborhoods] = useState([]);
   const [selectedNeighborhood, setSelectedNeighborhood] = useState(null);
   const [selectedTransport, setSelectedTransport] = useState(null);
@@ -149,7 +156,15 @@ const TravelScreen = () => {
   const [neighborhoodStores, setNeighborhoodStores] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Memoized data fetching
+  // Format time efficiently
+  const formatTime = useCallback((hour) => {
+    if (hour === null || hour === undefined) return 'N/A';
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}${period}`;
+  }, []);
+
+  // Load data once - optimized to fetch everything in parallel
   useEffect(() => {
     let isMounted = true;
 
@@ -157,105 +172,75 @@ const TravelScreen = () => {
       try {
         setDataLoading(true);
 
-        // Load neighborhoods
-        const { data: neighborhoodData, error: neighborhoodError } =
-          await supabase.from('boroughs').select('*');
+        // Load all data in parallel
+        const [neighborhoodResponse, transportResponse, distanceResponse] =
+          await Promise.all([
+            supabase.from('boroughs').select('*'),
+            supabase
+              .from('transportation_methods')
+              .select('*')
+              .order('speed_factor', { ascending: true }),
+            supabase.from('borough_distances').select('*'),
+          ]);
 
-        if (neighborhoodError) throw neighborhoodError;
+        if (!isMounted) return;
 
         // Process neighborhoods
-        if (isMounted) {
-          // Add coordinates from our mapping
-          console.log(
-            'Borough data from DB:',
-            neighborhoodData.map((n) => n.name)
-          );
-
-          const neighborhoodsWithCoords = neighborhoodData.map((hood) => {
-            // Convert borough name to lowercase for matching with our coordinates
-            const boroughKey = hood.name.toLowerCase();
-            console.log(`Looking up coordinates for: "${boroughKey}"`);
-
-            // Try to find matching coordinates
-            const coords = boroughCoordinates[boroughKey] || { x: 50, y: 50 };
-
-            if (boroughCoordinates[boroughKey]) {
-              console.log(
-                `Found coordinates for ${boroughKey}: x=${coords.x}, y=${coords.y}`
-              );
-            } else {
-              console.log(
-                `WARNING: No coordinates found for ${boroughKey}, using default position`
-              );
-            }
-
-            return {
-              ...hood,
-              x_coordinate: coords.x,
-              y_coordinate: coords.y,
-            };
-          });
-
-          setNeighborhoods(neighborhoodsWithCoords || []);
-        }
-
-        // Run transportations and distances in parallel
-        const [transportMethods, distanceResults] = await Promise.all([
-          // Transportation methods
-          supabase
-            .from('transportation_methods')
-            .select('*')
-            .order('speed_factor', { ascending: true }),
-          // Borough distances
-          supabase.from('borough_distances').select('*'),
-        ]);
-
-        // Process transportation methods
-        if (isMounted && transportMethods.data) {
-          // Ensure we have unique transport methods (no duplicates)
-          // Group by transport type
-          const transportTypes = {};
-          transportMethods.data.forEach((method) => {
-            const type = method.name.toLowerCase();
-            if (!transportTypes[type]) {
-              transportTypes[type] = method;
-            }
-          });
-
-          // Map transportation methods to include icons
-          const transportWithIcons = Object.values(transportTypes).map(
-            (method) => {
-              // Add icons based on name/type
-              let icon = <FaWalking />;
-              const type = method.name.toLowerCase();
-
-              if (type.includes('bike')) icon = <FaBicycle />;
-              else if (type.includes('subway')) icon = <FaSubway />;
-              else if (type.includes('taxi')) icon = <FaTaxi />;
-
+        if (neighborhoodResponse.data) {
+          const neighborhoodsWithCoords = neighborhoodResponse.data.map(
+            (hood) => {
+              const boroughKey = hood.name.toLowerCase();
+              const coords = boroughCoordinates[boroughKey] || { x: 50, y: 50 };
               return {
-                ...method,
-                icon,
+                ...hood,
+                x_coordinate: coords.x,
+                y_coordinate: coords.y,
               };
             }
           );
+          setNeighborhoods(neighborhoodsWithCoords);
+        }
 
-          // Limit to 4 transport methods for 2x2 grid
+        // Process transportation methods
+        if (transportResponse.data) {
+          // Create a map to deduplicate by name
+          const transportMap = new Map();
+          transportResponse.data.forEach((method) => {
+            const type = method.name.toLowerCase();
+            if (!transportMap.has(type)) {
+              transportMap.set(type, method);
+            }
+          });
+
+          // Add icons
+          const transportWithIcons = Array.from(transportMap.values()).map(
+            (method) => {
+              const type = method.name.toLowerCase();
+              let icon = TRANSPORT_ICONS.walk;
+
+              if (type.includes('bike')) icon = TRANSPORT_ICONS.bike;
+              else if (type.includes('subway')) icon = TRANSPORT_ICONS.subway;
+              else if (type.includes('taxi')) icon = TRANSPORT_ICONS.taxi;
+
+              return { ...method, icon };
+            }
+          );
+
+          // Limit to 4 options
           const limitedTransports = transportWithIcons.slice(0, 4);
           setTransportOptions(limitedTransports);
 
-          // Pre-select walking by default (or first available transport)
+          // Pre-select first transport
           if (limitedTransports.length > 0) {
             setSelectedTransport(limitedTransports[0]);
           }
         }
 
         // Set borough distances
-        if (isMounted && distanceResults.data) {
-          setBoroughDistances(distanceResults.data);
+        if (distanceResponse.data) {
+          setBoroughDistances(distanceResponse.data);
         }
       } catch (err) {
-        console.error('Error loading travel data:', err);
         if (isMounted) toast.error('Failed to load travel data');
       } finally {
         if (isMounted) setDataLoading(false);
@@ -263,54 +248,49 @@ const TravelScreen = () => {
     };
 
     loadTravelData();
-
     return () => {
       isMounted = false;
     };
   }, []);
 
-  // Memoize the store data fetching and only trigger when neighborhood is selected
+  // Load stores for selected neighborhood - optimized
   useEffect(() => {
-    // Clear stores when no neighborhood selected
     if (!selectedNeighborhood) {
       setNeighborhoodStores([]);
       return;
     }
 
     let isMounted = true;
-
-    // Fetch stores for the selected neighborhood
     const fetchStores = async () => {
       try {
-        // Optimized query - only get what we need
-        const { data: stores, error } = await supabase
+        const { data, error } = await supabase
           .from('stores')
           .select('id, name, specialty_genre, open_hour, close_hour')
           .eq('borough_id', selectedNeighborhood.id);
 
         if (error) throw error;
-        if (isMounted) setNeighborhoodStores(stores || []);
+        if (isMounted) setNeighborhoodStores(data || []);
       } catch (err) {
-        console.error(
-          `Error fetching stores for ${selectedNeighborhood.name}:`,
-          err
-        );
         if (isMounted) setNeighborhoodStores([]);
       }
     };
 
     fetchStores();
-
     return () => {
       isMounted = false;
     };
   }, [selectedNeighborhood?.id]);
 
-  // Memoize the expensive neighborhood selection handler
+  // Memoize current neighborhood
+  const currentNeighborhood = useMemo(
+    () => neighborhoods.find((n) => n.id === player?.current_borough_id),
+    [neighborhoods, player?.current_borough_id]
+  );
+
+  // Event handlers with useCallback
   const handleSelectNeighborhood = useCallback(
     (neighborhood, e) => {
       e.stopPropagation();
-      // Don't select current location
       if (neighborhood.id === player?.current_borough_id) {
         toast.error("You're already here!");
         return;
@@ -320,7 +300,6 @@ const TravelScreen = () => {
     [player?.current_borough_id]
   );
 
-  // Event handlers with useCallback for better performance
   const handleCloseDrawer = useCallback(() => {
     setSelectedNeighborhood(null);
   }, []);
@@ -334,14 +313,11 @@ const TravelScreen = () => {
     try {
       setIsLoading(true);
       await travelToNeighborhood(selectedNeighborhood.id, selectedTransport.id);
-
-      // Navigate back with minimal data
       navigate(`/game/${gameId}`, {
         state: { refresh: true },
         replace: true,
       });
     } catch (err) {
-      console.error('Travel error:', err);
       navigate(`/game/${gameId}`, {
         state: { refresh: true },
         replace: true,
@@ -355,17 +331,13 @@ const TravelScreen = () => {
     gameId,
   ]);
 
-  // Memoize the touch handlers
   const handleTouchStart = useCallback((e) => {
     setStartY(e.touches[0].clientY);
   }, []);
 
   const handleTouchMove = useCallback(
     (e) => {
-      const currentY = e.touches[0].clientY;
-      const diff = currentY - startY;
-
-      // If swiping down with significant movement
+      const diff = e.touches[0].clientY - startY;
       if (diff > 50) {
         handleCloseDrawer();
       }
@@ -373,29 +345,13 @@ const TravelScreen = () => {
     [startY, handleCloseDrawer]
   );
 
-  // Format time efficiently
-  const formatTime = useCallback((hour) => {
-    if (hour === null || hour === undefined) return 'N/A';
-    const period = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}${period}`;
-  }, []);
-
-  // Current neighborhood - memoized
-  const currentNeighborhood = useMemo(
-    () => neighborhoods.find((n) => n.id === player?.current_borough_id),
-    [neighborhoods, player?.current_borough_id]
-  );
-
-  // Memoize expensive travel details calculation
+  // Travel details calculation - memoized
   const getTravelDetails = useCallback(
     (fromBoroughId, toBoroughId, transportId) => {
-      // Default values in case data isn't loaded
       if (!boroughDistances.length || !transportOptions.length) {
         return { time: 1, cost: 0 };
       }
 
-      // Find the distance record between the boroughs
       const distanceRecord = boroughDistances.find(
         (d) =>
           (d.from_borough_id === fromBoroughId &&
@@ -404,12 +360,10 @@ const TravelScreen = () => {
             d.to_borough_id === fromBoroughId)
       );
 
-      // Find the selected transport method
       const transport = transportOptions.find((t) => t.id === transportId);
-
       if (!distanceRecord || !transport) return { time: 1, cost: 0 };
 
-      // Get time and cost based on transport type
+      // Calculate time and cost
       let time = 1;
       let cost = transport.base_cost || 0;
 
@@ -432,7 +386,7 @@ const TravelScreen = () => {
     [boroughDistances, transportOptions]
   );
 
-  // Show loading state if necessary data isn't ready
+  // Loading state
   if (dataLoading || !player) {
     return (
       <div className="nyc-map-bg flex items-center justify-center">
@@ -454,7 +408,7 @@ const TravelScreen = () => {
       <div className="map-overlay"></div>
 
       <div className="travel-container">
-        {/* Back Button - Using inline styles for more precise positioning */}
+        {/* Back Button */}
         <button
           className="back-button bg-white rounded-full w-10 h-10 flex items-center justify-center shadow-md"
           style={{
@@ -471,7 +425,7 @@ const TravelScreen = () => {
           <FaArrowLeft />
         </button>
 
-        {/* Location Markers - Using memoized component */}
+        {/* Location Markers */}
         {neighborhoods.map((neighborhood) => (
           <LocationMarker
             key={neighborhood.id}
@@ -516,23 +470,20 @@ const TravelScreen = () => {
                 </button>
               </div>
 
-              {/* Stores in this neighborhood - Super compact single line format */}
+              {/* Stores in neighborhood */}
               {neighborhoodStores.length > 0 && (
                 <div className="mb-1 px-2">
                   {neighborhoodStores.map((store) => (
-                    <div
+                    <StoreInfo
                       key={store.id}
-                      className="text-xs text-center font-sans"
-                    >
-                      {store.name} • {store.specialty_genre || 'Various'} •{' '}
-                      {formatTime(store.open_hour)}-
-                      {formatTime(store.close_hour)}
-                    </div>
+                      store={store}
+                      formatTime={formatTime}
+                    />
                   ))}
                 </div>
               )}
 
-              {/* Transport grid with memoized components */}
+              {/* Transport grid */}
               <div
                 className="transport-grid"
                 style={{
@@ -544,7 +495,6 @@ const TravelScreen = () => {
                 }}
               >
                 {transportOptions.map((transport) => {
-                  // Get travel details for this transport option
                   const travelDetails = getTravelDetails(
                     player.current_borough_id,
                     selectedNeighborhood?.id,
@@ -563,11 +513,11 @@ const TravelScreen = () => {
                 })}
               </div>
 
-              {/* Travel button with reasonable padding */}
+              {/* Travel button */}
               <div style={{ padding: '12px 10px 6px 10px' }}>
                 <Button
                   onClick={handleTravel}
-                  disabled={loading || !selectedTransport}
+                  disabled={isLoading || !selectedTransport}
                   size="md"
                   fullWidth
                 >
