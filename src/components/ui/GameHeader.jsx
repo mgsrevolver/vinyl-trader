@@ -35,9 +35,8 @@ const GameHeader = () => {
       setLastRefresh(Date.now());
       forceUpdate(); // Force rerender independent of state
 
-      // Extra aggressive refresh of player data every 2 seconds
-      if (refreshPlayerData && Math.random() < 0.5) {
-        // 50% chance each second (avg every 2s)
+      // Always refresh data on every tick
+      if (refreshPlayerData) {
         refreshPlayerData().catch((err) =>
           console.error('Failed to refresh player data:', err)
         );
@@ -46,6 +45,14 @@ const GameHeader = () => {
 
     return () => clearInterval(interval);
   }, [refreshPlayerData, forceUpdate]);
+
+  // Add an immediate refresh when component mounts
+  useEffect(() => {
+    // Initial refresh on mount
+    if (refreshPlayerData) {
+      refreshPlayerData();
+    }
+  }, [refreshPlayerData]);
 
   // Update actions remaining when player changes
   useEffect(() => {

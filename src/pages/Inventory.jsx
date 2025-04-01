@@ -195,8 +195,27 @@ const Inventory = () => {
   };
 
   // Calculate values using context methods
-  const netWorth = getNetWorth ? getNetWorth() : 0;
-  const totalInventoryValue = getInventoryValue ? getInventoryValue() : 0;
+  const netWorth = player
+    ? player.cash -
+      player.loan_amount +
+      (playerInventory
+        ? playerInventory.reduce((sum, item) => {
+            // Use purchase price as fallback for value
+            const itemValue =
+              item.estimated_current_price || item.purchase_price || 0;
+            return sum + itemValue * (item.quantity || 1);
+          }, 0)
+        : 0)
+    : 0;
+
+  const totalInventoryValue = playerInventory
+    ? playerInventory.reduce((sum, item) => {
+        const itemValue =
+          item.estimated_current_price || item.purchase_price || 0;
+        return sum + itemValue * (item.quantity || 1);
+      }, 0)
+    : 0;
+
   const cashAmount = player?.cash || 0;
   const loanAmount = player?.loan_amount || 0;
 
