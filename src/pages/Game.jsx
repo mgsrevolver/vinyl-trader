@@ -399,28 +399,18 @@ const Game = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {boroughStores.map((store) => {
-              // Calculate if store is open
-              const currentHour = currentGame
-                ? (24 - currentGame.current_hour) % 24
-                : 0;
-              const isOpen =
-                currentHour >= store.open_hour &&
-                currentHour < store.close_hour;
-
-              return (
-                <StoreCard
-                  key={store.id}
-                  store={{
-                    ...store,
-                    nameClass: 'font-records text-opacity-80',
-                  }}
-                  isOpen={isOpen}
-                  formatTime={formatTime}
-                  onClick={() => goToStore(store.id)}
-                />
-              );
-            })}
+            {boroughStores.map((store) => (
+              <StoreCard
+                key={store.id}
+                store={{
+                  ...store,
+                  nameClass: 'font-records text-opacity-80',
+                }}
+                isOpen={true}
+                formatTime={formatTime}
+                onClick={() => goToStore(store.id)}
+              />
+            ))}
           </div>
         )}
 

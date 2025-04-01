@@ -40,7 +40,6 @@ const StoreCard = ({ store, isOpen, formatTime, onClick, className = '' }) => {
         setBackgroundImage(null);
       }
     } catch (error) {
-      console.log('Image not found:', imagePath);
       setBackgroundImage(null);
     }
   };
@@ -97,10 +96,8 @@ const StoreCard = ({ store, isOpen, formatTime, onClick, className = '' }) => {
 
         <div className="store-card-hours">
           <FaClock className="time-icon" />
-          {formatTime(store.open_hour)} - {formatTime(store.close_hour)}
-          <span className={isOpen ? 'status-open' : 'status-closed'}>
-            ({isOpen ? 'OPEN' : 'CLOSED'})
-          </span>
+          <span>Open 24 Hours</span>
+          <span className="status-open">(OPEN)</span>
         </div>
 
         <div className="store-card-genre">
