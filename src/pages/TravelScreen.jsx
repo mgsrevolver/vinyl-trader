@@ -7,7 +7,6 @@ import {
   FaSpinner,
   FaTimes,
   FaWalking,
-  FaBicycle,
   FaSubway,
   FaTaxi,
   FaCoins,
@@ -32,7 +31,6 @@ const boroughCoordinates = {
 // Pre-define transport icons for better performance
 const TRANSPORT_ICONS = {
   walk: <FaWalking />,
-  bike: <FaBicycle />,
   subway: <FaSubway />,
   taxi: <FaTaxi />,
 };
@@ -66,10 +64,16 @@ const TransportOption = memo(
       onClick={onSelect}
       className={`transport-option ${isSelected ? 'selected' : ''}`}
       style={{
-        padding: '8px',
+        padding: '10px 5px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '3px',
+        gap: '6px',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: isSelected ? '#e5f2ff' : '#f5f8ff',
+        borderRadius: '8px',
+        border: isSelected ? '2px solid #3b82f6' : '1px solid #ddd',
+        transition: 'all 0.2s ease',
       }}
     >
       {/* Row 1: Icon and Name */}
@@ -78,12 +82,19 @@ const TransportOption = memo(
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: '8px',
+          gap: '5px',
           marginBottom: '2px',
         }}
       >
-        <span>{transport.icon}</span>
-        <span style={{ fontSize: '16px' }}>{transport.name}</span>
+        <span style={{ fontSize: '20px' }}>{transport.icon}</span>
+        <span
+          style={{
+            fontSize: '16px',
+            fontWeight: isSelected ? 'bold' : 'normal',
+          }}
+        >
+          {transport.name}
+        </span>
       </div>
 
       {/* Row 2: Cost */}
@@ -207,6 +218,9 @@ const TravelScreen = () => {
           const transportMap = new Map();
           transportResponse.data.forEach((method) => {
             const type = method.name.toLowerCase();
+            // Skip bike options
+            if (type.includes('bike')) return;
+
             if (!transportMap.has(type)) {
               transportMap.set(type, method);
             }
@@ -218,16 +232,15 @@ const TravelScreen = () => {
               const type = method.name.toLowerCase();
               let icon = TRANSPORT_ICONS.walk;
 
-              if (type.includes('bike')) icon = TRANSPORT_ICONS.bike;
-              else if (type.includes('subway')) icon = TRANSPORT_ICONS.subway;
+              if (type.includes('subway')) icon = TRANSPORT_ICONS.subway;
               else if (type.includes('taxi')) icon = TRANSPORT_ICONS.taxi;
 
               return { ...method, icon };
             }
           );
 
-          // Limit to 4 options
-          const limitedTransports = transportWithIcons.slice(0, 4);
+          // Limit to 3 options
+          const limitedTransports = transportWithIcons.slice(0, 3);
           setTransportOptions(limitedTransports);
 
           // Pre-select first transport
@@ -370,8 +383,6 @@ const TravelScreen = () => {
       const transportType = transport.name.toLowerCase();
       if (transportType.includes('walk')) {
         time = distanceRecord.walking_time || 3;
-      } else if (transportType.includes('bike')) {
-        time = distanceRecord.bike_time || 2;
       } else if (transportType.includes('subway')) {
         time = distanceRecord.subway_time || 2;
       } else if (transportType.includes('taxi')) {
@@ -457,7 +468,7 @@ const TravelScreen = () => {
 
               <div
                 className="drawer-header"
-                style={{ marginBottom: '4px', paddingBottom: '4px' }}
+                style={{ marginBottom: '12px', paddingBottom: '8px' }}
               >
                 <h2 className="text-xl font-bold">
                   Travel to {selectedNeighborhood.name}
@@ -472,7 +483,7 @@ const TravelScreen = () => {
 
               {/* Stores in neighborhood */}
               {neighborhoodStores.length > 0 && (
-                <div className="mb-1 px-2">
+                <div className="mb-4 px-2">
                   {neighborhoodStores.map((store) => (
                     <StoreInfo
                       key={store.id}
@@ -488,10 +499,11 @@ const TravelScreen = () => {
                 className="transport-grid"
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(2, 1fr)',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
                   gap: '10px',
                   padding: '0 10px',
                   maxHeight: '180px',
+                  marginBottom: '16px',
                 }}
               >
                 {transportOptions.map((transport) => {
@@ -514,12 +526,19 @@ const TravelScreen = () => {
               </div>
 
               {/* Travel button */}
-              <div style={{ padding: '12px 10px 6px 10px' }}>
+              <div style={{ padding: '0 10px 16px 10px' }}>
                 <Button
                   onClick={handleTravel}
                   disabled={isLoading || !selectedTransport}
-                  size="md"
+                  size="lg"
                   fullWidth
+                  style={{
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    padding: '12px',
+                    backgroundColor: !selectedTransport ? '#ccc' : '#3b82f6',
+                    color: 'white',
+                  }}
                 >
                   {isLoading ? (
                     <span className="flex items-center justify-center">
