@@ -4,7 +4,7 @@ A turn-based record trading game where players buy and sell vinyl records across
 
 ## Game Concept
 
-Deli Wars is a game about record flipping where players:
+Vinyl Trader is a game about record flipping where players:
 
 - Buy and sell vinyl records across different stores and boroughs
 - Manage inventory space and cash flow
@@ -46,8 +46,8 @@ Deli Wars is a game about record flipping where players:
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/deli-wars.git
-cd deli-wars
+git clone https://github.com/yourusername/vinyl-trader.git
+cd vinyl-trader
 ```
 
 2. Install dependencies:
@@ -86,19 +86,28 @@ The game relies on several PostgreSQL functions that handle key mechanics:
 ## Project Structure
 
 ```
-deli-wars/
+vinyl-trader/
 ├── src/
 │   ├── components/     # UI components
-│   │   └── ui/         # Reusable UI elements like SlimProductCard
-│   ├── contexts/       # React contexts including GameContext
-│   ├── lib/            # Utilities including Supabase client
-│   ├── pages/          # Main game screens
-│   │   ├── Store.jsx   # Store view for buying/selling
-│   │   ├── Inventory.jsx # Player inventory management
-│   │   └── Game.jsx    # Main game view
-│   └── services/       # API services
-├── public/             # Static assets
-└── database/           # SQL functions and schema
+│   │   └── ui/         # Reusable UI elements
+│   │       ├── SlimProductCard.jsx  # Card for displaying records
+│   │       ├── ProductCard.jsx      # Full-sized record card
+│   │       ├── GameHeader.jsx       # Game status header
+│   │       └── ActionButton.jsx     # Standard action buttons
+│   ├── contexts/
+│   │   └── GameContext.jsx  # Game state management
+│   ├── lib/
+│   │   ├── supabase.js      # Supabase client configuration
+│   │   └── gameActions.js   # Game action functions (buy/sell/etc)
+│   ├── pages/
+│   │   ├── Store.jsx        # Store view for buying/selling
+│   │   ├── Inventory.jsx    # Player inventory management
+│   │   └── Game.jsx         # Main game view/hub
+│   └── services/
+│       └── gameAPI.js       # API interaction service
+├── public/                  # Static assets
+└── sql/                     # SQL functions and schema
+    └── fix_pricing.sql      # Database function definitions
 ```
 
 ## Features In Progress
