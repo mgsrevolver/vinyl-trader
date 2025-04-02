@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { FaStar, FaCoins, FaShoppingCart, FaCompactDisc } from 'react-icons/fa';
 
 const SlimProductCard = ({
@@ -7,18 +7,6 @@ const SlimProductCard = ({
   onAction,
   storePrice, // New prop for the current store price
 }) => {
-  // Debug logging to see what we're getting
-  useEffect(() => {
-    if (actionType === 'sell') {
-      console.log('SlimProductCard item data:', {
-        id: item.id,
-        purchase_price: item.purchase_price,
-        product_name: item.products?.name,
-        condition: item.condition,
-      });
-    }
-  }, [item, actionType]);
-
   // Correctly access the product data through item.products
   const product = item.products || {};
 
@@ -46,28 +34,6 @@ const SlimProductCard = ({
   const profit = showProfit && purchasePrice ? displayPrice - purchasePrice : 0;
   const profitPercentage =
     showProfit && purchasePrice ? (profit / purchasePrice) * 100 : 0;
-
-  // Add debug logging for profit calculation
-  useEffect(() => {
-    if (showProfit) {
-      console.log('Profit calculation:', {
-        id: item.id,
-        purchasePrice,
-        displayPrice,
-        profit,
-        profitPercentage,
-        rawPurchasePrice: item.purchase_price,
-      });
-    }
-  }, [
-    item.id,
-    purchasePrice,
-    displayPrice,
-    profit,
-    profitPercentage,
-    item.purchase_price,
-    showProfit,
-  ]);
 
   // Calculate rarity stars
   const rarityStars = Math.max(
