@@ -1,10 +1,10 @@
-# Vinyl-Trader
+# Vinyl Trader
 
 A turn-based record trading game where players buy and sell vinyl records across different boroughs, aiming to build the most valuable collection.
 
 ## Game Concept
 
-Vinyl-Trader is a game about record flipping where players:
+Vinyl Trader is a game about record flipping where players:
 
 - Buy and sell vinyl records across different stores and boroughs
 - Manage inventory space and cash flow
