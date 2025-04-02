@@ -1,13 +1,45 @@
 # Deli Wars
 
-A turn-based trading game where players take on the role of deli proprietors buying and selling artisanal food products.
+A turn-based record trading game where players buy and sell vinyl records across different boroughs, aiming to build the most valuable collection.
 
-## Project Setup
+## Game Concept
+
+Deli Wars is a game about record flipping where players:
+
+- Buy and sell vinyl records across different stores and boroughs
+- Manage inventory space and cash flow
+- Navigate price fluctuations based on store specialty, record condition, and time of day
+- Build wealth through strategic buying and selling
+- Start with a loan that must be repaid
+
+### Core Mechanics
+
+- **Dynamic Pricing System**: Record prices vary based on:
+  - Condition (Mint, Good, Fair, Poor)
+  - Store specialty genres (80% bonus for matching genres)
+  - Borough location (different areas have price modifiers)
+  - Time of day (12PM-6PM offers best prices)
+- **Limited Resources**:
+  - Limited inventory capacity
+  - Limited actions per day
+  - Time advances with actions
+- **Market Simulation**:
+  - Stores maintain their own inventories
+  - When you sell records to stores, they add them to their inventory
+  - When you buy records, they're removed from store inventory
+
+## Technical Implementation
+
+- **Frontend**: React with Vite, Tailwind CSS for styling
+- **Backend**: Supabase for database, authentication, and real-time updates
+- **Custom SQL Functions**: PostgreSQL functions handle sophisticated pricing mechanics
+
+## Setup Instructions
 
 ### Prerequisites
 
 - Node.js v14+ and npm
-- Supabase account (for database and authentication)
+- Supabase account for database and authentication
 
 ### Installation
 
@@ -24,7 +56,7 @@ cd deli-wars
 npm install
 ```
 
-3. Create a `.env.local` file in the root directory with your Supabase credentials:
+3. Create a `.env.local` file with your Supabase credentials:
 
 ```
 VITE_SUPABASE_URL=your_supabase_url
@@ -33,9 +65,9 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 4. Set up the Supabase database:
 
-   - Create a new Supabase project
-   - Go to the SQL Editor in the Supabase dashboard
-   - Run the SQL queries provided in `database-schema.sql` to create the necessary tables and initial data
+   - Import the SQL schema files into your Supabase project
+   - This includes tables for players, inventory, stores, products, boroughs, and market_inventory
+   - Includes custom PostgreSQL functions for price calculations
 
 5. Start the development server:
 
@@ -43,57 +75,39 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 npm run dev
 ```
 
-## Game Concept
+## Database Functions
 
-Deli Wars is a turn-based trading game where players:
+The game relies on several PostgreSQL functions that handle key mechanics:
 
-- Buy and sell artisanal food products across different neighborhoods
-- Manage inventory and finances
-- Navigate market price fluctuations
-- Compete to accumulate the most wealth in 30 days
-- Must repay their initial loan to win
-
-### Core Mechanics
-
-- **Trading System**: Buy low, sell high across different neighborhoods
-- **Shared Markets**: When a player buys items, they're removed from shared inventory until restock
-- **Limited Inventory**: 100 slots in your "inventory bag" for carrying products
-- **Loans**: Start with a $2,000 loan that must be repaid to win
-- **Player Interactions**: Direct trading and loans between players with negotiable terms
-- **Travel**: Moving between neighborhoods costs 1 day
-- **Random Events**: Price fluctuations, special deals, and other surprises
-
-## Tech Stack
-
-- **Frontend**: React & Tailwind CSS
-- **Backend**: Supabase (Authentication, Database, Storage)
-- **Realtime**: Supabase Realtime for multiplayer synchronization
+- `get_sell_price`: Calculates the price a player receives when selling a record
+- `sell_record`: Handles the complete record selling process
+- `buy_record`: Handles the record buying process
 
 ## Project Structure
 
 ```
 deli-wars/
 ├── src/
-│   ├── assets/         # Static assets
-│   ├── components/     # Reusable UI components
-│   ├── contexts/       # React contexts (Auth, Game)
-│   ├── hooks/          # Custom React hooks
-│   ├── lib/            # Utility libraries (e.g., Supabase client)
-│   ├── pages/          # Main application pages
-│   ├── utils/          # Helper functions
-│   ├── App.jsx         # Main application component
-│   └── main.jsx        # Application entry point
-├── .env.local          # Environment variables (not in repo)
-└── tailwind.config.js  # Tailwind CSS configuration
+│   ├── components/     # UI components
+│   │   └── ui/         # Reusable UI elements like SlimProductCard
+│   ├── contexts/       # React contexts including GameContext
+│   ├── lib/            # Utilities including Supabase client
+│   ├── pages/          # Main game screens
+│   │   ├── Store.jsx   # Store view for buying/selling
+│   │   ├── Inventory.jsx # Player inventory management
+│   │   └── Game.jsx    # Main game view
+│   └── services/       # API services
+├── public/             # Static assets
+└── database/           # SQL functions and schema
 ```
 
-## Development Roadmap
+## Features In Progress
 
-1. **Core Game Logic**: Market system, player actions, day progression
-2. **Basic UI**: Market view, inventory, travel screen
-3. **Multiplayer**: Turn system, notifications
-4. **Player Interactions**: Trading, loans, chat
-5. **Polish**: Onboarding, help system, visual improvements
+- Improving pricing mechanics
+- Market fluctuations
+- Player-to-player trading
+- Multiple game sessions
+- Leaderboards
 
 ## License
 
