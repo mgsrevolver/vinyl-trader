@@ -274,16 +274,10 @@ export const GameProvider = ({ children }) => {
         // Calculate overflow
         const overflow = actionCost - actionsRemaining;
 
-        // Ask if player wants to advance hour
-        const shouldAdvance = window.confirm(
-          `You only have ${actionsRemaining} actions, but need ${actionCost}. ` +
-            `Would you like to advance to the next hour? ` +
-            `(${overflow} actions will be deducted from your next hour's actions)`
+        // Automatically advance to next hour
+        toast(
+          `Advancing to next hour (${overflow} actions will be used from next hour)`
         );
-
-        if (!shouldAdvance) {
-          return { success: false, message: 'Action canceled' };
-        }
 
         // Use whatever actions remain in this hour
         if (actionsRemaining > 0) {

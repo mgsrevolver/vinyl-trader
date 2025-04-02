@@ -1,5 +1,8 @@
 import { supabase, supabaseNoCache, clearSupabaseCache } from '../lib/supabase';
 
+// Cache timeout (2 minutes)
+const CACHE_TIMEOUT = 2 * 60 * 1000;
+
 // Cache for frequently accessed data
 const gameDataCache = {
   games: {},
@@ -9,10 +12,43 @@ const gameDataCache = {
   travelInfo: {},
 };
 
-// Cache timeout (2 minutes)
-const CACHE_TIMEOUT = 2 * 60 * 1000;
+// --- Cache Utility Functions ---
+/**
+ * Retrieves an item from cache if valid, otherwise returns null
+ */
+const getFromCache = (cacheSection, key) => {
+  const now = Date.now();
+  const cached = cacheSection[key];
 
-// GAME MANAGEMENT
+  if (cached && now - cached.timestamp < CACHE_TIMEOUT) {
+    return cached.data;
+  }
+  return null;
+};
+
+/**
+ * Stores an item in cache with current timestamp
+ */
+const setInCache = (cacheSection, key, data) => {
+  cacheSection[key] = {
+    data,
+    timestamp: Date.now(),
+  };
+  return data;
+};
+
+/**
+ * Removes an item from cache
+ */
+const removeFromCache = (cacheSection, key) => {
+  if (cacheSection[key]) {
+    delete cacheSection[key];
+    return true;
+  }
+  return false;
+};
+
+// --- GAME MANAGEMENT ---
 export const createGame = async (playerName) => {
   try {
     // Get or create user ID
@@ -96,6 +132,10 @@ export const createGame = async (playerName) => {
       .eq('id', game.id)
       .single();
 
+    // Cache the game and player data for future use
+    setInCache(gameDataCache.games, game.id, finalGame || game);
+    setInCache(gameDataCache.players, player.id, playerWithBorough);
+
     return {
       success: true,
       gameId: game.id,
@@ -143,16 +183,15 @@ export const joinGame = async (gameId, userId, playerName = null) => {
       }
     }
 
-    // Check if we have a cached game
-    const cachedGame = gameDataCache.games[gameId];
-    let game = null;
+    // Check for cached game
+    let game = getFromCache(gameDataCache.games, gameId);
 
-    if (cachedGame && Date.now() - cachedGame.timestamp < CACHE_TIMEOUT) {
-      game = cachedGame.data;
-    }
+    // Needed data for a new player
+    let defaultBoroughId = null;
 
-    // Fetch only what we need
+    // Fetch missing data
     const fetchPromises = [];
+
     if (!game) {
       fetchPromises.push(
         supabase
@@ -162,22 +201,14 @@ export const joinGame = async (gameId, userId, playerName = null) => {
           .single()
           .then((result) => {
             if (!result.error) {
-              game = result.data;
-              gameDataCache.games[gameId] = {
-                data: game,
-                timestamp: Date.now(),
-              };
+              game = setInCache(gameDataCache.games, gameId, result.data);
             }
           })
       );
     }
 
-    // Get default borough (only if we need it for a new player)
-    let defaultBoroughId = null;
-    if (
-      !gameDataCache.boroughs ||
-      Date.now() - gameDataCache.boroughs.timestamp > CACHE_TIMEOUT
-    ) {
+    // Fetch borough data if needed and not in cache
+    if (!gameDataCache.boroughs?.data) {
       fetchPromises.push(
         supabase
           .from('boroughs')
@@ -220,6 +251,9 @@ export const joinGame = async (gameId, userId, playerName = null) => {
       .maybeSingle();
 
     if (existingPlayer) {
+      // Cache the player data
+      setInCache(gameDataCache.players, existingPlayer.id, existingPlayer);
+
       return {
         success: true,
         gameId,
@@ -256,6 +290,9 @@ export const joinGame = async (gameId, userId, playerName = null) => {
       .update({ username: username })
       .eq('id', newPlayerId);
 
+    // Cache the player data
+    setInCache(gameDataCache.players, newPlayerId, playerData);
+
     return {
       success: true,
       gameId,
@@ -274,8 +311,6 @@ export const loadGame = async (gameId, playerIdToUse) => {
       return { success: false, needsJoin: true, game: null };
     }
 
-    const now = Date.now();
-    const fetchPromises = [];
     const results = {
       game: null,
       player: null,
@@ -283,13 +318,18 @@ export const loadGame = async (gameId, playerIdToUse) => {
       inventory: null,
     };
 
-    // Check if we have cached data
-    const cachedGame = gameDataCache.games[gameId];
-    const cachedPlayer = gameDataCache.players[playerIdToUse];
-    const cachedInventory = gameDataCache.playerInventory[playerIdToUse];
+    // Check cache for data we already have
+    results.game = getFromCache(gameDataCache.games, gameId);
+    results.player = getFromCache(gameDataCache.players, playerIdToUse);
+    results.inventory = getFromCache(
+      gameDataCache.playerInventory,
+      playerIdToUse
+    );
 
     // Only fetch what we need
-    if (!cachedGame || now - cachedGame.timestamp > CACHE_TIMEOUT) {
+    const fetchPromises = [];
+
+    if (!results.game) {
       fetchPromises.push(
         supabase
           .from('games')
@@ -298,19 +338,17 @@ export const loadGame = async (gameId, playerIdToUse) => {
           .single()
           .then((result) => {
             if (!result.error) {
-              results.game = result.data;
-              gameDataCache.games[gameId] = {
-                data: result.data,
-                timestamp: now,
-              };
+              results.game = setInCache(
+                gameDataCache.games,
+                gameId,
+                result.data
+              );
             }
           })
       );
-    } else {
-      results.game = cachedGame.data;
     }
 
-    if (!cachedPlayer || now - cachedPlayer.timestamp > CACHE_TIMEOUT) {
+    if (!results.player) {
       fetchPromises.push(
         supabase
           .from('players')
@@ -319,16 +357,14 @@ export const loadGame = async (gameId, playerIdToUse) => {
           .single()
           .then((result) => {
             if (!result.error) {
-              results.player = result.data;
-              gameDataCache.players[playerIdToUse] = {
-                data: result.data,
-                timestamp: now,
-              };
+              results.player = setInCache(
+                gameDataCache.players,
+                playerIdToUse,
+                result.data
+              );
             }
           })
       );
-    } else {
-      results.player = cachedPlayer.data;
     }
 
     // Always fetch all players (to ensure we have latest status)
@@ -344,7 +380,7 @@ export const loadGame = async (gameId, playerIdToUse) => {
         })
     );
 
-    if (!cachedInventory || now - cachedInventory.timestamp > CACHE_TIMEOUT) {
+    if (!results.inventory) {
       fetchPromises.push(
         supabase
           .from('player_inventory')
@@ -354,19 +390,17 @@ export const loadGame = async (gameId, playerIdToUse) => {
           .eq('player_id', playerIdToUse)
           .then((result) => {
             if (!result.error) {
-              results.inventory = result.data;
-              gameDataCache.playerInventory[playerIdToUse] = {
-                data: result.data,
-                timestamp: now,
-              };
+              results.inventory = setInCache(
+                gameDataCache.playerInventory,
+                playerIdToUse,
+                result.data
+              );
             }
           })
       );
-    } else {
-      results.inventory = cachedInventory.data;
     }
 
-    // Run all fetches in parallel
+    // Execute all fetches in parallel for better performance
     await Promise.all(fetchPromises);
 
     // Check if we have the data we need
@@ -431,9 +465,7 @@ export const startGame = async (gameId) => {
       .eq('id', gameId);
 
     // Clear cache for this game as it's now active
-    if (gameDataCache.games[gameId]) {
-      delete gameDataCache.games[gameId];
-    }
+    removeFromCache(gameDataCache.games, gameId);
 
     return !error;
   } catch {
@@ -495,15 +527,13 @@ export const endPlayerTurn = async (playerId, gameId) => {
         .eq('game_id', gameId),
     ]);
 
-    // Clear cached game data since it's been updated
-    if (gameDataCache.games[gameId]) {
-      delete gameDataCache.games[gameId];
-    }
+    // Clear game and player caches
+    removeFromCache(gameDataCache.games, gameId);
 
     // Clear player cache for all players in this game
     Object.keys(gameDataCache.players).forEach((key) => {
       if (gameDataCache.players[key].data?.game_id === gameId) {
-        delete gameDataCache.players[key];
+        removeFromCache(gameDataCache.players, key);
       }
     });
 
@@ -518,13 +548,11 @@ export const endPlayerTurn = async (playerId, gameId) => {
   }
 };
 
-// PLAYER DATA
+// --- PLAYER DATA ---
 export const fetchPlayerWithBorough = async (playerId) => {
   try {
     // Clear cache to ensure fresh data
-    if (gameDataCache.players[playerId]) {
-      delete gameDataCache.players[playerId];
-    }
+    removeFromCache(gameDataCache.players, playerId);
 
     // Clear supabase cache too for good measure
     clearSupabaseCache();
@@ -541,12 +569,7 @@ export const fetchPlayerWithBorough = async (playerId) => {
     }
 
     // Store fresh data in local cache
-    gameDataCache.players[playerId] = {
-      data,
-      timestamp: Date.now(),
-    };
-
-    return data;
+    return setInCache(gameDataCache.players, playerId, data);
   } catch (err) {
     return null;
   }
@@ -576,12 +599,7 @@ export const fetchPlayerInventory = async (playerId) => {
     }
 
     // Update cache with fresh data
-    gameDataCache.playerInventory[playerId] = {
-      data,
-      timestamp: Date.now(),
-    };
-
-    return data;
+    return setInCache(gameDataCache.playerInventory, playerId, data);
   } catch (err) {
     return null;
   }
@@ -611,11 +629,14 @@ export const updatePlayerActions = async (playerId, actionsUsed) => {
       .single();
 
     // Update player in cache if it exists
-    if (!error && data && gameDataCache.players[playerId]) {
-      gameDataCache.players[playerId].data = {
-        ...gameDataCache.players[playerId].data,
-        actions_used_this_hour: actionsUsed,
-      };
+    if (!error && data) {
+      const cachedPlayer = getFromCache(gameDataCache.players, playerId);
+      if (cachedPlayer) {
+        setInCache(gameDataCache.players, playerId, {
+          ...cachedPlayer,
+          actions_used_this_hour: actionsUsed,
+        });
+      }
     }
 
     return error ? null : data;
@@ -632,11 +653,14 @@ export const setPlayerOverflow = async (playerId, overflow) => {
       .eq('id', playerId);
 
     // Update player in cache if it exists
-    if (!error && gameDataCache.players[playerId]) {
-      gameDataCache.players[playerId].data = {
-        ...gameDataCache.players[playerId].data,
-        actions_overflow: overflow,
-      };
+    if (!error) {
+      const cachedPlayer = getFromCache(gameDataCache.players, playerId);
+      if (cachedPlayer) {
+        setInCache(gameDataCache.players, playerId, {
+          ...cachedPlayer,
+          actions_overflow: overflow,
+        });
+      }
     }
 
     return !error;
@@ -645,16 +669,12 @@ export const setPlayerOverflow = async (playerId, overflow) => {
   }
 };
 
-// GAME DATA
+// --- GAME DATA ---
 export const fetchGame = async (gameId) => {
   try {
     // Check cache first
-    const now = Date.now();
-    const cached = gameDataCache.games[gameId];
-
-    if (cached && now - cached.timestamp < CACHE_TIMEOUT) {
-      return cached.data;
-    }
+    const cached = getFromCache(gameDataCache.games, gameId);
+    if (cached) return cached;
 
     const { data, error } = await supabase
       .from('games')
@@ -665,12 +685,7 @@ export const fetchGame = async (gameId) => {
     if (error) return null;
 
     // Cache the results
-    gameDataCache.games[gameId] = {
-      data,
-      timestamp: now,
-    };
-
-    return data;
+    return setInCache(gameDataCache.games, gameId, data);
   } catch {
     return null;
   }
@@ -704,17 +719,18 @@ export const advanceGameHour = async (gameId, newHour, playerId) => {
       .eq('id', playerId);
 
     // Clear cached game data since it's been updated
-    if (gameDataCache.games[gameId]) {
-      delete gameDataCache.games[gameId];
-    }
+    removeFromCache(gameDataCache.games, gameId);
 
     // Update player in cache if it exists
-    if (!playerError && gameDataCache.players[playerId]) {
-      gameDataCache.players[playerId].data = {
-        ...gameDataCache.players[playerId].data,
-        actions_used_this_hour: overflowActions,
-        actions_overflow: 0,
-      };
+    if (!playerError) {
+      const cachedPlayer = getFromCache(gameDataCache.players, playerId);
+      if (cachedPlayer) {
+        setInCache(gameDataCache.players, playerId, {
+          ...cachedPlayer,
+          actions_used_this_hour: overflowActions,
+          actions_overflow: 0,
+        });
+      }
     }
 
     return !playerError;
@@ -723,17 +739,13 @@ export const advanceGameHour = async (gameId, newHour, playerId) => {
   }
 };
 
-// TRAVEL
+// --- TRAVEL ---
 export const getTravelInfo = async (playerId, transportationId, boroughId) => {
   try {
     // Check cache first with a composite key
     const cacheKey = `${playerId}-${transportationId}-${boroughId}`;
-    const now = Date.now();
-    const cached = gameDataCache.travelInfo[cacheKey];
-
-    if (cached && now - cached.timestamp < CACHE_TIMEOUT) {
-      return cached.data;
-    }
+    const cached = getFromCache(gameDataCache.travelInfo, cacheKey);
+    if (cached) return cached;
 
     const { data, error } = await supabase
       .from('transportation_options')
@@ -748,12 +760,7 @@ export const getTravelInfo = async (playerId, transportationId, boroughId) => {
     const result = data || { action_cost: 1, monetary_cost: 0 };
 
     // Cache the results
-    gameDataCache.travelInfo[cacheKey] = {
-      data: result,
-      timestamp: now,
-    };
-
-    return result;
+    return setInCache(gameDataCache.travelInfo, cacheKey, result);
   } catch {
     return null;
   }
@@ -770,12 +777,15 @@ export const movePlayer = async (playerId, boroughId, newCash) => {
       .eq('id', playerId);
 
     // Update player in cache if it exists
-    if (!error && gameDataCache.players[playerId]) {
-      gameDataCache.players[playerId].data = {
-        ...gameDataCache.players[playerId].data,
-        current_borough_id: boroughId,
-        cash: newCash,
-      };
+    if (!error) {
+      const cachedPlayer = getFromCache(gameDataCache.players, playerId);
+      if (cachedPlayer) {
+        setInCache(gameDataCache.players, playerId, {
+          ...cachedPlayer,
+          current_borough_id: boroughId,
+          cash: newCash,
+        });
+      }
     }
 
     return !error;
@@ -786,10 +796,19 @@ export const movePlayer = async (playerId, boroughId, newCash) => {
 
 // Helper to clear all caches - useful when debugging or when something goes wrong
 export const clearCaches = () => {
-  gameDataCache.games = {};
-  gameDataCache.players = {};
-  gameDataCache.playerInventory = {};
-  gameDataCache.boroughs = null;
-  gameDataCache.travelInfo = {};
+  Object.keys(gameDataCache).forEach((section) => {
+    if (
+      typeof gameDataCache[section] === 'object' &&
+      gameDataCache[section] !== null
+    ) {
+      if (Array.isArray(gameDataCache[section])) {
+        gameDataCache[section] = [];
+      } else {
+        gameDataCache[section] = {};
+      }
+    } else {
+      gameDataCache[section] = null;
+    }
+  });
   return true;
 };

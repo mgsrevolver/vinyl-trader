@@ -313,20 +313,16 @@ const Game = () => {
         toast.error('Failed to use action');
       }
     } else {
-      // Not enough actions - ask to advance hour
-      const shouldAdvance = window.confirm(
-        `You don't have enough actions left. Would you like to advance to the next hour?`
-      );
+      // Not enough actions - automatically advance to the next hour
+      toast('Advancing to next hour...');
+      const { success } = await advanceGameHour();
 
-      if (shouldAdvance) {
-        const { success } = await advanceGameHour();
-        if (success) {
-          // After advancing hour, use action and navigate
-          await useActions(1);
-          navigate(`/store/${gameId}/${boroughId}/${storeId}`);
-        } else {
-          toast.error("Couldn't advance to next hour");
-        }
+      if (success) {
+        // After advancing hour, use action and navigate
+        await useActions(1);
+        navigate(`/store/${gameId}/${boroughId}/${storeId}`);
+      } else {
+        toast.error("Couldn't advance to next hour");
       }
     }
   };
