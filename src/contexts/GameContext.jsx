@@ -226,20 +226,30 @@ export const GameProvider = ({ children }) => {
     );
 
     if (!success) {
+      console.error('Failed to advance game hour');
       return { success: false };
+    }
+
+    // Force clear all caches to ensure fresh data
+    if (gameAPI.clearCaches) {
+      gameAPI.clearCaches();
     }
 
     // Refresh data
     await refreshPlayerData();
 
-    // Update local game state
+    // Update local game state immediately for UI responsiveness
     setCurrentGame((prev) => ({
       ...prev,
       current_hour: newHour,
     }));
 
+    // Force a full data refresh to ensure everything is in sync
+    await fetchGameData();
+
+    console.log(`Game hour advanced to ${newHour}`);
     return { success: true };
-  }, [currentGame, player?.id, refreshPlayerData]);
+  }, [currentGame, player?.id, refreshPlayerData, fetchGameData]);
 
   // Core action economy system
   const attemptAction = useCallback(
@@ -696,6 +706,14 @@ export const GameProvider = ({ children }) => {
         return result;
       }
 
+      // Update game hour locally immediately for responsive UI
+      if (result.allCompleted && result.nextHour) {
+        setCurrentGame((prev) => ({
+          ...prev,
+          current_hour: result.nextHour,
+        }));
+      }
+
       if (result.allCompleted) {
         // Game state was updated on server
         if (result.gameOver) {
@@ -707,10 +725,18 @@ export const GameProvider = ({ children }) => {
         toast.success('Turn completed, waiting for other players');
       }
 
-      // Refresh data
+      // Force clear all caches to ensure fresh data
+      if (gameAPI.clearCaches) {
+        gameAPI.clearCaches();
+      }
+
+      // Force refresh full game data
       await fetchGameData();
+
+      console.log('End turn completed, next hour:', result.nextHour);
       return { success: true };
     } catch (error) {
+      console.error('End turn error:', error);
       toast.error(`Error: ${error.message}`);
       return { success: false, error };
     } finally {

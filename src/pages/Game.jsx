@@ -384,8 +384,8 @@ const Game = () => {
             </h1>
           </div>
 
-          <button onClick={goToTravel} className="travel-button">
-            <FaMapMarkedAlt className="mr-2" /> Travel
+          <button onClick={goToTravel} className="vinyl-travel-button">
+            <FaMapMarkedAlt /> Move
           </button>
         </div>
 

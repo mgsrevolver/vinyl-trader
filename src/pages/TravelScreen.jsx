@@ -626,7 +626,7 @@ const TravelScreen = () => {
       <div className="travel-container">
         {/* Back Button */}
         <button
-          className="back-button bg-white rounded-full w-10 h-10 flex items-center justify-center shadow-md"
+          className="vinyl-back-button"
           style={{
             position: 'absolute',
             top: '56px',

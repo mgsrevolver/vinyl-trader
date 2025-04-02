@@ -21,16 +21,17 @@
 
 /* Core container */
 #root {
-  max-width: 430px;
+  width: 100%;
+  max-width: 100%;
   margin: 0 auto;
-  padding-top: 55px; /* Space for the header */
-  padding-left: 16px; /* Left padding */
-  padding-right: 16px; /* Right padding */
+  padding-top: 100px; /* Reduced from 125px to account for shorter header */
+  padding-left: 16px;
+  padding-right: 16px;
   padding-bottom: 0;
   min-height: 100vh;
 }
 
-/* Add responsive breakpoints */
+/* Responsive adjustments */
 @media screen and (min-width: 768px) {
   #root {
     max-width: 700px;
@@ -49,6 +50,107 @@
   }
 }
 
+/* Status bar (essential for game) */
+.status-bar {
+  background-image: linear-gradient(to bottom, #8b5d33, #6d4824);
+  border: 3px solid #4e341a;
+  position: fixed;
+  z-index: 100;
+  padding: 0.5rem 0;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  left: 0;
+  right: 0;
+}
+
+.status-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 0.25rem;
+  flex-wrap: nowrap;
+}
+
+/* Travel Screen styles */
+.nyc-map-bg {
+  background-image: url('/nyc-map.jpg');
+  background-size: cover;
+  background-position: center;
+  height: 100vh;
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0 auto;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Store page grid layout */
+.grid.grid-cols-1.sm\:grid-cols-2.gap-4 {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1rem;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+@media (min-width: 640px) {
+  .grid.grid-cols-1.sm\:grid-cols-2.gap-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid.grid-cols-1.sm\:grid-cols-2.gap-4 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Inventory grid */
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 1rem;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+@media (min-width: 640px) {
+  .inventory-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .inventory-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* For larger screens */
+@media (min-width: 1280px) {
+  .status-content,
+  .grid.grid-cols-1.sm\:grid-cols-2.gap-4,
+  .inventory-grid {
+    max-width: 1400px;
+    padding: 0 2rem;
+  }
+
+  .grid.grid-cols-1.sm\:grid-cols-2.gap-4,
+  .inventory-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
 /* Set BDC Midnight Records as default for all h1 elements */
 h1 {
   font-family: 'BDC Midnight Records', 'Permanent Marker', cursive !important;
@@ -60,19 +162,16 @@ h1 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  width: 100%;
-  margin-bottom: 1.5rem;
+  margin-bottom: 16px;
+  background: rgba(0, 0, 0, 0.1);
+  padding: 12px 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* Travel button styling */
 .travel-button {
-  background-color: #e5e7eb;
-  border: 1px solid #d1d5db;
-  padding: 0.5rem 1rem;
-  border-radius: 9999px;
-  display: flex;
-  align-items: center;
-  cursor: pointer;
+  display: none; /* Hide the old travel button */
 }
 
 /* === Store Card Styles - more precisely scoped === */
@@ -184,65 +283,6 @@ h1 {
   right: 14px; /* Slight movement on hover */
 }
 
-/* Status bar (essential for game) */
-.status-bar {
-  background-image: linear-gradient(to bottom, #8b5d33, #6d4824);
-  border: 3px solid #4e341a;
-  position: fixed;
-  z-index: 100;
-  padding: 0.5rem 0;
-  display: flex;
-  justify-content: center;
-  width: 100%;
-  max-width: 430px;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-@media screen and (min-width: 768px) {
-  .status-bar {
-    max-width: 700px;
-  }
-}
-
-@media screen and (min-width: 1024px) {
-  .status-bar {
-    max-width: 960px;
-  }
-}
-
-@media screen and (min-width: 1280px) {
-  .status-bar {
-    max-width: 1140px;
-  }
-}
-
-.top-bar {
-  top: 0;
-  border-top: none;
-}
-
-.status-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  max-width: 400px;
-  margin: 0 auto;
-  padding: 0 0.5rem;
-}
-
-.status-stat {
-  display: flex;
-  align-items: center;
-  background-color: rgba(0, 0, 0, 0.25);
-  padding: 0.4rem 0.5rem;
-  border-radius: 4px;
-  color: #f8f8f8;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  font-size: 0.8rem;
-}
-
 /* Basic button styles - renamed to avoid conflicts */
 .game-btn {
   font-weight: 500;
@@ -293,8 +333,8 @@ h1 {
 }
 
 .status-stat svg {
-  margin-right: 0.35rem;
-  font-size: 0.9rem;
+  margin-right: 0.25rem;
+  font-size: 0.8rem;
 }
 
 .status-action {
@@ -338,62 +378,6 @@ h1 {
     margin-right: 0.25rem;
     font-size: 0.8rem;
   }
-}
-
-/* Travel Screen styles */
-.nyc-map-bg {
-  background-image: url('/nyc-map.jpg');
-  background-size: cover;
-  background-position: center;
-  height: 100vh;
-  width: 100%;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  max-width: 430px;
-  margin: 0 auto;
-  padding: 0;
-  overflow: hidden;
-}
-
-@media screen and (min-width: 768px) {
-  .nyc-map-bg {
-    max-width: 700px;
-  }
-}
-
-@media screen and (min-width: 1024px) {
-  .nyc-map-bg {
-    max-width: 960px;
-  }
-}
-
-@media screen and (min-width: 1280px) {
-  .nyc-map-bg {
-    max-width: 1140px;
-  }
-}
-
-.map-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.2);
-  z-index: 1;
-}
-
-.travel-container {
-  position: relative;
-  z-index: 2;
-  padding: 0;
-  height: 100vh;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
 }
 
 /* Location marker styles */
@@ -852,7 +836,7 @@ h1 {
 .product-card {
   width: 100%;
   max-width: 340px;
-  aspect-ratio: 3/4;
+  aspect-ratio: 3/4; /* Keep original ratio but make elements more compact */
   position: relative;
   border-radius: 16px;
   overflow: hidden;
@@ -862,18 +846,6 @@ h1 {
   margin: 0 auto 8px;
   display: flex;
   flex-direction: column;
-}
-
-@media (min-width: 768px) {
-  .product-card {
-    max-width: 280px;
-  }
-}
-
-@media (min-width: 1024px) {
-  .product-card {
-    max-width: 260px;
-  }
 }
 
 .product-card-image {
@@ -1074,31 +1046,6 @@ h1 {
   text-align: center;
   font-size: 0.75rem;
   color: #6b7280;
-}
-
-/* Store page grid layout */
-.grid.grid-cols-1.sm\:grid-cols-2.gap-4 {
-  display: grid;
-  grid-template-columns: repeat(1, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-@media (min-width: 640px) {
-  .grid.grid-cols-1.sm\:grid-cols-2.gap-4 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1024px) {
-  .grid.grid-cols-1.sm\:grid-cols-2.gap-4 {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1280px) {
-  .grid.grid-cols-1.sm\:grid-cols-2.gap-4 {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
 }
 
 /* Product card inner elements */
@@ -1477,4 +1424,530 @@ h1 {
 h2 {
   font-family: 'BDC Midnight Records Thin', 'Permanent Marker', cursive !important;
   letter-spacing: 0.02em;
+}
+
+/* Store card responsive adjustments */
+.store-card-wrapper {
+  background-color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px 48px 16px 16px; /* Simplified padding */
+  margin-bottom: 16px;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.2s ease-out;
+  transform: translateZ(0); /* Hardware acceleration */
+  overflow: hidden;
+  z-index: 1;
+  -webkit-tap-highlight-color: transparent; /* Remove default mobile tap highlight */
+}
+
+@media screen and (min-width: 768px) {
+  .store-card-wrapper {
+    padding: 20px 60px 20px 20px;
+  }
+
+  .store-card-title {
+    font-size: 1.8rem;
+  }
+
+  .store-card-genre,
+  .store-card-hours {
+    font-size: 1.1rem;
+  }
+}
+
+@media screen and (min-width: 1024px) {
+  .store-card-wrapper {
+    padding: 24px 70px 24px 24px;
+  }
+
+  .store-card-title {
+    font-size: 2rem;
+  }
+
+  .store-card-genre,
+  .store-card-hours {
+    font-size: 1.2rem;
+  }
+}
+
+/* Inventory grid responsive improvements */
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 1rem;
+}
+
+@media screen and (min-width: 640px) {
+  .inventory-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media screen and (min-width: 1024px) {
+  .inventory-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media screen and (min-width: 1280px) {
+  .inventory-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.top-bar {
+  top: 0;
+  border-top: none;
+  height: 40px;
+}
+
+.status-stat {
+  display: flex;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.25);
+  padding: 0.25rem 0.35rem;
+  border-radius: 4px;
+  color: #f8f8f8;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  font-size: 0.7rem;
+  margin: 0 2px;
+}
+
+@media (min-width: 640px) {
+  .status-stat {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.8rem;
+    margin: 0 0.2rem;
+  }
+
+  .status-content {
+    padding: 0 1rem;
+  }
+
+  .top-bar {
+    height: auto;
+  }
+}
+
+@media (min-width: 768px) {
+  .status-stat {
+    padding: 0.5rem 0.7rem;
+    font-size: 0.9rem;
+    margin: 0 0.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .status-stat {
+    padding: 0.6rem 0.8rem;
+    font-size: 1rem;
+    margin: 0 0.5rem;
+  }
+}
+
+.map-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.2);
+  z-index: 1;
+}
+
+.travel-container {
+  position: relative;
+  z-index: 2;
+  padding: 0;
+  height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Display classes for responsive content */
+.hide-on-small {
+  display: none;
+}
+
+.show-on-small {
+  display: inline;
+}
+
+@media (min-width: 500px) {
+  .hide-on-small {
+    display: inline;
+  }
+
+  .show-on-small {
+    display: none;
+  }
+}
+
+/* Vinyl-inspired 80s game header */
+.vinyl-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 100;
+  cursor: pointer;
+  background: linear-gradient(135deg, #1e1e1e, #2a2a2a);
+  border-bottom: 3px solid #fb00ff;
+  box-shadow: 0 3px 15px rgba(251, 0, 255, 0.3), 0 6px 10px rgba(0, 0, 0, 0.4);
+  padding-bottom: 2px;
+}
+
+.vinyl-groove {
+  height: 2px;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(251, 0, 255, 0.3),
+    rgba(251, 0, 255, 0.5) 2px,
+    rgba(23, 190, 187, 0.5) 2px,
+    rgba(23, 190, 187, 0.3) 4px
+  );
+  width: 100%;
+}
+
+.vinyl-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 6px 12px;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.vinyl-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2px 6px;
+  color: #ffffff;
+  text-shadow: 0 0 8px rgba(251, 0, 255, 0.7), 0 0 4px rgba(0, 0, 0, 0.9);
+  position: relative;
+}
+
+.vinyl-icon-wrapper {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 3px;
+  border-radius: 50%;
+  font-size: 20px;
+}
+
+.cash-icon {
+  background: linear-gradient(135deg, #ffd700, #ffaa00);
+  color: #000;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.7);
+}
+
+.inventory-icon {
+  background: linear-gradient(135deg, #17bebf, #00d8d8);
+  color: #000;
+  box-shadow: 0 0 10px rgba(23, 190, 191, 0.7);
+}
+
+.action-icon {
+  background: linear-gradient(135deg, #fb00ff, #b500ff);
+  color: #000;
+  box-shadow: 0 0 10px rgba(251, 0, 255, 0.7);
+}
+
+.time-icon {
+  background: linear-gradient(135deg, #ff00aa, #f050f0);
+  color: #000;
+  box-shadow: 0 0 10px rgba(255, 0, 170, 0.7);
+}
+
+.vinyl-stat-value {
+  font-family: 'Montserrat', 'Arial', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 0.5px;
+  margin-top: -2px;
+}
+
+/* Spinning record animation */
+.spinning-record,
+.spinning-disc {
+  animation: spin 4s linear infinite;
+}
+
+.spinning-disc {
+  animation-duration: 2s;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Media queries */
+@media (min-width: 640px) {
+  .vinyl-icon-wrapper {
+    width: 46px;
+    height: 46px;
+    font-size: 24px;
+  }
+
+  .vinyl-stat-value {
+    font-size: 14px;
+  }
+
+  .vinyl-content {
+    padding: 8px 16px;
+  }
+
+  .time-display {
+    font-size: 18px !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .vinyl-icon-wrapper {
+    width: 48px;
+    height: 48px;
+    font-size: 32px; /* Increased from 28px to fill more of background */
+    margin-bottom: 3px;
+  }
+
+  .vinyl-stat-value {
+    font-size: 15px;
+  }
+
+  .vinyl-groove {
+    height: 2px;
+  }
+
+  .time-display {
+    font-size: 20px !important;
+  }
+
+  .vinyl-content {
+    padding: 5px 16px; /* Reduced padding for less chunky header */
+  }
+}
+
+@media (min-width: 1024px) {
+  .vinyl-icon-wrapper {
+    width: 48px;
+    height: 48px;
+    font-size: 32px;
+  }
+
+  .vinyl-content {
+    padding: 4px 16px; /* Even less padding on larger screens */
+  }
+
+  #root {
+    padding-top: 110px; /* Less padding at top for less chunky desktop header */
+  }
+}
+
+/* Neon glow effect for value changes */
+.vinyl-stat-value.change {
+  animation: neonPulse 0.8s ease-in-out;
+}
+
+@keyframes neonPulse {
+  0% {
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.7);
+  }
+  50% {
+    text-shadow: 0 0 20px rgba(251, 0, 255, 1), 0 0 30px rgba(23, 190, 187, 0.8);
+  }
+  100% {
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.7);
+  }
+}
+
+/* Time display styling */
+.time-stat {
+  padding: 4px 10px;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.2));
+  border-radius: 8px;
+  border: 1px solid rgba(251, 0, 255, 0.3);
+}
+
+.time-display {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+  text-shadow: 0 0 8px #fb00ff, 0 0 12px rgba(251, 0, 255, 0.8);
+  margin-top: 0 !important;
+}
+
+@media (min-width: 640px) {
+  .time-display {
+    font-size: 18px !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .time-display {
+    font-size: 20px !important;
+  }
+}
+
+/* Increased icon fill for all sizes */
+.vinyl-icon-wrapper svg {
+  width: 80%;
+  height: 80%;
+}
+
+/* Neon Travel Button - New Retro Style */
+.vinyl-travel-button {
+  background: linear-gradient(135deg, #1e1e1e, #2a2a2a);
+  color: #ffffff;
+  border: 2px solid #fb00ff;
+  box-shadow: 0 0 10px rgba(251, 0, 255, 0.5), 0 0 20px rgba(23, 190, 187, 0.3);
+  padding: 8px 16px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'BDC Midnight Records', 'Permanent Marker', cursive;
+  font-size: 16px;
+  letter-spacing: 1px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  text-shadow: 0 0 5px #fb00ff;
+  min-width: 100px;
+}
+
+.vinyl-travel-button svg {
+  margin-right: 8px;
+  filter: drop-shadow(0 0 3px #fb00ff);
+}
+
+.vinyl-travel-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 15px rgba(251, 0, 255, 0.7), 0 0 25px rgba(23, 190, 187, 0.5);
+}
+
+.vinyl-travel-button:active {
+  transform: translateY(1px);
+}
+
+.vinyl-travel-button::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(90deg, #fb00ff, #17bebf, #fb00ff);
+  z-index: -1;
+  animation: neonBorder 3s linear infinite;
+  opacity: 0.7;
+  border-radius: 6px;
+}
+
+@keyframes neonBorder {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.vinyl-travel-button::after {
+  content: '';
+  position: absolute;
+  width: 30px;
+  height: 100%;
+  top: 0;
+  left: -100px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  transform: skewX(-15deg);
+  animation: shine 3s infinite;
+}
+
+@keyframes shine {
+  0% {
+    left: -100px;
+  }
+  20% {
+    left: 120%;
+  }
+  100% {
+    left: 120%;
+  }
+}
+
+.animate-spin-slow {
+  animation: spin 4s linear infinite;
+}
+
+/* Styled Back Button */
+.vinyl-back-button {
+  background: linear-gradient(135deg, #1e1e1e, #2a2a2a);
+  color: #ffffff;
+  border: 2px solid #17bebf;
+  box-shadow: 0 0 10px rgba(23, 190, 187, 0.5), 0 0 20px rgba(251, 0, 255, 0.3);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.vinyl-back-button svg {
+  filter: drop-shadow(0 0 3px #17bebf);
+  font-size: 20px;
+}
+
+.vinyl-back-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 15px rgba(23, 190, 187, 0.7), 0 0 25px rgba(251, 0, 255, 0.5);
+}
+
+.vinyl-back-button:active {
+  transform: translateY(1px);
+}
+
+.vinyl-back-button::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(90deg, #17bebf, #fb00ff, #17bebf);
+  z-index: -1;
+  animation: neonBorder 3s linear infinite;
+  opacity: 0.7;
+  border-radius: 50%;
+}
+
+.animate-spin-slow {
+  animation: spin 4s linear infinite;
 }

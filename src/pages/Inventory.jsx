@@ -249,9 +249,9 @@ const Inventory = () => {
           <div className="flex items-center">
             <button
               onClick={() => navigate(`/game/${gameId}`)}
-              className="travel-button"
+              className="vinyl-back-button"
             >
-              <FaArrowLeft className="mr-2" /> Back
+              <FaArrowLeft />
             </button>
           </div>
           <h1 className="text-2xl font-bold font-records">INVENTORY</h1>
