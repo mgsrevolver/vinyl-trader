@@ -65,12 +65,28 @@ const Store = () => {
       setLoading(true);
       console.log('Starting price calculation');
 
+      // First, log the player inventory to see if purchase_price exists on the items
+      console.log(
+        'Player inventory items with purchase prices:',
+        playerInventory.map((item) => ({
+          id: item.id,
+          purchase_price: item.purchase_price,
+          condition: item.condition,
+          product_name: item.products?.name,
+        }))
+      );
+
       // ULTRA SIMPLE APPROACH - One item at a time
       const prices = {};
 
       // Process one record at a time
       for (const item of playerInventory) {
         console.log(`Getting price for inventory item: ${item.id}`);
+
+        // Double-check if purchase_price exists before making the call
+        if (item.purchase_price === undefined || item.purchase_price === null) {
+          console.warn(`Item ${item.id} is missing purchase_price!`, item);
+        }
 
         const response = await supabase.rpc('get_sell_price', {
           p_player_id: player.id,
@@ -93,11 +109,19 @@ const Store = () => {
       } else {
         console.log('FALLBACK: All database calls failed, using basic pricing');
 
-        // Fall back to basic pricing
+        // Fall back to basic pricing - ensure purchase_price is used if available
         const basicPrices = {};
         playerInventory.forEach((item) => {
+          // Log each item's purchase_price for debugging
+          console.log(
+            `Fallback pricing for ${item.id}: purchase_price=${item.purchase_price}, condition=${item.condition}`
+          );
+
+          // Default to 10 only if purchase_price is truly missing
+          const basePriceToUse = parseFloat(item.purchase_price) || 10;
+
           basicPrices[item.id] =
-            (item.purchase_price || 10) *
+            basePriceToUse *
             (item.condition === 'Mint'
               ? 1.5
               : item.condition === 'Good'
@@ -721,6 +745,16 @@ const Store = () => {
                 ) : (
                   <div>
                     {playerInventory.flatMap((item, itemIndex) => {
+                      // Debug the item structure to see if purchase_price exists
+                      console.log(`Inventory item ${itemIndex}:`, {
+                        id: item.id,
+                        product_id: item.product_id,
+                        product_name: item.products?.name,
+                        purchase_price: item.purchase_price,
+                        condition: item.condition,
+                        store_price: inventoryStorePrices[item.id],
+                      });
+
                       // Only create one card per inventory item, don't expand by quantity
                       const uniqueKey = `inventory-item-${itemIndex}-${item.id}`;
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { FaStar, FaCoins, FaShoppingCart, FaCompactDisc } from 'react-icons/fa';
 
 const SlimProductCard = ({
@@ -7,15 +7,32 @@ const SlimProductCard = ({
   onAction,
   storePrice, // New prop for the current store price
 }) => {
+  // Debug logging to see what we're getting
+  useEffect(() => {
+    if (actionType === 'sell') {
+      console.log('SlimProductCard item data:', {
+        id: item.id,
+        purchase_price: item.purchase_price,
+        product_name: item.products?.name,
+        condition: item.condition,
+      });
+    }
+  }, [item, actionType]);
+
   // Correctly access the product data through item.products
   const product = item.products || {};
-  const { purchase_price, estimated_current_price } = item;
+
+  // Ensure purchase_price is properly parsed as a number
+  const purchasePrice =
+    item.purchase_price !== undefined ? parseFloat(item.purchase_price) : null;
+
+  const { estimated_current_price } = item;
 
   // Get condition from the item itself (market_inventory) not from products
   const condition = item.condition || product.condition || 'Good';
 
   // Determine the display price based on the context
-  let displayPrice = estimated_current_price || purchase_price || 0;
+  let displayPrice = estimated_current_price || purchasePrice || 0;
 
   // If we're in sell mode and have a store price, use that instead
   if (actionType === 'sell' && storePrice !== undefined) {
@@ -26,9 +43,31 @@ const SlimProductCard = ({
   // Only calculate profit if in sell mode
   const showProfit = actionType === 'sell';
   // If we have a purchase price, calculate the profit/loss
-  const profit = showProfit ? displayPrice - purchase_price : 0;
+  const profit = showProfit && purchasePrice ? displayPrice - purchasePrice : 0;
   const profitPercentage =
-    showProfit && purchase_price ? (profit / purchase_price) * 100 : 0;
+    showProfit && purchasePrice ? (profit / purchasePrice) * 100 : 0;
+
+  // Add debug logging for profit calculation
+  useEffect(() => {
+    if (showProfit) {
+      console.log('Profit calculation:', {
+        id: item.id,
+        purchasePrice,
+        displayPrice,
+        profit,
+        profitPercentage,
+        rawPurchasePrice: item.purchase_price,
+      });
+    }
+  }, [
+    item.id,
+    purchasePrice,
+    displayPrice,
+    profit,
+    profitPercentage,
+    item.purchase_price,
+    showProfit,
+  ]);
 
   // Calculate rarity stars
   const rarityStars = Math.max(
@@ -242,9 +281,9 @@ const SlimProductCard = ({
             ${displayPrice.toFixed(2)}
           </div>
 
-          {showProfit && purchase_price && (
+          {showProfit && purchasePrice && (
             <div style={{ fontSize: '10px', color: '#6b7280' }}>
-              Paid: ${purchase_price.toFixed(2)}
+              Paid: ${purchasePrice.toFixed(2)}
             </div>
           )}
 

@@ -557,17 +557,44 @@ export const fetchPlayerWithBorough = async (playerId) => {
 
 export const fetchPlayerInventory = async (playerId) => {
   try {
+    console.log('Fetching inventory for player:', playerId);
+
     // Get fresh data from the database each time, without relying on cache
     const { data, error } = await supabase
       .from('player_inventory')
       .select(
-        `*, products:product_id (
+        `id, 
+        player_id, 
+        product_id, 
+        quantity, 
+        purchase_price, 
+        condition, 
+        quality_rating,
+        products:product_id (
           id, name, artist, genre, year, rarity, description, image_url, base_price
         )`
       )
       .eq('player_id', playerId);
 
-    if (error) return null;
+    if (error) {
+      console.error('Error fetching inventory:', error);
+      return null;
+    }
+
+    // Debug the returned data to see if purchase_price is included
+    console.log(
+      'Player inventory data sample:',
+      data && data.length > 0
+        ? {
+            first_item: {
+              id: data[0].id,
+              purchase_price: data[0].purchase_price,
+              product_name: data[0].products?.name,
+            },
+            count: data.length,
+          }
+        : 'No items'
+    );
 
     // Update cache with fresh data
     gameDataCache.playerInventory[playerId] = {
@@ -576,7 +603,8 @@ export const fetchPlayerInventory = async (playerId) => {
     };
 
     return data;
-  } catch {
+  } catch (err) {
+    console.error('Exception in fetchPlayerInventory:', err);
     return null;
   }
 };
