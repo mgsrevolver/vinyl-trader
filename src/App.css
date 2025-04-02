@@ -30,6 +30,25 @@
   min-height: 100vh;
 }
 
+/* Add responsive breakpoints */
+@media screen and (min-width: 768px) {
+  #root {
+    max-width: 700px;
+  }
+}
+
+@media screen and (min-width: 1024px) {
+  #root {
+    max-width: 960px;
+  }
+}
+
+@media screen and (min-width: 1280px) {
+  #root {
+    max-width: 1140px;
+  }
+}
+
 /* Set BDC Midnight Records as default for all h1 elements */
 h1 {
   font-family: 'BDC Midnight Records', 'Permanent Marker', cursive !important;
@@ -180,6 +199,24 @@ h1 {
   transform: translateX(-50%);
 }
 
+@media screen and (min-width: 768px) {
+  .status-bar {
+    max-width: 700px;
+  }
+}
+
+@media screen and (min-width: 1024px) {
+  .status-bar {
+    max-width: 960px;
+  }
+}
+
+@media screen and (min-width: 1280px) {
+  .status-bar {
+    max-width: 1140px;
+  }
+}
+
 .top-bar {
   top: 0;
   border-top: none;
@@ -319,6 +356,24 @@ h1 {
   margin: 0 auto;
   padding: 0;
   overflow: hidden;
+}
+
+@media screen and (min-width: 768px) {
+  .nyc-map-bg {
+    max-width: 700px;
+  }
+}
+
+@media screen and (min-width: 1024px) {
+  .nyc-map-bg {
+    max-width: 960px;
+  }
+}
+
+@media screen and (min-width: 1280px) {
+  .nyc-map-bg {
+    max-width: 1140px;
+  }
 }
 
 .map-overlay {
@@ -797,7 +852,7 @@ h1 {
 .product-card {
   width: 100%;
   max-width: 340px;
-  aspect-ratio: 3/4; /* Keep original ratio but make elements more compact */
+  aspect-ratio: 3/4;
   position: relative;
   border-radius: 16px;
   overflow: hidden;
@@ -807,6 +862,18 @@ h1 {
   margin: 0 auto 8px;
   display: flex;
   flex-direction: column;
+}
+
+@media (min-width: 768px) {
+  .product-card {
+    max-width: 280px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .product-card {
+    max-width: 260px;
+  }
 }
 
 .product-card-image {
@@ -1019,6 +1086,18 @@ h1 {
 @media (min-width: 640px) {
   .grid.grid-cols-1.sm\:grid-cols-2.gap-4 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid.grid-cols-1.sm\:grid-cols-2.gap-4 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .grid.grid-cols-1.sm\:grid-cols-2.gap-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 

@@ -29,6 +29,14 @@ export default {
         vintage: ['Playfair Display', 'serif'],
         vinyl: ['Rubik Mono One', 'Impact', 'monospace'],
       },
+      screens: {
+        xs: '375px', // Minimum width you're targeting
+        sm: '640px', // Small tablets
+        md: '768px', // Medium tablets
+        lg: '1024px', // Laptops
+        xl: '1280px', // Desktops
+        '2xl': '1536px', // Large desktops
+      },
     },
   },
   plugins: [],
