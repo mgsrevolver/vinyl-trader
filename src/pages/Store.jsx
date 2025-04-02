@@ -527,8 +527,8 @@ const Store = () => {
         {/* Header Row with back button, store name and cash display */}
         <div className="header-row">
           <div className="flex items-center">
-            <button onClick={goBack} className="travel-button">
-              <FaArrowLeft className="mr-2" /> Back
+            <button onClick={goBack} className="vinyl-back-button">
+              <FaArrowLeft />
             </button>
           </div>
 
