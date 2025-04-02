@@ -130,7 +130,6 @@ const GameHeader = () => {
           </div>
           <div className="vinyl-stat-value">
             <span className="hide-on-small">{actionsRemaining} actions</span>
-            <span className="show-on-small">{actionsRemaining}</span>
           </div>
         </div>
 
