@@ -621,26 +621,26 @@ const TravelScreen = () => {
       className="nyc-map-bg"
       onClick={selectedNeighborhood ? handleCloseDrawer : undefined}
     >
+      {/* Back Button - Moved outside the travel-container */}
+      <button
+        className="vinyl-back-button"
+        style={{
+          position: 'fixed',
+          top: '90px' /* Position below the header */,
+          left: '16px',
+          zIndex: 150 /* Higher than any other element */,
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          navigate(`/game/${gameId}`);
+        }}
+      >
+        <FaArrowLeft />
+      </button>
+
       <div className="map-overlay"></div>
 
       <div className="travel-container">
-        {/* Back Button */}
-        <button
-          className="vinyl-back-button"
-          style={{
-            position: 'absolute',
-            top: '56px',
-            left: '16px',
-            zIndex: 50,
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(`/game/${gameId}`);
-          }}
-        >
-          <FaArrowLeft />
-        </button>
-
         {/* Location Markers */}
         {neighborhoods.map((neighborhood) => (
           <LocationMarker

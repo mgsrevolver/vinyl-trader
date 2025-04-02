@@ -561,7 +561,7 @@ const Store = () => {
           <div className="flex justify-end mb-2">
             <button
               onClick={() => setListView(!listView)}
-              className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-md flex items-center"
+              className="vinyl-view-toggle"
             >
               {listView ? 'Card View' : 'List View'}
             </button>
