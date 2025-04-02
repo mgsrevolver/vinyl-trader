@@ -1,4 +1,4 @@
-# Deli Wars
+# Vinyl Trader
 
 A turn-based record trading game where players buy and sell vinyl records across different boroughs, aiming to build the most valuable collection.
 
